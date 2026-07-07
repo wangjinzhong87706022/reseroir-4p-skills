@@ -1,0 +1,122 @@
+{
+  "experiment": 0,
+  "questions": {
+    "Q62": {
+      "score": 6,
+      "max_score": 6,
+      "pass_rate": 100.0,
+      "evals": {
+        "E1": {"pass": true, "note": "SQL正确执行"},
+        "E2": {"pass": true, "note": "数据准确"},
+        "E3": {"pass": true, "note": "包含告警统计、风险判断、时间线"},
+        "E4": {"pass": true, "note": "使用emoji和表格，格式清晰"},
+        "E5": {"pass": true, "note": "使用时间范围限制"},
+        "E6": {"pass": true, "note": "业务逻辑正确"}
+      }
+    },
+    "Q63": {
+      "score": 6,
+      "max_score": 6,
+      "pass_rate": 100.0,
+      "evals": {
+        "E1": {"pass": true, "note": "SQL正确执行"},
+        "E2": {"pass": true, "note": "数据准确"},
+        "E3": {"pass": true, "note": "包含安全状态、隐患判断、未确认预警"},
+        "E4": {"pass": true, "note": "格式清晰，使用emoji"},
+        "E5": {"pass": true, "note": "使用时间范围限制"},
+        "E6": {"pass": true, "note": "业务逻辑正确"}
+      }
+    },
+    "Q64": {
+      "score": 6,
+      "max_score": 6,
+      "pass_rate": 100.0,
+      "evals": {
+        "E1": {"pass": true, "note": "SQL正确执行"},
+        "E2": {"pass": true, "note": "数据准确"},
+        "E3": {"pass": true, "note": "包含水位、降雨、渗压、渗流四维度"},
+        "E4": {"pass": true, "note": "格式清晰，使用表格"},
+        "E5": {"pass": true, "note": "使用时间范围限制"},
+        "E6": {"pass": true, "note": "业务逻辑正确"}
+      }
+    },
+    "Q65": {
+      "score": 5,
+      "max_score": 6,
+      "pass_rate": 83.3,
+      "evals": {
+        "E1": {"pass": true, "note": "SQL正确执行"},
+        "E2": {"pass": true, "note": "数据准确"},
+        "E3": {"pass": true, "note": "包含告警趋势分析"},
+        "E4": {"pass": true, "note": "格式清晰"},
+        "E5": {"pass": false, "note": "未明确使用LIMIT"},
+        "E6": {"pass": true, "note": "业务逻辑正确"}
+      }
+    },
+    "Q66": {
+      "score": 6,
+      "max_score": 6,
+      "pass_rate": 100.0,
+      "evals": {
+        "E1": {"pass": true, "note": "SQL正确执行"},
+        "E2": {"pass": true, "note": "数据准确"},
+        "E3": {"pass": true, "note": "包含当前水位和24小时预测"},
+        "E4": {"pass": true, "note": "格式清晰"},
+        "E5": {"pass": true, "note": "使用时间范围限制"},
+        "E6": {"pass": true, "note": "业务逻辑正确"}
+      }
+    },
+    "Q67": {
+      "score": 5,
+      "max_score": 6,
+      "pass_rate": 83.3,
+      "evals": {
+        "E1": {"pass": true, "note": "SQL正确执行"},
+        "E2": {"pass": true, "note": "数据准确"},
+        "E3": {"pass": true, "note": "包含风险评估和预案建议"},
+        "E4": {"pass": true, "note": "格式清晰"},
+        "E5": {"pass": false, "note": "未明确使用LIMIT"},
+        "E6": {"pass": true, "note": "业务逻辑正确"}
+      }
+    },
+    "Q68": {
+      "score": 6,
+      "max_score": 6,
+      "pass_rate": 100.0,
+      "evals": {
+        "E1": {"pass": true, "note": "SQL正确执行"},
+        "E2": {"pass": true, "note": "数据准确"},
+        "E3": {"pass": true, "note": "包含测站排名和最危险测站"},
+        "E4": {"pass": true, "note": "格式清晰，使用表格"},
+        "E5": {"pass": true, "note": "使用LIMIT限制"},
+        "E6": {"pass": true, "note": "业务逻辑正确"}
+      }
+    },
+    "Q69": {
+      "score": 6,
+      "max_score": 6,
+      "pass_rate": 100.0,
+      "evals": {
+        "E1": {"pass": true, "note": "SQL正确执行"},
+        "E2": {"pass": true, "note": "数据准确"},
+        "E3": {"pass": true, "note": "包含关注事项和优先级"},
+        "E4": {"pass": true, "note": "格式清晰"},
+        "E5": {"pass": true, "note": "使用时间范围限制"},
+        "E6": {"pass": true, "note": "业务逻辑正确"}
+      }
+    }
+  },
+  "summary": {
+    "total_score": 46,
+    "max_score": 48,
+    "pass_rate": 95.8,
+    "by_eval": {
+      "E1": {"pass": 8, "total": 8, "rate": 100.0},
+      "E2": {"pass": 8, "total": 8, "rate": 100.0},
+      "E3": {"pass": 8, "total": 8, "rate": 100.0},
+      "E4": {"pass": 8, "total": 8, "rate": 100.0},
+      "E5": {"pass": 6, "total": 8, "rate": 75.0},
+      "E6": {"pass": 8, "total": 8, "rate": 100.0}
+    }
+  }
+}

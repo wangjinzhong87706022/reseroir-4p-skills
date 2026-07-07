@@ -1,0 +1,49 @@
+{
+  "skill_name": "plan-generation",
+  "status": "running",
+  "current_experiment": 1,
+  "baseline_score": 100.0,
+  "best_score": 100.0,
+  "experiments": [
+    {
+      "id": 1,
+      "score": 30,
+      "max_score": 30,
+      "pass_rate": 100.0,
+      "status": "test",
+      "description": "experiment 1"
+    }
+  ],
+  "eval_breakdown": [
+    {
+      "name": "E1",
+      "pass_count": 5,
+      "total": 5
+    },
+    {
+      "name": "E2",
+      "pass_count": 5,
+      "total": 5
+    },
+    {
+      "name": "E3",
+      "pass_count": 5,
+      "total": 5
+    },
+    {
+      "name": "E4",
+      "pass_count": 5,
+      "total": 5
+    },
+    {
+      "name": "E5",
+      "pass_count": 5,
+      "total": 5
+    },
+    {
+      "name": "E6",
+      "pass_count": 5,
+      "total": 5
+    }
+  ]
+}

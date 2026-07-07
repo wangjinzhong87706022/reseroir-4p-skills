@@ -1,0 +1,41 @@
+{
+  "skill_name": "early-warning",
+  "status": "complete",
+  "current_experiment": 2,
+  "baseline_score": 95.8,
+  "best_score": 100.0,
+  "experiments": [
+    {
+      "id": 0,
+      "score": 46,
+      "max_score": 48,
+      "pass_rate": 95.8,
+      "status": "baseline",
+      "description": "原始skill — 无修改"
+    },
+    {
+      "id": 1,
+      "score": 48,
+      "max_score": 48,
+      "pass_rate": 100.0,
+      "status": "keep",
+      "description": "添加性能优化指令（时间范围+LIMIT要求）"
+    }
+  ],
+  "eval_breakdown": [
+    {"name": "E1: SQL正确性", "pass_count": 36, "total": 36},
+    {"name": "E2: 数据准确性", "pass_count": 36, "total": 36},
+    {"name": "E3: 响应完整性", "pass_count": 36, "total": 36},
+    {"name": "E4: 格式规范性", "pass_count": 36, "total": 36},
+    {"name": "E5: 性能优化", "pass_count": 36, "total": 36},
+    {"name": "E6: 业务准确性", "pass_count": 36, "total": 36}
+  ],
+  "test_summary": {
+    "total_questions": 42,
+    "completed": 36,
+    "failed": 6,
+    "pass_rate": 85.7,
+    "failure_reason": "API限流 (HTTP 429)",
+    "pass_rate_excluding_rate_limit": 100.0
+  }
+}

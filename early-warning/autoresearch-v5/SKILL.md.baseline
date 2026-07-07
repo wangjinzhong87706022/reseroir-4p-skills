@@ -1,0 +1,270 @@
+---
+name: early-warning
+description: "智慧水利预警系统智能体：告警分析、诊断、预测、问答。读操作直连数据库，写操作走后端 API。"
+version: 5.1.0
+author: SmartTwinRes Team
+license: MIT
+platforms: [linux, windows, macos]
+metadata:
+  hermes:
+    tags: [water-conservancy, early-warning, alarm, analysis, diagnosis]
+    related_skills: [powerelf-data-governance, powerelf-monitor, powerelf-chatbi]
+prerequisites:
+  env_vars: [POWERELF_DB_HOST, POWERELF_DB_PORT, POWERELF_DB_NAME, POWERELF_DB_USER, POWERELF_DB_PASSWORD]
+---
+
+# 智能预警系统 Skill v5.1（速查卡）
+
+## 数据库
+
+```bash
+mysql -h 127.0.0.1 -P 3306 -u root -p123456aA. powerelf_srm_yml
+```
+
+**核心表**: ew_info_message(2021条), ew_info_rules(25条), st_rsvr_r(19万), st_pptn_r(26万)
+
+## 快速查询
+
+```bash
+# 未确认告警
+python3 scripts/query_early_warning.py --type unconfirmed --days 7
+
+# 按级别统计
+python3 scripts/query_early_warning.py --type by_level --days 30
+
+# 最近告警
+python3 scripts/query_early_warning.py --type recent --days 3
+
+# 测站告警
+python3 scripts/query_early_warning.py --type by_station --station 606K2155
+
+# 高级别告警
+python3 scripts/query_early_warning.py --type high_level --days 30
+
+# 告警规则
+python3 scripts/query_early_warning.py --type rules
+
+# 测站排名
+python3 scripts/query_early_warning.py --type station_ranking
+
+# 设备离线
+python3 scripts/query_early_warning.py --type device_offline
+
+# 告警风暴
+python3 scripts/query_early_warning.py --type alarm_storm
+
+# 确认率
+python3 scripts/query_early_warning.py --type confirmation_rate
+```
+
+## 直接SQL（复杂查询）
+
+```sql
+-- 告警详情
+SELECT id, ew_name, st_code, level_r, value, gather_time FROM ew_info_message WHERE id = #{id};
+
+-- 规则阈值
+SELECT name, extend FROM ew_info_rules WHERE name LIKE '%#{关键词}%';
+
+-- 设备当前值
+SELECT rz, tm FROM st_rsvr_r WHERE eq_code = '#{eqCode}' ORDER BY tm DESC LIMIT 1;
+```
+
+## 告警类型
+
+| 值 | 含义 | 值 | 含义 |
+|----|------|----|------|
+| 0 | 水位 | 12 | 设备离线 |
+| 1 | 水质 | 20 | 渗压/流量 |
+| 2 | 雨量 | 40 | 渗流/位移 |
+
+## 告警级别
+
+| 级别 | 含义 | 颜色 | 升级时限 |
+|------|------|------|----------|
+| 1 | 特别严重 | 红色 | 2h→L2, 4h→L3 |
+| 2 | 严重 | 橙色 | 4h→L3, 8h→L4 |
+| 3 | 较重 | 黄色 | 8h→L4, 24h→L5 |
+| 4 | 一般 | 蓝色 | 24h→L5 |
+
+## 字段规范
+
+| 字段 | 说明 | 格式 | 示例 |
+|------|------|------|------|
+| id | 告警ID | bigint | 14898 |
+| ew_name | 告警名称 | varchar(255) | 低水位预警 |
+| st_code | 测站编码 | varchar(255) | 606K2155 |
+| eq_code | 设备编码 | varchar(255) | 606K215502 |
+| ew_type | 告警类型 | char(2) | 0=水位, 2=雨量 |
+| level_r | 告警级别 | char(2) | 1=红, 2=橙, 3=黄, 4=蓝 |
+| value | 告警值 | varchar(255) | 456.5 |
+| gather_time | 采集时间 | datetime | 2026-05-28 16:37:04 |
+| message_confirm | 确认状态 | bit(1) | 0=未确认, 1=已确认 |
+| ew_rules_id | 规则ID | bigint | 230 |
+| create_time | 创建时间 | datetime | 2026-05-28 16:37:04 |
+| deleted | 删除标记 | bit(1) | 0=正常, 1=已删除 |
+| tenant_id | 租户ID | bigint | 18 |
+
+## 业务规则
+
+### NULL值处理
+- 告警值为NULL表示：设备故障、数据传输异常、或非数值型告警（如断面预警）
+- 断面预警（ew_type=5）通常无具体值，基于多点综合判断
+
+### 阈值匹配
+- 告警值与阈值不匹配时，可能是：规则配置错误、数据单位不一致、或数据采集异常
+- 需要对比历史数据和规则配置进行分析
+
+### 升级判断
+- 升级条件：告警持续时间超过阈值 + 告警值仍在预警范围
+- 不升级条件：告警已恢复、告警已确认处理、告警值已回落
+
+### 阈值合理性
+- 分析方法：对比历史数据的最小值、最大值、平均值
+- 合理范围：阈值应在历史数据的95%分位数附近
+
+## 告警处理检查清单
+
+### 处理前
+- [ ] 确认告警真实性
+- [ ] 检查告警级别
+- [ ] 查看告警详情
+- [ ] 检查关联告警
+- [ ] 查看历史案例
+
+### 处理中
+- [ ] 按照处理流程执行
+- [ ] 记录处理过程
+- [ ] 通知相关人员
+- [ ] 更新告警状态
+- [ ] 保存处理证据
+
+### 处理后
+- [ ] 确认告警恢复
+- [ ] 记录处理结果
+- [ ] 生成复盘报告
+- [ ] 更新知识库
+- [ ] 归档处理记录
+
+## 告警报告模板
+
+### 日报模板
+
+```markdown
+# 告警日报
+
+## 一、报告摘要
+- 报告时间：YYYY-MM-DD
+- 告警总数：X条
+- 主要告警：XXX
+- 处理情况：已处理X条，未处理X条
+
+## 二、告警统计
+| 级别 | 数量 | 占比 |
+|------|------|------|
+| L1(红色) | X | X% |
+| L2(橙色) | X | X% |
+| L3(黄色) | X | X% |
+| L4(蓝色) | X | X% |
+
+## 三、告警分析
+- 主要告警类型：XXX
+- 告警趋势：XXX
+- 关联分析：XXX
+
+## 四、处理建议
+| 告警 | 建议 | 负责人 |
+|------|------|--------|
+| XXX | XXX | XXX |
+
+## 五、待确认事项
+- XXX
+
+## 六、风险提示
+- XXX
+```
+
+### 周报模板
+
+```markdown
+# 告警周报
+
+## 一、报告摘要
+- 报告周期：YYYY-MM-DD ~ YYYY-MM-DD
+- 告警总数：X条
+- 与上周对比：+/-X%
+- 主要变化：XXX
+
+## 二、告警趋势
+| 日期 | 告警数 | 环比 |
+|------|--------|------|
+| 周一 | X | +/-X% |
+| 周二 | X | +/-X% |
+| ... | ... | ... |
+
+## 三、测站排名
+| 测站 | 告警数 | 主要类型 |
+|------|--------|----------|
+| XXX | X | XXX |
+| XXX | X | XXX |
+
+## 四、处理效率
+- 平均确认时间：X分钟
+- 平均处理时间：X小时
+- 确认率：X%
+- 处理率：X%
+
+## 五、问题与建议
+- XXX
+```
+
+## 告警复盘模板
+
+```markdown
+# 告警复盘报告
+
+## 一、告警概况
+- 告警ID：XXX
+- 告警名称：XXX
+- 告警级别：XXX
+- 触发时间：XXX
+- 恢复时间：XXX
+
+## 二、处理过程
+| 时间 | 操作 | 操作人 | 结果 |
+|------|------|--------|------|
+| XXX | XXX | XXX | XXX |
+
+## 三、原因分析
+- 直接原因：XXX
+- 根本原因：XXX
+- 关联因素：XXX
+
+## 四、经验教训
+- 做得好的：XXX
+- 需要改进的：XXX
+- 避免再次发生：XXX
+
+## 五、改进措施
+| 措施 | 负责人 | 截止时间 | 验证方式 |
+|------|--------|----------|----------|
+| XXX | XXX | XXX | XXX |
+
+## 六、知识沉淀
+- 更新知识库：XXX
+- 优化规则：XXX
+- 完善流程：XXX
+```
+
+## 按需加载
+
+详细内容请加载对应文件：
+
+- 规则配置: `references/rule-config.md`
+- 根因分析: `references/root-cause.md`
+- 关联分析: `references/correlation.md`
+- 预测预警: `references/prediction.md`
+- 报告生成: `references/report.md`
+- 应急响应: `references/emergency.md`
+- 参数优化: `references/optimization.md`
+- 模式识别: `references/pattern.md`

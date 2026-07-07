@@ -1,0 +1,27 @@
+{
+  "skill_name": "simulation",
+  "status": "paused_checkpoint",
+  "current_experiment": 0,
+  "baseline_score": 79.3,
+  "best_score": 79.3,
+  "total_questions": 98,
+  "completed_questions": 35,
+  "timeout_questions": 20,
+  "missing_questions": 43,
+  "experiments": [
+    {
+      "id": 0,
+      "score": 111,
+      "max_score": 140,
+      "pass_rate": 79.3,
+      "status": "running_baseline",
+      "description": "基线测试部分完成(35/98题)"
+    }
+  ],
+  "eval_breakdown": [
+    {"name": "E1 数据正确性", "pass_count": 29, "total": 35},
+    {"name": "E2 安全约束", "pass_count": 24, "total": 35},
+    {"name": "E3 结构完整", "pass_count": 34, "total": 35},
+    {"name": "E4 知识引用", "pass_count": 24, "total": 35}
+  ]
+}
