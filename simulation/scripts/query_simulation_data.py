@@ -1,0 +1,371 @@
+#!/usr/bin/env python3
+"""
+模拟数据查询脚本 - 直连数据库获取模拟推演所需数据
+用法: python3 query_simulation_data.py --type <查询类型> [参数]
+"""
+
+import argparse
+import json
+import sys
+import os
+import pymysql
+from datetime import datetime, timedelta
+
+# 数据库配置: host/port/name 留默认; user/password 强制从环境变量读取
+# (杜绝硬编码口令; 见 simulation/../plan-generation/docs/db-credential-config.md)
+def _require_env(name):
+    val = os.getenv(name)
+    if not val:
+        sys.exit(
+            f"[DB] 环境变量 {name} 未设置。请配置 SRM_DB_* 环境变量后重试"
+            f"（见 plan-generation/docs/db-credential-config.md）。"
+        )
+    return val
+
+
+DB_CONFIG = {
+    'host': os.getenv('SRM_DB_HOST', '127.0.0.1'),
+    'port': int(os.getenv('SRM_DB_PORT', '3306')),
+    'user': _require_env('SRM_DB_USER'),
+    'password': _require_env('SRM_DB_PASSWORD'),
+    'database': os.getenv('SRM_DB_NAME', 'powerelf_srm_yml'),
+    'charset': 'utf8mb4'
+}
+
+
+def get_connection():
+    """获取数据库连接"""
+    return pymysql.connect(**DB_CONFIG)
+
+
+def execute_query(sql, params=None):
+    """执行查询并返回结果"""
+    conn = get_connection()
+    try:
+        with conn.cursor(pymysql.cursors.DictCursor) as cursor:
+            cursor.execute(sql, params)
+            results = cursor.fetchall()
+            # 将 datetime 对象转为字符串
+            for row in results:
+                for key, value in row.items():
+                    if isinstance(value, datetime):
+                        row[key] = value.strftime('%Y-%m-%d %H:%M:%S')
+                    elif isinstance(value, bytes):
+                        row[key] = int.from_bytes(value, 'big')
+            return results
+    finally:
+        conn.close()
+
+
+def query_current_water_level():
+    """查询当前水位"""
+    sql = """
+    SELECT rz, inq, otq, w, tm
+    FROM st_rsvr_r
+    WHERE deleted = 0 AND rz IS NOT NULL
+    ORDER BY tm DESC
+    LIMIT 1
+    """
+    return execute_query(sql)
+
+
+def query_flood_limit():
+    """查询当前汛限水位"""
+    # 优先从 att_res_flse_lim 表查询（按当前日期匹配汛期）
+    sql = """
+    SELECT flse_lim_stag, flood_season_name, flood_season_start, flood_season_end
+    FROM att_res_flse_lim
+    WHERE flood_season_start <= DATE_FORMAT(NOW(), '%m%d')
+      AND flood_season_end >= DATE_FORMAT(NOW(), '%m%d')
+    ORDER BY flse_lim_stag DESC
+    LIMIT 1
+    """
+    results = execute_query(sql)
+    if results:
+        return results
+
+    # 非汛期：从 att_res_base 查询正常蓄水位作为参考
+    sql2 = """
+    SELECT fl_low_lim_lev as flse_lim_stag,
+           '非汛期' as flood_season_name,
+           NULL as flood_season_start,
+           NULL as flood_season_end
+    FROM att_res_base
+    WHERE fl_low_lim_lev IS NOT NULL AND deleted = 0
+    ORDER BY id
+    LIMIT 1
+    """
+    results2 = execute_query(sql2)
+    if results2:
+        return results2
+
+    # 兜底默认值
+    return [{
+        'flse_lim_stag': 462.5,
+        'flood_season_name': '非汛期',
+        'flood_season_start': None,
+        'flood_season_end': None
+    }]
+
+
+def query_config():
+    """查询系统配置（取最新的一组配置）"""
+    sql = """
+    SELECT config_key, value, tenant_id
+    FROM model_config
+    WHERE config_key IN ('max_water_level', 'min_water_level',
+                         'max_drainage_capacity', 'safe_drainage_capacity')
+      AND deleted = 0
+    ORDER BY tenant_id DESC, id DESC
+    """
+    results = execute_query(sql)
+    # 按 tenant_id 分组，取最常用的一组（或最新的）
+    # 优先取 tenant_id=18（三岔水库所在租户）
+    config_by_tenant = {}
+    for row in results:
+        tid = row.get('tenant_id', 0)
+        if tid not in config_by_tenant:
+            config_by_tenant[tid] = {}
+        config_by_tenant[tid][row['config_key']] = row['value']
+
+    # 优先返回 tenant_id=18，否则返回最新的
+    if 18 in config_by_tenant:
+        return config_by_tenant[18]
+    elif config_by_tenant:
+        return list(config_by_tenant.values())[0]
+    else:
+        return {}
+
+
+def query_water_level_curve():
+    """查询水位-库容曲线（按水位取平均值，消除重复）"""
+    sql = """
+    SELECT stag as water_level, AVG(cap) as capacity
+    FROM att_res_stag_cap_disc
+    GROUP BY stag
+    ORDER BY stag
+    """
+    return execute_query(sql)
+
+
+def query_discharge_curve():
+    """查询泄流曲线"""
+    sql = """
+    SELECT stag as water_level, q as flow
+    FROM att_res_discharge_curve
+    ORDER BY stag
+    """
+    return execute_query(sql)
+
+
+def query_historical_floods(limit=10):
+    """查询历史洪水（已完成状态）"""
+    sql = """
+    SELECT id, name, start_time, end_time, adjusted_water_level,
+           target_water_level, status, rainfall_data, remake
+    FROM srm_flood_history_base
+    WHERE deleted = 0 AND status = 2
+    ORDER BY create_time DESC
+    LIMIT %s
+    """
+    return execute_query(sql, (limit,))
+
+
+def query_flood_detail(flood_id):
+    """查询洪水详情"""
+    sql = """
+    SELECT id, name, start_time, end_time, adjusted_water_level,
+           target_water_level, status, rainfall_data, remake,
+           rsvr_remake, river_remake, pptn_remake
+    FROM srm_flood_history_base
+    WHERE id = %s AND deleted = 0
+    """
+    return execute_query(sql, (flood_id,))
+
+
+def query_flood_result(flood_id):
+    """查询洪水结果（统计摘要 type=7）"""
+    sql = """
+    SELECT type_name, vals, sort
+    FROM srm_flood_history_result
+    WHERE flood_id = %s AND type = 7 AND deleted = 0
+    ORDER BY sort
+    """
+    return execute_query(sql, (flood_id,))
+
+
+def query_flood_result_curve(flood_id):
+    """查询洪水结果曲线（入库/出库/水位过程 type IN 1,2,3,6）"""
+    sql = """
+    SELECT type, type_name, vals, tm, sort
+    FROM srm_flood_history_result
+    WHERE flood_id = %s AND type IN (1, 2, 3, 6) AND deleted = 0
+    ORDER BY type, tm
+    """
+    return execute_query(sql, (flood_id,))
+
+
+def query_flood_inflow(flood_id):
+    """查询洪水入库流量过程"""
+    sql = """
+    SELECT vals, tm, sort
+    FROM srm_flood_history_result
+    WHERE flood_id = %s AND type = 1 AND deleted = 0
+    ORDER BY tm
+    """
+    return execute_query(sql, (flood_id,))
+
+
+def query_flood_statistics(flood_id):
+    """查询洪水统计结果"""
+    sql = """
+    SELECT type_name, vals, sort
+    FROM srm_flood_history_result
+    WHERE flood_id = %s AND type = 7 AND deleted = 0
+    ORDER BY sort
+    """
+    return execute_query(sql, (flood_id,))
+
+
+def query_similar_floods(rainfall, tolerance=0.2, limit=10):
+    """查询相似降雨条件的历史洪水"""
+    sql = """
+    SELECT id, name, start_time, end_time, adjusted_water_level,
+           target_water_level, status, rainfall_data, remake
+    FROM srm_flood_history_base
+    WHERE deleted = 0 AND status = 2 AND rainfall_data IS NOT NULL
+    ORDER BY create_time DESC
+    """
+    all_floods = execute_query(sql)
+    # 在 Python 中按降雨量容差过滤
+    similar = []
+    for flood in all_floods:
+        rd = flood.get('rainfall_data')
+        if rd is None:
+            continue
+        try:
+            if isinstance(rd, str):
+                rd_data = json.loads(rd)
+            else:
+                rd_data = rd
+            # rainfall_data 可能是 dict 或 list
+            if isinstance(rd_data, dict):
+                total_rain = rd_data.get('total', 0)
+            elif isinstance(rd_data, list) and len(rd_data) > 0:
+                # 支持多种降雨数据格式: RN/rn/P/p
+                total_rain = sum(
+                    item.get('RN', item.get('rn', item.get('P', item.get('p', 0))))
+                    for item in rd_data if isinstance(item, dict)
+                )
+            else:
+                continue
+            if total_rain > 0 and abs(total_rain - rainfall) / rainfall <= tolerance:
+                similar.append(flood)
+        except (json.JSONDecodeError, TypeError, ZeroDivisionError):
+            continue
+        if len(similar) >= limit:
+            break
+    return similar
+
+
+def query_scenarios():
+    """查询调度场景模板"""
+    sql = """
+    SELECT id, name, scheduling_target, scheduling_model, extend, def_flg
+    FROM srm_scheduling_scenario
+    WHERE deleted = 0
+    ORDER BY def_flg DESC, create_time DESC
+    """
+    return execute_query(sql)
+
+
+def query_recent_rainfall(hours=48):
+    """查询最近降雨实况"""
+    sql = """
+    SELECT tm, p, dr
+    FROM st_pptn_r
+    WHERE deleted = 0
+      AND tm >= DATE_SUB(NOW(), INTERVAL %s HOUR)
+    ORDER BY tm DESC
+    """
+    return execute_query(sql, (hours,))
+
+
+def query_full_context(hours=48):
+    """获取完整上下文数据"""
+    return {
+        'current_water_level': query_current_water_level(),
+        'flood_limit': query_flood_limit(),
+        'config': query_config(),
+        'water_level_curve': query_water_level_curve(),
+        'discharge_curve': query_discharge_curve(),
+        'historical_floods': query_historical_floods(10),
+        'scenarios': query_scenarios(),
+        'recent_rainfall': query_recent_rainfall(hours),
+    }
+
+
+def main():
+    parser = argparse.ArgumentParser(description='模拟数据查询脚本')
+    parser.add_argument('--type', required=True,
+                        choices=['current_water_level', 'flood_limit', 'config',
+                                 'water_level_curve', 'discharge_curve',
+                                 'historical_floods', 'flood_detail',
+                                 'flood_result', 'flood_result_curve',
+                                 'flood_inflow', 'flood_statistics',
+                                 'similar_floods', 'scenarios',
+                                 'recent_rainfall', 'full_context'],
+                        help='查询类型')
+    parser.add_argument('--flood-id', type=int, help='洪水ID（flood_detail等查询必需）')
+    parser.add_argument('--rainfall', type=float, help='降雨量（similar_floods查询必需）')
+    parser.add_argument('--tolerance', type=float, default=0.2, help='降雨量容差（默认0.2=20%%）')
+    parser.add_argument('--hours', type=int, default=48, help='时间范围（小时）')
+    parser.add_argument('--limit', type=int, default=10, help='返回条数')
+    parser.add_argument('--format', choices=['json', 'table'], default='json',
+                        help='输出格式')
+
+    args = parser.parse_args()
+
+    # 参数校验：需要 --flood-id 的查询类型
+    flood_id_types = ['flood_detail', 'flood_result', 'flood_result_curve',
+                      'flood_inflow', 'flood_statistics']
+    if args.type in flood_id_types and args.flood_id is None:
+        print(json.dumps({'error': f'查询类型 {args.type} 需要 --flood-id 参数'},
+                         ensure_ascii=False))
+        sys.exit(1)
+
+    # 参数校验：需要 --rainfall 的查询类型
+    if args.type == 'similar_floods' and args.rainfall is None:
+        print(json.dumps({'error': '查询类型 similar_floods 需要 --rainfall 参数'},
+                         ensure_ascii=False))
+        sys.exit(1)
+
+    # 执行查询
+    query_map = {
+        'current_water_level': lambda: query_current_water_level(),
+        'flood_limit': lambda: query_flood_limit(),
+        'config': lambda: query_config(),
+        'water_level_curve': lambda: query_water_level_curve(),
+        'discharge_curve': lambda: query_discharge_curve(),
+        'historical_floods': lambda: query_historical_floods(args.limit),
+        'flood_detail': lambda: query_flood_detail(args.flood_id),
+        'flood_result': lambda: query_flood_result(args.flood_id),
+        'flood_result_curve': lambda: query_flood_result_curve(args.flood_id),
+        'flood_inflow': lambda: query_flood_inflow(args.flood_id),
+        'flood_statistics': lambda: query_flood_statistics(args.flood_id),
+        'similar_floods': lambda: query_similar_floods(args.rainfall, args.tolerance, args.limit),
+        'scenarios': lambda: query_scenarios(),
+        'recent_rainfall': lambda: query_recent_rainfall(args.hours),
+        'full_context': lambda: query_full_context(args.hours),
+    }
+
+    try:
+        result = query_map[args.type]()
+        print(json.dumps(result, ensure_ascii=False, indent=2, default=str))
+    except Exception as e:
+        print(json.dumps({'error': str(e)}, ensure_ascii=False))
+        sys.exit(1)
+
+
+if __name__ == '__main__':
+    main()
