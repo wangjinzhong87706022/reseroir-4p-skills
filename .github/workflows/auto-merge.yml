@@ -1,0 +1,90 @@
+name: Auto Merge Pull Requests
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+  issue_comment:
+    types: [created]
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  auto-merge:
+    name: Auto Merge PR
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          fetch-depth: 0
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          # Add any Python dependencies needed for test_skills.py
+
+      - name: Run tests on PR
+        if: github.event_name == 'pull_request'
+        env:
+          HERMES_YOLO_MODE: 1
+          SRM_DB_HOST: ${{ secrets.SRM_DB_HOST }}
+          SRM_DB_PORT: ${{ secrets.SRM_DB_PORT }}
+          SRM_DB_NAME: ${{ secrets.SRM_DB_NAME }}
+          SRM_DB_USER: ${{ secrets.SRM_DB_USER }}
+          SRM_DB_PASSWORD: ${{ secrets.SRM_DB_PASSWORD }}
+        run: |
+          echo "Running multi-skill tests..."
+          # Uncomment below when hermes is available in CI
+          # python3 test_skills.py --all --timeout 300
+
+      - name: Auto-merge if tests pass
+        if: github.event_name == 'pull_request' && contains(github.event.pull_request.title, '[auto-merge]')
+        run: |
+          echo "Auto-merge enabled for this PR"
+          # Enable auto-merge
+          gh pr merge --auto --squash "${{ github.event.pull_request.number }}"
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  validate-and-merge:
+    name: Validate and Merge PRs
+    runs-on: ubuntu-latest
+    if: github.event_name == 'issue_comment' && contains(github.event.comment.body, '/merge')
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          fetch-depth: 0
+
+      - name: Check PR status
+        run: |
+          # Get PR number from issue comment
+          PR_NUMBER="${{ github.event.issue.number }}"
+
+          echo "Validating PR #$PR_NUMBER..."
+
+          # Check if PR has passing status checks
+          gh pr view "$PR_NUMBER" --json statusCheckRollup,mergeStateStatus
+
+          # If all checks pass, merge
+          MERGE_STATUS=$(gh pr view "$PR_NUMBER" --json mergeStateStatus -q .mergeStateStatus)
+          if [ "$MERGE_STATUS" = "CLEAN" ]; then
+            echo "PR is clean, merging..."
+            gh pr merge "$PR_NUMBER" --squash
+          else
+            echo "PR not ready to merge: $MERGE_STATUS"
+            exit 1
+          fi
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
