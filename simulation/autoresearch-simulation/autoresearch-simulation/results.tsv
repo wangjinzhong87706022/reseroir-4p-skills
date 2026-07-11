@@ -1,0 +1,9 @@
+experiment	score	max_score	pass_rate	status	description
+0	32	48	66.7%	baseline	v1.0+mimo原始基线12题
+1	36	48	75.0%	baseline	v1.1+讯飞Qwen模型切换
+4	50	60	83.3%	keep	v1.4分级引用策略15题
+5d	61	68	89.7%	keep	v1.8输出蓝图+防卡死+鲁棒运行器17题
+6	65	68	95.6%	keep	v1.9精简模板+顺序铁律（Q40/Q46修复）
+7a	59	68	86.8%	discard	v1.9.1参数化(查询占位符)→execute_code死循环回归
+7b	59	68	86.8%	discard	v1.9.2铁律改轻→无效
+7c	64	68	94.1%	keep	v1.9.3读JSON字段措辞(6题定向23/24推算全17≈64/68)

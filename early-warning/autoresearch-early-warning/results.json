@@ -1,0 +1,33 @@
+{
+  "skill_name": "early-warning",
+  "status": "complete",
+  "current_experiment": 1,
+  "baseline_score": 99.2,
+  "best_score": 100.0,
+  "experiments": [
+    {
+      "id": 0,
+      "score": 363,
+      "max_score": 366,
+      "pass_rate": 99.2,
+      "status": "baseline",
+      "description": "original skill — no changes"
+    },
+    {
+      "id": 1,
+      "score": 366,
+      "max_score": 366,
+      "pass_rate": 100.0,
+      "status": "keep",
+      "description": "added rule table query note"
+    }
+  ],
+  "eval_breakdown": [
+    {"name": "SQL正确性", "pass_count": 61, "total": 61},
+    {"name": "数据准确性", "pass_count": 61, "total": 61},
+    {"name": "响应完整性", "pass_count": 61, "total": 61},
+    {"name": "格式规范性", "pass_count": 61, "total": 61},
+    {"name": "性能优化", "pass_count": 61, "total": 61},
+    {"name": "业务准确性", "pass_count": 61, "total": 61}
+  ]
+}

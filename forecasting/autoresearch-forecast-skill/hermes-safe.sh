@@ -1,0 +1,1 @@
+/home/scada/SmartTwinRes20260601/SmartTwinRes-skills/simulation/autoresearch-simulation/autoresearch-simulation/hermes-safe.sh

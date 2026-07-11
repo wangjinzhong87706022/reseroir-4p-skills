@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Simulation Skill Autoresearch Dashboard</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #f8f9fa; color: #333; padding: 20px; }
+.header { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 20px 30px; border-radius: 12px; margin-bottom: 20px; }
+.header h1 { font-size: 24px; margin-bottom: 5px; }
+.header .subtitle { opacity: 0.85; font-size: 14px; }
+.stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 15px; margin-bottom: 20px; }
+.stat-card { background: white; border-radius: 10px; padding: 18px; box-shadow: 0 2px 8px rgba(0,0,0,0.06); text-align: center; }
+.stat-card .value { font-size: 32px; font-weight: 700; }
+.stat-card .label { font-size: 13px; color: #666; margin-top: 4px; }
+.stat-card.baseline .value { color: #667eea; }
+.stat-card.best .value { color: #48bb78; }
+.stat-card.current .value { color: #ed8936; }
+.stat-card.improvement .value { color: #38b2ac; }
+.chart-container { background: white; border-radius: 10px; padding: 20px; box-shadow: 0 2px 8px rgba(0,0,0,0.06); margin-bottom: 20px; }
+.chart-container h2 { font-size: 16px; margin-bottom: 15px; color: #555; }
+.charts-row { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 20px; }
+.table-container { background: white; border-radius: 10px; padding: 20px; box-shadow: 0 2px 8px rgba(0,0,0,0.06); margin-bottom: 20px; }
+.table-container h2 { font-size: 16px; margin-bottom: 15px; color: #555; }
+table { width: 100%; border-collapse: collapse; }
+th { background: #f7f8fc; padding: 10px 12px; text-align: left; font-size: 13px; color: #666; border-bottom: 2px solid #e2e8f0; }
+td { padding: 10px 12px; font-size: 13px; border-bottom: 1px solid #f0f0f0; }
+tr:hover td { background: #fafbfe; }
+.status-badge { padding: 3px 10px; border-radius: 12px; font-size: 11px; font-weight: 600; }
+.status-baseline { background: #e8eaf6; color: #5c6bc0; }
+.status-keep { background: #e8f5e9; color: #43a047; }
+.status-discard { background: #fce4ec; color: #e53935; }
+.eval-bar { display: flex; gap: 8px; margin-top: 10px; }
+.eval-item { flex: 1; text-align: center; padding: 10px; border-radius: 8px; background: #f7f8fc; }
+.eval-item .name { font-size: 11px; color: #888; margin-bottom: 4px; }
+.eval-item .pct { font-size: 20px; font-weight: 700; }
+.eval-item .count { font-size: 11px; color: #aaa; }
+.status-line { text-align: center; padding: 10px; font-size: 14px; color: #667eea; font-weight: 500; margin-bottom: 15px; }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <h1>🔬 Simulation Skill Autoresearch</h1>
+  <div class="subtitle">预演 Skill 自动优化 — 12题 × 4评估标准 = 最高48分</div>
+</div>
+
+<div class="stats" id="stats">
+  <div class="stat-card baseline"><div class="value" id="baselineScore">--</div><div class="label">基线分数</div></div>
+  <div class="stat-card best"><div class="value" id="bestScore">--</div><div class="label">最佳分数</div></div>
+  <div class="stat-card current"><div class="value" id="currentExp">--</div><div class="label">当前实验</div></div>
+  <div class="stat-card improvement"><div class="value" id="improvement">--</div><div class="label">提升幅度</div></div>
+</div>
+
+<div class="status-line" id="statusLine">加载中...</div>
+
+<div class="eval-bar" id="evalBar"></div>
+
+<div class="chart-container">
+  <h2>📈 分数趋势</h2>
+  <canvas id="scoreChart" height="80"></canvas>
+</div>
+
+<div class="table-container">
+  <h2>📋 实验记录</h2>
+  <table>
+    <thead><tr><th>#</th><th>分数</th><th>通过率</th><th>状态</th><th>描述</th></tr></thead>
+    <tbody id="expTable"></tbody>
+  </table>
+</div>
+
+<script>
+let chart = null;
+
+async function refresh() {
+  try {
+    const r = await fetch('results.json?' + Date.now());
+    const data = await r.json();
+
+    // Stats
+    document.getElementById('baselineScore').textContent = data.baseline_score + '%';
+    document.getElementById('bestScore').textContent = data.best_score + '%';
+    document.getElementById('currentExp').textContent = '#' + data.current_experiment;
+    const imp = (data.best_score - data.baseline_score).toFixed(1);
+    document.getElementById('improvement').textContent = (imp > 0 ? '+' : '') + imp + '%';
+
+    // Status
+    if (data.status === 'complete') {
+      document.getElementById('statusLine').textContent = '✅ 优化完成！共 ' + data.experiments.length + ' 个实验';
+    } else {
+      document.getElementById('statusLine').textContent = '🔄 运行中 — 实验 #' + data.current_experiment + '...';
+    }
+
+    // Eval breakdown
+    const evalBar = document.getElementById('evalBar');
+    evalBar.innerHTML = data.eval_breakdown.map(e => {
+      const pct = (e.pass_count / e.total * 100).toFixed(0);
+      const color = pct >= 90 ? '#48bb78' : pct >= 70 ? '#ed8936' : '#e53e3e';
+      return `<div class="eval-item"><div class="name">${e.name}</div><div class="pct" style="color:${color}">${pct}%</div><div class="count">${e.pass_count}/${e.total}</div></div>`;
+    }).join('');
+
+    // Table
+    const tbody = document.getElementById('expTable');
+    tbody.innerHTML = data.experiments.map(e => {
+      const cls = e.status === 'baseline' ? 'status-baseline' : e.status === 'keep' ? 'status-keep' : 'status-discard';
+      return `<tr><td>${e.id}</td><td>${e.score}/${e.max_score}</td><td>${e.pass_rate}%</td><td><span class="status-badge ${cls}">${e.status}</span></td><td>${e.description}</td></tr>`;
+    }).join('');
+
+    // Chart
+    const labels = data.experiments.map(e => '#' + e.id);
+    const scores = data.experiments.map(e => e.pass_rate);
+    const colors = data.experiments.map(e => e.status === 'baseline' ? '#667eea' : e.status === 'keep' ? '#48bb78' : '#e53e3e');
+
+    if (chart) chart.destroy();
+    chart = new Chart(document.getElementById('scoreChart'), {
+      type: 'line',
+      data: {
+        labels,
+        datasets: [{
+          label: '通过率 %',
+          data: scores,
+          borderColor: '#667eea',
+          backgroundColor: 'rgba(102,126,234,0.1)',
+          fill: true,
+          tension: 0.3,
+          pointBackgroundColor: colors,
+          pointRadius: 6,
+          pointHoverRadius: 8
+        }]
+      },
+      options: {
+        responsive: true,
+        scales: { y: { min: 0, max: 100, ticks: { callback: v => v + '%' } } },
+        plugins: { legend: { display: false } }
+      }
+    });
+  } catch(e) { console.error(e); }
+}
+
+refresh();
+setInterval(refresh, 10000);
+</script>
+</body>
+</html>

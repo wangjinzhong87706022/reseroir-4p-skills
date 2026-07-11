@@ -1,0 +1,2003 @@
+{
+  "total_questions": 98,
+  "evaluated": 98,
+  "missing": 0,
+  "timeout": 0,
+  "total_score": 332,
+  "max_score": 392,
+  "pass_rate": 84.7,
+  "by_category": {
+    "多方案对比": {
+      "score": 23,
+      "max": 24,
+      "count": 6
+    },
+    "多方案对比_异常": {
+      "score": 15,
+      "max": 16,
+      "count": 4
+    },
+    "多方案对比_边界": {
+      "score": 10,
+      "max": 12,
+      "count": 3
+    },
+    "结果解读": {
+      "score": 15,
+      "max": 24,
+      "count": 6
+    },
+    "结果解读_异常": {
+      "score": 12,
+      "max": 12,
+      "count": 3
+    },
+    "结果解读_边界": {
+      "score": 6,
+      "max": 8,
+      "count": 2
+    },
+    "虚拟场景": {
+      "score": 23,
+      "max": 24,
+      "count": 6
+    },
+    "虚拟场景_异常": {
+      "score": 16,
+      "max": 16,
+      "count": 4
+    },
+    "虚拟场景_边界": {
+      "score": 12,
+      "max": 12,
+      "count": 3
+    },
+    "预演报告": {
+      "score": 12,
+      "max": 16,
+      "count": 4
+    },
+    "预演报告_异常": {
+      "score": 7,
+      "max": 8,
+      "count": 2
+    },
+    "预演报告_边界": {
+      "score": 4,
+      "max": 8,
+      "count": 2
+    },
+    "敏感性分析": {
+      "score": 19,
+      "max": 20,
+      "count": 5
+    },
+    "敏感性分析_异常": {
+      "score": 9,
+      "max": 12,
+      "count": 3
+    },
+    "敏感性分析_边界": {
+      "score": 7,
+      "max": 8,
+      "count": 2
+    },
+    "历史经验": {
+      "score": 24,
+      "max": 24,
+      "count": 6
+    },
+    "历史经验_异常": {
+      "score": 5,
+      "max": 8,
+      "count": 2
+    },
+    "历史经验_边界": {
+      "score": 5,
+      "max": 8,
+      "count": 2
+    },
+    "综合场景": {
+      "score": 27,
+      "max": 28,
+      "count": 7
+    },
+    "业务场景": {
+      "score": 27,
+      "max": 32,
+      "count": 8
+    },
+    "异常边界": {
+      "score": 26,
+      "max": 40,
+      "count": 10
+    },
+    "数据验证": {
+      "score": 28,
+      "max": 32,
+      "count": 8
+    }
+  },
+  "eval_stats": {
+    "E1": {
+      "pass": 81,
+      "total": 98
+    },
+    "E2": {
+      "pass": 80,
+      "total": 98
+    },
+    "E3": {
+      "pass": 91,
+      "total": 98
+    },
+    "E4": {
+      "pass": 80,
+      "total": 98
+    }
+  },
+  "results": [
+    {
+      "qid": 1,
+      "category": "多方案对比",
+      "status": "evaluated",
+      "scores": {
+        "E1": true,
+        "E2": true,
+        "E3": true,
+        "E4": true
+      },
+      "notes": {
+        "E1": "包含实际数值",
+        "E2": "引用了安全约束",
+        "E3": "包含3/3个组件",
+        "E4": "引用了调度规则"
+      },
+      "total": 4,
+      "max": 4
+    },
+    {
+      "qid": 2,
+      "category": "多方案对比",
+      "status": "evaluated",
+      "scores": {
+        "E1": true,
+        "E2": true,
+        "E3": true,
+        "E4": false
+      },
+      "notes": {
+        "E1": "包含实际数值",
+        "E2": "引用了安全约束",
+        "E3": "包含3/3个组件",
+        "E4": "未引用任何知识依据"
+      },
+      "total": 3,
+      "max": 4
+    },
+    {
+      "qid": 3,
+      "category": "多方案对比",
+      "status": "evaluated",
+      "scores": {
+        "E1": true,
+        "E2": true,
+        "E3": true,
+        "E4": true
+      },
+      "notes": {
+        "E1": "包含实际数值",
+        "E2": "引用了安全约束",
+        "E3": "包含3/3个组件",
+        "E4": "引用了调度规则"
+      },
+      "total": 4,
+      "max": 4
+    },
+    {
+      "qid": 4,
+      "category": "多方案对比",
+      "status": "evaluated",
+      "scores": {
+        "E1": true,
+        "E2": true,
+        "E3": true,
+        "E4": true
+      },
+      "notes": {
+        "E1": "包含实际数值",
+        "E2": "引用了安全约束",
+        "E3": "包含3/3个组件",
+        "E4": "引用了调度规则"
+      },
+      "total": 4,
+      "max": 4
+    },
+    {
+      "qid": 5,
+      "category": "多方案对比",
+      "status": "evaluated",
+      "scores": {
+        "E1": true,
+        "E2": true,
+        "E3": true,
+        "E4": true
+      },
+      "notes": {
+        "E1": "包含实际数值",
+        "E2": "引用了安全约束",
+        "E3": "包含3/3个组件",
+        "E4": "引用了调度规则"
+      },
+      "total": 4,
+      "max": 4
+    },
+    {
+      "qid": 6,
+      "category": "多方案对比",
+      "status": "evaluated",
+      "scores": {
+        "E1": true,
+        "E2": true,
+        "E3": true,
+        "E4": true
+      },
+      "notes": {
+        "E1": "包含实际数值",
+        "E2": "引用了安全约束",
+        "E3": "包含3/3个组件",
+        "E4": "引用了调度规则"
+      },
+      "total": 4,
+      "max": 4
+    },
+    {
+      "qid": 7,
+      "category": "多方案对比_异常",
+      "status": "evaluated",
+      "scores": {
+        "E1": true,
+        "E2": true,
+        "E3": true,
+        "E4": true
+      },
+      "notes": {
+        "E1": "包含实际数值",
+        "E2": "引用了安全约束",
+        "E3": "包含3/3个组件",
+        "E4": "引用了调度规则"
+      },
+      "total": 4,
+      "max": 4
+    },
+    {
+      "qid": 8,
+      "category": "多方案对比_异常",
+      "status": "evaluated",
+      "scores": {
+        "E1": true,
+        "E2": true,
+        "E3": true,
+        "E4": true
+      },
+      "notes": {
+        "E1": "包含实际数值",
+        "E2": "引用了安全约束",
+        "E3": "包含3/3个组件",
+        "E4": "引用了法规标准"
+      },
+      "total": 4,
+      "max": 4
+    },
+    {
+      "qid": 9,
+      "category": "多方案对比_异常",
+      "status": "evaluated",
+      "scores": {
+        "E1": true,
+        "E2": false,
+        "E3": true,
+        "E4": true
+      },
+      "notes": {
+        "E1": "包含实际数值",
+        "E2": "未引用安全约束",
+        "E3": "包含3/3个组件",
+        "E4": "引用了历史参考"
+      },
+      "total": 3,
+      "max": 4
+    },
+    {
+      "qid": 10,
+      "category": "多方案对比_异常",
+      "status": "evaluated",
+      "scores": {
+        "E1": true,
+        "E2": true,
+        "E3": true,
+        "E4": true
+      },
+      "notes": {
+        "E1": "包含实际数值",
+        "E2": "引用了安全约束",
+        "E3": "包含3/3个组件",
+        "E4": "引用了法规标准"
+      },
+      "total": 4,
+      "max": 4
+    },
+    {
+      "qid": 11,
+      "category": "多方案对比_边界",
+      "status": "evaluated",
+      "scores": {
+        "E1": false,
+        "E2": true,
+        "E3": true,
+        "E4": false
+      },
+      "notes": {
+        "E1": "缺少具体数据引用",
+        "E2": "引用了安全约束",
+        "E3": "包含2/3个组件",
+        "E4": "未引用任何知识依据"
+      },
+      "total": 2,
+      "max": 4
+    },
+    {
+      "qid": 12,
+      "category": "多方案对比_边界",
+      "status": "evaluated",
+      "scores": {
+        "E1": true,
+        "E2": true,
+        "E3": true,
+        "E4": true
+      },
+      "notes": {
+        "E1": "包含实际数值",
+        "E2": "引用了安全约束",
+        "E3": "包含2/3个组件",
+        "E4": "引用了调度规则"
+      },
+      "total": 4,
+      "max": 4
+    },
+    {
+      "qid": 13,
+      "category": "多方案对比_边界",
+      "status": "evaluated",
+      "scores": {
+        "E1": true,
+        "E2": true,
+        "E3": true,
+        "E4": true
+      },
+      "notes": {
+        "E1": "包含实际数值",
+        "E2": "引用了安全约束",
+        "E3": "包含3/3个组件",
+        "E4": "引用了调度规则"
+      },
+      "total": 4,
+      "max": 4
+    },
+    {
+      "qid": 14,
+      "category": "结果解读",
+      "status": "evaluated",
+      "scores": {
+        "E1": true,
+        "E2": true,
+        "E3": true,
+        "E4": false
+      },
+      "notes": {
+        "E1": "包含实际数值",
+        "E2": "引用了安全约束",
+        "E3": "包含3/3个组件",
+        "E4": "未引用任何知识依据"
+      },
+      "total": 3,
+      "max": 4
+    },
+    {
+      "qid": 15,
+      "category": "结果解读",
+      "status": "evaluated",
+      "scores": {
+        "E1": true,
+        "E2": true,
+        "E3": true,
+        "E4": false
+      },
+      "notes": {
+        "E1": "包含实际数值",
+        "E2": "引用了安全约束",
+        "E3": "包含3/3个组件",
+        "E4": "未引用任何知识依据"
+      },
+      "total": 3,
+      "max": 4
+    },
+    {
+      "qid": 16,
+      "category": "结果解读",
+      "status": "evaluated",
+      "scores": {
+        "E1": true,
+        "E2": true,
+        "E3": true,
+        "E4": false
+      },
+      "notes": {
+        "E1": "包含实际数值",
+        "E2": "引用了安全约束",
+        "E3": "包含2/3个组件",
+        "E4": "未引用任何知识依据"
+      },
+      "total": 3,
+      "max": 4
+    },
+    {
+      "qid": 17,
+      "category": "结果解读",
+      "status": "evaluated",
+      "scores": {
+        "E1": false,
+        "E2": false,
+        "E3": true,
+        "E4": false
+      },
+      "notes": {
+        "E1": "缺少具体数据引用",
+        "E2": "未引用安全约束",
+        "E3": "包含3/3个组件",
+        "E4": "未引用任何知识依据"
+      },
+      "total": 1,
+      "max": 4
+    },
+    {
+      "qid": 18,
+      "category": "结果解读",
+      "status": "evaluated",
+      "scores": {
+        "E1": true,
+        "E2": false,
+        "E3": true,
+        "E4": false
+      },
+      "notes": {
+        "E1": "包含实际数值",
+        "E2": "未引用安全约束",
+        "E3": "包含2/3个组件",
+        "E4": "未引用任何知识依据"
+      },
+      "total": 2,
+      "max": 4
+    },
+    {
+      "qid": 19,
+      "category": "结果解读",
+      "status": "evaluated",
+      "scores": {
+        "E1": true,
+        "E2": true,
+        "E3": true,
+        "E4": false
+      },
+      "notes": {
+        "E1": "包含实际数值",
+        "E2": "引用了安全约束",
+        "E3": "包含3/3个组件",
+        "E4": "未引用任何知识依据"
+      },
+      "total": 3,
+      "max": 4
+    },
+    {
+      "qid": 20,
+      "category": "结果解读_异常",
+      "status": "evaluated",
+      "scores": {
+        "E1": true,
+        "E2": true,
+        "E3": true,
+        "E4": true
+      },
+      "notes": {
+        "E1": "包含实际数值",
+        "E2": "引用了安全约束",
+        "E3": "包含3/3个组件",
+        "E4": "引用了调度规则"
+      },
+      "total": 4,
+      "max": 4
+    },
+    {
+      "qid": 21,
+      "category": "结果解读_异常",
+      "status": "evaluated",
+      "scores": {
+        "E1": true,
+        "E2": true,
+        "E3": true,
+        "E4": true
+      },
+      "notes": {
+        "E1": "包含实际数值",
+        "E2": "引用了安全约束",
+        "E3": "包含2/3个组件",
+        "E4": "引用了历史参考"
+      },
+      "total": 4,
+      "max": 4
+    },
+    {
+      "qid": 22,
+      "category": "结果解读_异常",
+      "status": "evaluated",
+      "scores": {
+        "E1": true,
+        "E2": true,
+        "E3": true,
+        "E4": true
+      },
+      "notes": {
+        "E1": "包含实际数值",
+        "E2": "引用了安全约束",
+        "E3": "包含3/3个组件",
+        "E4": "引用了调度规则"
+      },
+      "total": 4,
+      "max": 4
+    },
+    {
+      "qid": 23,
+      "category": "结果解读_边界",
+      "status": "evaluated",
+      "scores": {
+        "E1": true,
+        "E2": false,
+        "E3": true,
+        "E4": true
+      },
+      "notes": {
+        "E1": "包含实际数值",
+        "E2": "未引用安全约束",
+        "E3": "包含3/3个组件",
+        "E4": "引用了历史参考"
+      },
+      "total": 3,
+      "max": 4
+    },
+    {
+      "qid": 24,
+      "category": "结果解读_边界",
+      "status": "evaluated",
+      "scores": {
+        "E1": true,
+        "E2": false,
+        "E3": true,
+        "E4": true
+      },
+      "notes": {
+        "E1": "包含实际数值",
+        "E2": "未引用安全约束",
+        "E3": "包含2/3个组件",
+        "E4": "引用了历史参考"
+      },
+      "total": 3,
+      "max": 4
+    },
+    {
+      "qid": 25,
+      "category": "虚拟场景",
+      "status": "evaluated",
+      "scores": {
+        "E1": true,
+        "E2": true,
+        "E3": true,
+        "E4": true
+      },
+      "notes": {
+        "E1": "包含实际数值",
+        "E2": "引用了安全约束",
+        "E3": "包含3/3个组件",
+        "E4": "引用了调度规则"
+      },
+      "total": 4,
+      "max": 4
+    },
+    {
+      "qid": 26,
+      "category": "虚拟场景",
+      "status": "evaluated",
+      "scores": {
+        "E1": true,
+        "E2": true,
+        "E3": true,
+        "E4": false
+      },
+      "notes": {
+        "E1": "包含实际数值",
+        "E2": "引用了安全约束",
+        "E3": "包含3/3个组件",
+        "E4": "未引用任何知识依据"
+      },
+      "total": 3,
+      "max": 4
+    },
+    {
+      "qid": 27,
+      "category": "虚拟场景",
+      "status": "evaluated",
+      "scores": {
+        "E1": true,
+        "E2": true,
+        "E3": true,
+        "E4": true
+      },
+      "notes": {
+        "E1": "包含实际数值",
+        "E2": "引用了安全约束",
+        "E3": "包含3/3个组件",
+        "E4": "引用了调度规则"
+      },
+      "total": 4,
+      "max": 4
+    },
+    {
+      "qid": 28,
+      "category": "虚拟场景",
+      "status": "evaluated",
+      "scores": {
+        "E1": true,
+        "E2": true,
+        "E3": true,
+        "E4": true
+      },
+      "notes": {
+        "E1": "包含实际数值",
+        "E2": "引用了安全约束",
+        "E3": "包含3/3个组件",
+        "E4": "引用了调度规则"
+      },
+      "total": 4,
+      "max": 4
+    },
+    {
+      "qid": 29,
+      "category": "虚拟场景",
+      "status": "evaluated",
+      "scores": {
+        "E1": true,
+        "E2": true,
+        "E3": true,
+        "E4": true
+      },
+      "notes": {
+        "E1": "包含实际数值",
+        "E2": "引用了安全约束",
+        "E3": "包含3/3个组件",
+        "E4": "引用了调度规则"
+      },
+      "total": 4,
+      "max": 4
+    },
+    {
+      "qid": 30,
+      "category": "虚拟场景",
+      "status": "evaluated",
+      "scores": {
+        "E1": true,
+        "E2": true,
+        "E3": true,
+        "E4": true
+      },
+      "notes": {
+        "E1": "包含实际数值",
+        "E2": "引用了安全约束",
+        "E3": "包含3/3个组件",
+        "E4": "引用了调度规则"
+      },
+      "total": 4,
+      "max": 4
+    },
+    {
+      "qid": 31,
+      "category": "虚拟场景_异常",
+      "status": "evaluated",
+      "scores": {
+        "E1": true,
+        "E2": true,
+        "E3": true,
+        "E4": true
+      },
+      "notes": {
+        "E1": "包含实际数值",
+        "E2": "引用了安全约束",
+        "E3": "包含3/3个组件",
+        "E4": "引用了调度规则"
+      },
+      "total": 4,
+      "max": 4
+    },
+    {
+      "qid": 32,
+      "category": "虚拟场景_异常",
+      "status": "evaluated",
+      "scores": {
+        "E1": true,
+        "E2": true,
+        "E3": true,
+        "E4": true
+      },
+      "notes": {
+        "E1": "包含实际数值",
+        "E2": "引用了安全约束",
+        "E3": "包含3/3个组件",
+        "E4": "引用了调度规则"
+      },
+      "total": 4,
+      "max": 4
+    },
+    {
+      "qid": 33,
+      "category": "虚拟场景_异常",
+      "status": "evaluated",
+      "scores": {
+        "E1": true,
+        "E2": true,
+        "E3": true,
+        "E4": true
+      },
+      "notes": {
+        "E1": "包含实际数值",
+        "E2": "引用了安全约束",
+        "E3": "包含3/3个组件",
+        "E4": "引用了调度规则"
+      },
+      "total": 4,
+      "max": 4
+    },
+    {
+      "qid": 34,
+      "category": "虚拟场景_异常",
+      "status": "evaluated",
+      "scores": {
+        "E1": true,
+        "E2": true,
+        "E3": true,
+        "E4": true
+      },
+      "notes": {
+        "E1": "包含实际数值",
+        "E2": "引用了安全约束",
+        "E3": "包含3/3个组件",
+        "E4": "引用了调度规则"
+      },
+      "total": 4,
+      "max": 4
+    },
+    {
+      "qid": 35,
+      "category": "虚拟场景_边界",
+      "status": "evaluated",
+      "scores": {
+        "E1": true,
+        "E2": true,
+        "E3": true,
+        "E4": true
+      },
+      "notes": {
+        "E1": "包含实际数值",
+        "E2": "引用了安全约束",
+        "E3": "包含3/3个组件",
+        "E4": "引用了调度规则"
+      },
+      "total": 4,
+      "max": 4
+    },
+    {
+      "qid": 36,
+      "category": "虚拟场景_边界",
+      "status": "evaluated",
+      "scores": {
+        "E1": true,
+        "E2": true,
+        "E3": true,
+        "E4": true
+      },
+      "notes": {
+        "E1": "包含实际数值",
+        "E2": "引用了安全约束",
+        "E3": "包含3/3个组件",
+        "E4": "引用了调度规则"
+      },
+      "total": 4,
+      "max": 4
+    },
+    {
+      "qid": 37,
+      "category": "虚拟场景_边界",
+      "status": "evaluated",
+      "scores": {
+        "E1": true,
+        "E2": true,
+        "E3": true,
+        "E4": true
+      },
+      "notes": {
+        "E1": "包含实际数值",
+        "E2": "引用了安全约束",
+        "E3": "包含3/3个组件",
+        "E4": "引用了调度规则"
+      },
+      "total": 4,
+      "max": 4
+    },
+    {
+      "qid": 38,
+      "category": "预演报告",
+      "status": "evaluated",
+      "scores": {
+        "E1": true,
+        "E2": true,
+        "E3": true,
+        "E4": true
+      },
+      "notes": {
+        "E1": "包含实际数值",
+        "E2": "引用了安全约束",
+        "E3": "包含3/3个组件",
+        "E4": "引用了历史参考"
+      },
+      "total": 4,
+      "max": 4
+    },
+    {
+      "qid": 39,
+      "category": "预演报告",
+      "status": "evaluated",
+      "scores": {
+        "E1": true,
+        "E2": true,
+        "E3": true,
+        "E4": true
+      },
+      "notes": {
+        "E1": "包含实际数值",
+        "E2": "引用了安全约束",
+        "E3": "包含3/3个组件",
+        "E4": "引用了法规标准"
+      },
+      "total": 4,
+      "max": 4
+    },
+    {
+      "qid": 40,
+      "category": "预演报告",
+      "status": "evaluated",
+      "scores": {
+        "E1": true,
+        "E2": false,
+        "E3": true,
+        "E4": false
+      },
+      "notes": {
+        "E1": "包含实际数值",
+        "E2": "未引用安全约束",
+        "E3": "包含3/3个组件",
+        "E4": "未引用任何知识依据"
+      },
+      "total": 2,
+      "max": 4
+    },
+    {
+      "qid": 41,
+      "category": "预演报告",
+      "status": "evaluated",
+      "scores": {
+        "E1": true,
+        "E2": false,
+        "E3": true,
+        "E4": false
+      },
+      "notes": {
+        "E1": "包含实际数值",
+        "E2": "未引用安全约束",
+        "E3": "包含3/3个组件",
+        "E4": "未引用任何知识依据"
+      },
+      "total": 2,
+      "max": 4
+    },
+    {
+      "qid": 42,
+      "category": "预演报告_异常",
+      "status": "evaluated",
+      "scores": {
+        "E1": true,
+        "E2": true,
+        "E3": true,
+        "E4": true
+      },
+      "notes": {
+        "E1": "包含实际数值",
+        "E2": "引用了安全约束",
+        "E3": "包含3/3个组件",
+        "E4": "引用了调度规则"
+      },
+      "total": 4,
+      "max": 4
+    },
+    {
+      "qid": 43,
+      "category": "预演报告_异常",
+      "status": "evaluated",
+      "scores": {
+        "E1": true,
+        "E2": false,
+        "E3": true,
+        "E4": true
+      },
+      "notes": {
+        "E1": "包含实际数值",
+        "E2": "未引用安全约束",
+        "E3": "包含3/3个组件",
+        "E4": "引用了调度规则"
+      },
+      "total": 3,
+      "max": 4
+    },
+    {
+      "qid": 44,
+      "category": "预演报告_边界",
+      "status": "evaluated",
+      "scores": {
+        "E1": true,
+        "E2": false,
+        "E3": true,
+        "E4": false
+      },
+      "notes": {
+        "E1": "包含实际数值",
+        "E2": "未引用安全约束",
+        "E3": "包含2/3个组件",
+        "E4": "未引用任何知识依据"
+      },
+      "total": 2,
+      "max": 4
+    },
+    {
+      "qid": 45,
+      "category": "预演报告_边界",
+      "status": "evaluated",
+      "scores": {
+        "E1": true,
+        "E2": false,
+        "E3": true,
+        "E4": false
+      },
+      "notes": {
+        "E1": "包含实际数值",
+        "E2": "未引用安全约束",
+        "E3": "包含2/3个组件",
+        "E4": "未引用任何知识依据"
+      },
+      "total": 2,
+      "max": 4
+    },
+    {
+      "qid": 46,
+      "category": "敏感性分析",
+      "status": "evaluated",
+      "scores": {
+        "E1": true,
+        "E2": true,
+        "E3": true,
+        "E4": true
+      },
+      "notes": {
+        "E1": "包含实际数值",
+        "E2": "引用了安全约束",
+        "E3": "包含3/3个组件",
+        "E4": "引用了调度规则"
+      },
+      "total": 4,
+      "max": 4
+    },
+    {
+      "qid": 47,
+      "category": "敏感性分析",
+      "status": "evaluated",
+      "scores": {
+        "E1": true,
+        "E2": true,
+        "E3": true,
+        "E4": true
+      },
+      "notes": {
+        "E1": "包含实际数值",
+        "E2": "引用了安全约束",
+        "E3": "包含3/3个组件",
+        "E4": "引用了调度规则"
+      },
+      "total": 4,
+      "max": 4
+    },
+    {
+      "qid": 48,
+      "category": "敏感性分析",
+      "status": "evaluated",
+      "scores": {
+        "E1": true,
+        "E2": true,
+        "E3": true,
+        "E4": true
+      },
+      "notes": {
+        "E1": "包含实际数值",
+        "E2": "引用了安全约束",
+        "E3": "包含3/3个组件",
+        "E4": "引用了调度规则"
+      },
+      "total": 4,
+      "max": 4
+    },
+    {
+      "qid": 49,
+      "category": "敏感性分析",
+      "status": "evaluated",
+      "scores": {
+        "E1": true,
+        "E2": true,
+        "E3": true,
+        "E4": true
+      },
+      "notes": {
+        "E1": "包含实际数值",
+        "E2": "引用了安全约束",
+        "E3": "包含3/3个组件",
+        "E4": "引用了调度规则"
+      },
+      "total": 4,
+      "max": 4
+    },
+    {
+      "qid": 50,
+      "category": "敏感性分析",
+      "status": "evaluated",
+      "scores": {
+        "E1": true,
+        "E2": true,
+        "E3": true,
+        "E4": false
+      },
+      "notes": {
+        "E1": "包含实际数值",
+        "E2": "引用了安全约束",
+        "E3": "包含3/3个组件",
+        "E4": "未引用任何知识依据"
+      },
+      "total": 3,
+      "max": 4
+    },
+    {
+      "qid": 51,
+      "category": "敏感性分析_异常",
+      "status": "evaluated",
+      "scores": {
+        "E1": true,
+        "E2": true,
+        "E3": true,
+        "E4": true
+      },
+      "notes": {
+        "E1": "包含实际数值",
+        "E2": "引用了安全约束",
+        "E3": "包含3/3个组件",
+        "E4": "引用了调度规则"
+      },
+      "total": 4,
+      "max": 4
+    },
+    {
+      "qid": 52,
+      "category": "敏感性分析_异常",
+      "status": "evaluated",
+      "scores": {
+        "E1": false,
+        "E2": false,
+        "E3": true,
+        "E4": false
+      },
+      "notes": {
+        "E1": "缺少具体数据引用",
+        "E2": "未引用安全约束",
+        "E3": "包含2/3个组件",
+        "E4": "未引用任何知识依据"
+      },
+      "total": 1,
+      "max": 4
+    },
+    {
+      "qid": 53,
+      "category": "敏感性分析_异常",
+      "status": "evaluated",
+      "scores": {
+        "E1": true,
+        "E2": true,
+        "E3": true,
+        "E4": true
+      },
+      "notes": {
+        "E1": "包含实际数值",
+        "E2": "引用了安全约束",
+        "E3": "包含3/3个组件",
+        "E4": "引用了调度规则"
+      },
+      "total": 4,
+      "max": 4
+    },
+    {
+      "qid": 54,
+      "category": "敏感性分析_边界",
+      "status": "evaluated",
+      "scores": {
+        "E1": true,
+        "E2": false,
+        "E3": true,
+        "E4": true
+      },
+      "notes": {
+        "E1": "包含实际数值",
+        "E2": "未引用安全约束",
+        "E3": "包含2/3个组件",
+        "E4": "引用了历史参考"
+      },
+      "total": 3,
+      "max": 4
+    },
+    {
+      "qid": 55,
+      "category": "敏感性分析_边界",
+      "status": "evaluated",
+      "scores": {
+        "E1": true,
+        "E2": true,
+        "E3": true,
+        "E4": true
+      },
+      "notes": {
+        "E1": "包含实际数值",
+        "E2": "引用了安全约束",
+        "E3": "包含2/3个组件",
+        "E4": "引用了历史参考"
+      },
+      "total": 4,
+      "max": 4
+    },
+    {
+      "qid": 56,
+      "category": "历史经验",
+      "status": "evaluated",
+      "scores": {
+        "E1": true,
+        "E2": true,
+        "E3": true,
+        "E4": true
+      },
+      "notes": {
+        "E1": "包含实际数值",
+        "E2": "引用了安全约束",
+        "E3": "包含3/3个组件",
+        "E4": "引用了调度规则"
+      },
+      "total": 4,
+      "max": 4
+    },
+    {
+      "qid": 57,
+      "category": "历史经验",
+      "status": "evaluated",
+      "scores": {
+        "E1": true,
+        "E2": true,
+        "E3": true,
+        "E4": true
+      },
+      "notes": {
+        "E1": "包含实际数值",
+        "E2": "引用了安全约束",
+        "E3": "包含3/3个组件",
+        "E4": "引用了法规标准"
+      },
+      "total": 4,
+      "max": 4
+    },
+    {
+      "qid": 58,
+      "category": "历史经验",
+      "status": "evaluated",
+      "scores": {
+        "E1": true,
+        "E2": true,
+        "E3": true,
+        "E4": true
+      },
+      "notes": {
+        "E1": "包含实际数值",
+        "E2": "引用了安全约束",
+        "E3": "包含3/3个组件",
+        "E4": "引用了法规标准"
+      },
+      "total": 4,
+      "max": 4
+    },
+    {
+      "qid": 59,
+      "category": "历史经验",
+      "status": "evaluated",
+      "scores": {
+        "E1": true,
+        "E2": true,
+        "E3": true,
+        "E4": true
+      },
+      "notes": {
+        "E1": "包含实际数值",
+        "E2": "引用了安全约束",
+        "E3": "包含2/3个组件",
+        "E4": "引用了调度规则"
+      },
+      "total": 4,
+      "max": 4
+    },
+    {
+      "qid": 60,
+      "category": "历史经验",
+      "status": "evaluated",
+      "scores": {
+        "E1": true,
+        "E2": true,
+        "E3": true,
+        "E4": true
+      },
+      "notes": {
+        "E1": "包含实际数值",
+        "E2": "引用了安全约束",
+        "E3": "包含3/3个组件",
+        "E4": "引用了历史参考"
+      },
+      "total": 4,
+      "max": 4
+    },
+    {
+      "qid": 61,
+      "category": "历史经验",
+      "status": "evaluated",
+      "scores": {
+        "E1": true,
+        "E2": true,
+        "E3": true,
+        "E4": true
+      },
+      "notes": {
+        "E1": "包含实际数值",
+        "E2": "引用了安全约束",
+        "E3": "包含3/3个组件",
+        "E4": "引用了法规标准"
+      },
+      "total": 4,
+      "max": 4
+    },
+    {
+      "qid": 62,
+      "category": "历史经验_异常",
+      "status": "evaluated",
+      "scores": {
+        "E1": true,
+        "E2": false,
+        "E3": true,
+        "E4": false
+      },
+      "notes": {
+        "E1": "包含实际数值",
+        "E2": "未引用安全约束",
+        "E3": "包含2/3个组件",
+        "E4": "未引用任何知识依据"
+      },
+      "total": 2,
+      "max": 4
+    },
+    {
+      "qid": 63,
+      "category": "历史经验_异常",
+      "status": "evaluated",
+      "scores": {
+        "E1": true,
+        "E2": false,
+        "E3": true,
+        "E4": true
+      },
+      "notes": {
+        "E1": "包含实际数值",
+        "E2": "未引用安全约束",
+        "E3": "包含3/3个组件",
+        "E4": "引用了历史参考"
+      },
+      "total": 3,
+      "max": 4
+    },
+    {
+      "qid": 64,
+      "category": "历史经验_边界",
+      "status": "evaluated",
+      "scores": {
+        "E1": true,
+        "E2": true,
+        "E3": true,
+        "E4": false
+      },
+      "notes": {
+        "E1": "包含实际数值",
+        "E2": "引用了安全约束",
+        "E3": "包含3/3个组件",
+        "E4": "未引用任何知识依据"
+      },
+      "total": 3,
+      "max": 4
+    },
+    {
+      "qid": 65,
+      "category": "历史经验_边界",
+      "status": "evaluated",
+      "scores": {
+        "E1": false,
+        "E2": false,
+        "E3": true,
+        "E4": true
+      },
+      "notes": {
+        "E1": "缺少具体数据引用",
+        "E2": "未引用安全约束",
+        "E3": "包含2/3个组件",
+        "E4": "引用了历史参考"
+      },
+      "total": 2,
+      "max": 4
+    },
+    {
+      "qid": 66,
+      "category": "综合场景",
+      "status": "evaluated",
+      "scores": {
+        "E1": true,
+        "E2": true,
+        "E3": true,
+        "E4": true
+      },
+      "notes": {
+        "E1": "包含实际数值",
+        "E2": "引用了安全约束",
+        "E3": "包含3/3个组件",
+        "E4": "引用了调度规则"
+      },
+      "total": 4,
+      "max": 4
+    },
+    {
+      "qid": 67,
+      "category": "综合场景",
+      "status": "evaluated",
+      "scores": {
+        "E1": true,
+        "E2": true,
+        "E3": true,
+        "E4": true
+      },
+      "notes": {
+        "E1": "包含实际数值",
+        "E2": "引用了安全约束",
+        "E3": "包含3/3个组件",
+        "E4": "引用了历史参考"
+      },
+      "total": 4,
+      "max": 4
+    },
+    {
+      "qid": 68,
+      "category": "综合场景",
+      "status": "evaluated",
+      "scores": {
+        "E1": true,
+        "E2": true,
+        "E3": true,
+        "E4": true
+      },
+      "notes": {
+        "E1": "包含实际数值",
+        "E2": "引用了安全约束",
+        "E3": "包含3/3个组件",
+        "E4": "引用了调度规则"
+      },
+      "total": 4,
+      "max": 4
+    },
+    {
+      "qid": 69,
+      "category": "综合场景",
+      "status": "evaluated",
+      "scores": {
+        "E1": true,
+        "E2": true,
+        "E3": true,
+        "E4": true
+      },
+      "notes": {
+        "E1": "包含实际数值",
+        "E2": "引用了安全约束",
+        "E3": "包含3/3个组件",
+        "E4": "引用了调度规则"
+      },
+      "total": 4,
+      "max": 4
+    },
+    {
+      "qid": 70,
+      "category": "综合场景",
+      "status": "evaluated",
+      "scores": {
+        "E1": true,
+        "E2": true,
+        "E3": true,
+        "E4": true
+      },
+      "notes": {
+        "E1": "包含实际数值",
+        "E2": "引用了安全约束",
+        "E3": "包含3/3个组件",
+        "E4": "引用了法规标准"
+      },
+      "total": 4,
+      "max": 4
+    },
+    {
+      "qid": 71,
+      "category": "综合场景",
+      "status": "evaluated",
+      "scores": {
+        "E1": true,
+        "E2": true,
+        "E3": true,
+        "E4": true
+      },
+      "notes": {
+        "E1": "包含实际数值",
+        "E2": "引用了安全约束",
+        "E3": "包含3/3个组件",
+        "E4": "引用了法规标准"
+      },
+      "total": 4,
+      "max": 4
+    },
+    {
+      "qid": 72,
+      "category": "综合场景",
+      "status": "evaluated",
+      "scores": {
+        "E1": true,
+        "E2": true,
+        "E3": true,
+        "E4": false
+      },
+      "notes": {
+        "E1": "包含实际数值",
+        "E2": "引用了安全约束",
+        "E3": "包含2/3个组件",
+        "E4": "未引用任何知识依据"
+      },
+      "total": 3,
+      "max": 4
+    },
+    {
+      "qid": 73,
+      "category": "业务场景",
+      "status": "evaluated",
+      "scores": {
+        "E1": true,
+        "E2": true,
+        "E3": true,
+        "E4": true
+      },
+      "notes": {
+        "E1": "包含实际数值",
+        "E2": "引用了安全约束",
+        "E3": "包含3/3个组件",
+        "E4": "引用了调度规则"
+      },
+      "total": 4,
+      "max": 4
+    },
+    {
+      "qid": 74,
+      "category": "业务场景",
+      "status": "evaluated",
+      "scores": {
+        "E1": true,
+        "E2": false,
+        "E3": true,
+        "E4": true
+      },
+      "notes": {
+        "E1": "包含实际数值",
+        "E2": "未引用安全约束",
+        "E3": "包含3/3个组件",
+        "E4": "引用了历史参考"
+      },
+      "total": 3,
+      "max": 4
+    },
+    {
+      "qid": 75,
+      "category": "业务场景",
+      "status": "evaluated",
+      "scores": {
+        "E1": true,
+        "E2": true,
+        "E3": true,
+        "E4": true
+      },
+      "notes": {
+        "E1": "包含实际数值",
+        "E2": "引用了安全约束",
+        "E3": "包含3/3个组件",
+        "E4": "引用了历史参考"
+      },
+      "total": 4,
+      "max": 4
+    },
+    {
+      "qid": 76,
+      "category": "业务场景",
+      "status": "evaluated",
+      "scores": {
+        "E1": true,
+        "E2": true,
+        "E3": true,
+        "E4": true
+      },
+      "notes": {
+        "E1": "包含实际数值",
+        "E2": "引用了安全约束",
+        "E3": "包含3/3个组件",
+        "E4": "引用了调度规则"
+      },
+      "total": 4,
+      "max": 4
+    },
+    {
+      "qid": 77,
+      "category": "业务场景",
+      "status": "evaluated",
+      "scores": {
+        "E1": false,
+        "E2": true,
+        "E3": true,
+        "E4": true
+      },
+      "notes": {
+        "E1": "缺少具体数据引用",
+        "E2": "引用了安全约束",
+        "E3": "包含3/3个组件",
+        "E4": "引用了历史参考"
+      },
+      "total": 3,
+      "max": 4
+    },
+    {
+      "qid": 78,
+      "category": "业务场景",
+      "status": "evaluated",
+      "scores": {
+        "E1": true,
+        "E2": false,
+        "E3": true,
+        "E4": true
+      },
+      "notes": {
+        "E1": "包含实际数值",
+        "E2": "未引用安全约束",
+        "E3": "包含3/3个组件",
+        "E4": "引用了历史参考"
+      },
+      "total": 3,
+      "max": 4
+    },
+    {
+      "qid": 79,
+      "category": "业务场景",
+      "status": "evaluated",
+      "scores": {
+        "E1": false,
+        "E2": false,
+        "E3": true,
+        "E4": true
+      },
+      "notes": {
+        "E1": "缺少具体数据引用",
+        "E2": "未引用安全约束",
+        "E3": "包含2/3个组件",
+        "E4": "引用了历史参考"
+      },
+      "total": 2,
+      "max": 4
+    },
+    {
+      "qid": 80,
+      "category": "业务场景",
+      "status": "evaluated",
+      "scores": {
+        "E1": true,
+        "E2": true,
+        "E3": true,
+        "E4": true
+      },
+      "notes": {
+        "E1": "包含实际数值",
+        "E2": "引用了安全约束",
+        "E3": "包含3/3个组件",
+        "E4": "引用了历史参考"
+      },
+      "total": 4,
+      "max": 4
+    },
+    {
+      "qid": 81,
+      "category": "异常边界",
+      "status": "evaluated",
+      "scores": {
+        "E1": false,
+        "E2": true,
+        "E3": false,
+        "E4": true
+      },
+      "notes": {
+        "E1": "未正确处理异常",
+        "E2": "异常场景豁免",
+        "E3": "未处理异常",
+        "E4": "异常/查询场景豁免"
+      },
+      "total": 2,
+      "max": 4
+    },
+    {
+      "qid": 82,
+      "category": "异常边界",
+      "status": "evaluated",
+      "scores": {
+        "E1": false,
+        "E2": true,
+        "E3": false,
+        "E4": true
+      },
+      "notes": {
+        "E1": "未正确处理异常",
+        "E2": "异常场景豁免",
+        "E3": "未处理异常",
+        "E4": "异常/查询场景豁免"
+      },
+      "total": 2,
+      "max": 4
+    },
+    {
+      "qid": 83,
+      "category": "异常边界",
+      "status": "evaluated",
+      "scores": {
+        "E1": true,
+        "E2": true,
+        "E3": true,
+        "E4": true
+      },
+      "notes": {
+        "E1": "正确处理异常输入",
+        "E2": "异常场景豁免",
+        "E3": "异常处理",
+        "E4": "异常/查询场景豁免"
+      },
+      "total": 4,
+      "max": 4
+    },
+    {
+      "qid": 84,
+      "category": "异常边界",
+      "status": "evaluated",
+      "scores": {
+        "E1": false,
+        "E2": true,
+        "E3": false,
+        "E4": true
+      },
+      "notes": {
+        "E1": "未正确处理异常",
+        "E2": "异常场景豁免",
+        "E3": "未处理异常",
+        "E4": "异常/查询场景豁免"
+      },
+      "total": 2,
+      "max": 4
+    },
+    {
+      "qid": 85,
+      "category": "异常边界",
+      "status": "evaluated",
+      "scores": {
+        "E1": false,
+        "E2": true,
+        "E3": false,
+        "E4": true
+      },
+      "notes": {
+        "E1": "未正确处理异常",
+        "E2": "异常场景豁免",
+        "E3": "未处理异常",
+        "E4": "异常/查询场景豁免"
+      },
+      "total": 2,
+      "max": 4
+    },
+    {
+      "qid": 86,
+      "category": "异常边界",
+      "status": "evaluated",
+      "scores": {
+        "E1": true,
+        "E2": true,
+        "E3": true,
+        "E4": true
+      },
+      "notes": {
+        "E1": "正确处理异常输入",
+        "E2": "异常场景豁免",
+        "E3": "异常处理",
+        "E4": "异常/查询场景豁免"
+      },
+      "total": 4,
+      "max": 4
+    },
+    {
+      "qid": 87,
+      "category": "异常边界",
+      "status": "evaluated",
+      "scores": {
+        "E1": true,
+        "E2": true,
+        "E3": true,
+        "E4": true
+      },
+      "notes": {
+        "E1": "正确处理异常输入",
+        "E2": "异常场景豁免",
+        "E3": "异常处理",
+        "E4": "异常/查询场景豁免"
+      },
+      "total": 4,
+      "max": 4
+    },
+    {
+      "qid": 88,
+      "category": "异常边界",
+      "status": "evaluated",
+      "scores": {
+        "E1": false,
+        "E2": true,
+        "E3": false,
+        "E4": true
+      },
+      "notes": {
+        "E1": "未正确处理异常",
+        "E2": "异常场景豁免",
+        "E3": "未处理异常",
+        "E4": "异常/查询场景豁免"
+      },
+      "total": 2,
+      "max": 4
+    },
+    {
+      "qid": 89,
+      "category": "异常边界",
+      "status": "evaluated",
+      "scores": {
+        "E1": false,
+        "E2": true,
+        "E3": false,
+        "E4": true
+      },
+      "notes": {
+        "E1": "未正确处理异常",
+        "E2": "异常场景豁免",
+        "E3": "未处理异常",
+        "E4": "异常/查询场景豁免"
+      },
+      "total": 2,
+      "max": 4
+    },
+    {
+      "qid": 90,
+      "category": "异常边界",
+      "status": "evaluated",
+      "scores": {
+        "E1": false,
+        "E2": true,
+        "E3": false,
+        "E4": true
+      },
+      "notes": {
+        "E1": "未正确处理异常",
+        "E2": "异常场景豁免",
+        "E3": "未处理异常",
+        "E4": "异常/查询场景豁免"
+      },
+      "total": 2,
+      "max": 4
+    },
+    {
+      "qid": 91,
+      "category": "数据验证",
+      "status": "evaluated",
+      "scores": {
+        "E1": true,
+        "E2": true,
+        "E3": true,
+        "E4": true
+      },
+      "notes": {
+        "E1": "包含具体数值",
+        "E2": "引用了安全约束",
+        "E3": "有数据输出",
+        "E4": "异常/查询场景豁免"
+      },
+      "total": 4,
+      "max": 4
+    },
+    {
+      "qid": 92,
+      "category": "数据验证",
+      "status": "evaluated",
+      "scores": {
+        "E1": true,
+        "E2": true,
+        "E3": true,
+        "E4": true
+      },
+      "notes": {
+        "E1": "包含具体数值",
+        "E2": "引用了安全约束",
+        "E3": "有数据输出",
+        "E4": "异常/查询场景豁免"
+      },
+      "total": 4,
+      "max": 4
+    },
+    {
+      "qid": 93,
+      "category": "数据验证",
+      "status": "evaluated",
+      "scores": {
+        "E1": false,
+        "E2": true,
+        "E3": true,
+        "E4": true
+      },
+      "notes": {
+        "E1": "缺少具体数据值",
+        "E2": "数据查询豁免",
+        "E3": "有数据输出",
+        "E4": "异常/查询场景豁免"
+      },
+      "total": 3,
+      "max": 4
+    },
+    {
+      "qid": 94,
+      "category": "数据验证",
+      "status": "evaluated",
+      "scores": {
+        "E1": true,
+        "E2": true,
+        "E3": true,
+        "E4": true
+      },
+      "notes": {
+        "E1": "包含具体数值",
+        "E2": "引用了安全约束",
+        "E3": "有数据输出",
+        "E4": "异常/查询场景豁免"
+      },
+      "total": 4,
+      "max": 4
+    },
+    {
+      "qid": 95,
+      "category": "数据验证",
+      "status": "evaluated",
+      "scores": {
+        "E1": false,
+        "E2": true,
+        "E3": true,
+        "E4": true
+      },
+      "notes": {
+        "E1": "缺少具体数据值",
+        "E2": "数据查询豁免",
+        "E3": "有数据输出",
+        "E4": "异常/查询场景豁免"
+      },
+      "total": 3,
+      "max": 4
+    },
+    {
+      "qid": 96,
+      "category": "数据验证",
+      "status": "evaluated",
+      "scores": {
+        "E1": false,
+        "E2": true,
+        "E3": true,
+        "E4": true
+      },
+      "notes": {
+        "E1": "缺少具体数据值",
+        "E2": "数据查询豁免",
+        "E3": "有数据输出",
+        "E4": "异常/查询场景豁免"
+      },
+      "total": 3,
+      "max": 4
+    },
+    {
+      "qid": 97,
+      "category": "数据验证",
+      "status": "evaluated",
+      "scores": {
+        "E1": true,
+        "E2": true,
+        "E3": true,
+        "E4": true
+      },
+      "notes": {
+        "E1": "包含具体数值",
+        "E2": "引用了安全约束",
+        "E3": "有数据输出",
+        "E4": "异常/查询场景豁免"
+      },
+      "total": 4,
+      "max": 4
+    },
+    {
+      "qid": 98,
+      "category": "数据验证",
+      "status": "evaluated",
+      "scores": {
+        "E1": false,
+        "E2": true,
+        "E3": true,
+        "E4": true
+      },
+      "notes": {
+        "E1": "缺少具体数据值",
+        "E2": "引用了安全约束",
+        "E3": "有数据输出",
+        "E4": "异常/查询场景豁免"
+      },
+      "total": 3,
+      "max": 4
+    }
+  ]
+}

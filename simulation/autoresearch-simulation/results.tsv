@@ -1,0 +1,2 @@
+experiment	score	max_score	pass_rate	status	description
+0	111	140	79.3%	running_baseline	基线测试部分完成(35/98题)，E2/E4各68.6%为薄弱点

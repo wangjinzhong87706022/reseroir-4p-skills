@@ -1,0 +1,33 @@
+{
+  "skill_name": "early-warning",
+  "status": "complete",
+  "current_experiment": 1,
+  "baseline_score": 87.5,
+  "best_score": 91.7,
+  "experiments": [
+    {
+      "id": 0,
+      "score": 53,
+      "max_score": 60,
+      "pass_rate": 87.5,
+      "status": "baseline",
+      "description": "original skill — no changes"
+    },
+    {
+      "id": 1,
+      "score": 55,
+      "max_score": 60,
+      "pass_rate": 91.7,
+      "status": "keep",
+      "description": "fixed rule name in Q8: '高水位预警' -> '水位红色预警'"
+    }
+  ],
+  "eval_breakdown": [
+    {"name": "SQL正确性", "pass_count": 11, "total": 12},
+    {"name": "数据准确性", "pass_count": 11, "total": 12},
+    {"name": "响应完整性", "pass_count": 11, "total": 12},
+    {"name": "格式规范性", "pass_count": 11, "total": 12},
+    {"name": "性能优化", "pass_count": 9, "total": 12},
+    {"name": "业务准确性", "pass_count": 7, "total": 12}
+  ]
+}

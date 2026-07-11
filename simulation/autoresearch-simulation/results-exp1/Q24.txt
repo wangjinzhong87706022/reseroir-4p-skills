@@ -1,0 +1,31 @@
+Query: 
+帮我看看2018年第二场次洪水（id=1）的各项统计指标，哪些是正常的，哪些可能有问题
+Initializing agent...
+────────────────────────────────────────
+
+  ┊ 📚 skill     flood-season-review  0.3s
+  ┊ 📚 skill     powerelf-chatbi  0.2s [error]
+  ┊ 📚 skill     powerelf/powerelf-chatbi  0.2s [error]
+  ┊ 📚 skill     simulation  0.1s
+⚡ Interrupted during API call.
+Traceback (most recent call last):
+  File "/opt/git/hermes-agent/venv/bin/hermes", line 8, in <module>
+    sys.exit(main())
+             ^^^^^^
+  File "/opt/git/hermes-agent/hermes_cli/main.py", line 12022, in main
+    args.func(args)
+  File "/opt/git/hermes-agent/hermes_cli/main.py", line 1442, in cmd_chat
+    cli_main(**kwargs)
+  File "/opt/git/hermes-agent/cli.py", line 13727, in main
+    cli.chat(query, images=single_query_images or None)
+  File "/opt/git/hermes-agent/cli.py", line 10666, in chat
+    interrupt_msg = self._interrupt_queue.get(timeout=0.1)
+                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/lib/python3.12/queue.py", line 180, in get
+    self.not_empty.wait(remaining)
+  File "/usr/lib/python3.12/threading.py", line 359, in wait
+    gotit = waiter.acquire(True, timeout)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/git/hermes-agent/cli.py", line 13633, in _signal_handler_q
+    raise KeyboardInterrupt()
+KeyboardInterrupt
