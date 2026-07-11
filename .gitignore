@@ -7,3 +7,6 @@ pids/
 results/
 *.log
 forecasting/20260710_170809_e9d454
+
+# 大文件排除 (超过 GitHub 100MB 限制)
+forecasting/20260710*
