@@ -8,8 +8,8 @@
     python3 check_data_quality.py --type alerts
     python3 check_data_quality.py --type all --output problems.md
 
-环境变量:
-    SRM_DB_HOST, SRM_DB_PORT, SRM_DB_NAME, SRM_DB_USER, SRM_DB_PASSWORD
+共享库: SmartTwinRes-skills/lib/db.py
+标准文档: docs/db-credential-config.md (见上级目录)
 """
 
 import argparse
@@ -18,35 +18,12 @@ import os
 import sys
 from datetime import datetime
 
-try:
-    import pymysql
-except ImportError:
-    print("❌ 缺少 pymysql 库，请安装：pip install pymysql")
-    sys.exit(1)
+# 让脚本既能 `python3 scripts/check_data_quality.py` 又能被 import
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '..'))
 
-
-def get_connection():
-    """获取数据库连接"""
-    config = {
-        'host': os.getenv('SRM_DB_HOST', '127.0.0.1'),
-        'port': int(os.getenv('SRM_DB_PORT', 3306)),
-        'user': os.getenv('SRM_DB_USER', 'root'),
-        'password': os.getenv('SRM_DB_PASSWORD', '123456aA.'),
-        'database': os.getenv('SRM_DB_NAME', 'powerelf_srm_yml'),
-        'charset': 'utf8mb4'
-    }
-    return pymysql.connect(**config)
-
-
-def execute_query(sql, params=None):
-    """执行查询并返回结果"""
-    conn = get_connection()
-    try:
-        with conn.cursor(pymysql.cursors.DictCursor) as cursor:
-            cursor.execute(sql, params)
-            return cursor.fetchall()
-    finally:
-        conn.close()
+# 从统一共享库导入 DB 查询功能
+from lib.db import execute_query_list, _require_env  # noqa: E402
 
 
 def check_water_level():
@@ -66,7 +43,7 @@ def check_water_level():
     WHERE deleted=0
     """
 
-    result = execute_query(sql)[0]
+    result = execute_query_list(sql)[0]
 
     print(f"\n总行数：{result['总行数']}")
     print(f"rz 为空：{result['rz为空']} ({result['rz为空']/result['总行数']*100:.1f}%)")
@@ -103,7 +80,7 @@ def check_water_level():
     ORDER BY 数据量 DESC
     LIMIT 10
     """
-    stations = execute_query(sql2)
+    stations = execute_query_list(sql2)
     print(f"\n按测站统计（前 10）：")
     for s in stations:
         print(f"  {s['stcd']}: {s['数据量']} 条, 最新 {s['最新时间']}")
@@ -129,7 +106,7 @@ def check_rainfall_forecast():
     WHERE deleted=0
     """
 
-    result = execute_query(sql)[0]
+    result = execute_query_list(sql)[0]
 
     print(f"\n总行数：{result['总行数']}")
     print(f"最新预报时间：{result['最新预报时间']}")
@@ -174,7 +151,7 @@ def check_alerts():
     WHERE message_confirm=0 AND deleted=0
     """
 
-    result = execute_query(sql)[0]
+    result = execute_query_list(sql)[0]
 
     print(f"\n未确认总数：{result['未确认总数']}")
     print(f"  红色（I级）：{result['红色']}")
