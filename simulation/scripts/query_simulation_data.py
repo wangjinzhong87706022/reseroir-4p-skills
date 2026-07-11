@@ -2,60 +2,25 @@
 """
 模拟数据查询脚本 - 直连数据库获取模拟推演所需数据
 用法: python3 query_simulation_data.py --type <查询类型> [参数]
+
+共享库: SmartTwinRes-skills/lib/db.py
+标准文档: docs/db-credential-config.md
 """
 
 import argparse
 import json
 import sys
 import os
-import pymysql
-from datetime import datetime, timedelta
 
-# 数据库配置: SRM_DB_* (SmartTwinRes family)
-# Fallback: POWERELF_DB_* (powerelf family compatibility)
-# (杜绝硬编码口令; 见 forecasting/docs/db-credential-config.md)
-def _require_env(name):
-    val = os.getenv(name)
-    if not val:
-        sys.exit(
-            f"[DB] 环境变量 {name} 未设置。请配置 SRM_DB_* 环境变量后重试"
-            f"（见 forecasting/docs/db-credential-config.md）。"
-        )
-    return val
+# 让脚本既能 `python3 scripts/query_simulation_data.py` 又能被 import
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '..'))
 
-
-DB_CONFIG = {
-    'host': os.getenv('SRM_DB_HOST') or os.getenv('POWERELF_DB_HOST', '127.0.0.1'),
-    'port': int(os.getenv('SRM_DB_PORT') or os.getenv('POWERELF_DB_PORT', '3306')),
-    'user': os.getenv('SRM_DB_USER') or os.getenv('POWERELF_DB_USER') or _require_env('SRM_DB_USER'),
-    'password': os.getenv('SRM_DB_PASSWORD') or os.getenv('POWERELF_DB_PASSWORD') or _require_env('SRM_DB_PASSWORD'),
-    'database': os.getenv('SRM_DB_NAME') or os.getenv('POWERELF_DB_NAME', 'powerelf_srm_yml'),
-    'charset': 'utf8mb4'
-}
-
-
-def get_connection():
-    """获取数据库连接"""
-    return pymysql.connect(**DB_CONFIG)
-
-
-def execute_query(sql, params=None):
-    """执行查询并返回结果"""
-    conn = get_connection()
-    try:
-        with conn.cursor(pymysql.cursors.DictCursor) as cursor:
-            cursor.execute(sql, params)
-            results = cursor.fetchall()
-            # 将 datetime 对象转为字符串
-            for row in results:
-                for key, value in row.items():
-                    if isinstance(value, datetime):
-                        row[key] = value.strftime('%Y-%m-%d %H:%M:%S')
-                    elif isinstance(value, bytes):
-                        row[key] = int.from_bytes(value, 'big')
-            return results
-    finally:
-        conn.close()
+# 从统一共享库导入 DB 查询功能
+# 注意: execute_query_list() 返回 list[dict],与原代码兼容
+#       execute_query() 返回 dict (含 data/count/truncated)
+from lib.db import execute_query_list, DB_CONFIG  # noqa: E402
+from lib.db import execute_query, unpack  # noqa: E402 (用于需要元数据的场景)
 
 
 def query_current_water_level():
@@ -67,7 +32,7 @@ def query_current_water_level():
     ORDER BY tm DESC
     LIMIT 1
     """
-    return execute_query(sql)
+    return execute_query_list(sql)
 
 
 def query_flood_limit():
@@ -81,7 +46,7 @@ def query_flood_limit():
     ORDER BY flse_lim_stag DESC
     LIMIT 1
     """
-    results = execute_query(sql)
+    results = execute_query_list(sql)
     if results:
         return results
 
@@ -119,7 +84,7 @@ def query_config():
       AND deleted = 0
     ORDER BY tenant_id DESC, id DESC
     """
-    results = execute_query(sql)
+    results = execute_query_list(sql)
     # 按 tenant_id 分组，取最常用的一组（或最新的）
     # 优先取 tenant_id=18（三岔水库所在租户）
     config_by_tenant = {}
@@ -146,7 +111,7 @@ def query_water_level_curve():
     GROUP BY stag
     ORDER BY stag
     """
-    return execute_query(sql)
+    return execute_query_list(sql)
 
 
 def query_discharge_curve():
@@ -156,7 +121,7 @@ def query_discharge_curve():
     FROM att_res_discharge_curve
     ORDER BY stag
     """
-    return execute_query(sql)
+    return execute_query_list(sql)
 
 
 def query_historical_floods(limit=10):
@@ -169,7 +134,7 @@ def query_historical_floods(limit=10):
     ORDER BY create_time DESC
     LIMIT %s
     """
-    return execute_query(sql, (limit,))
+    return execute_query_list(sql, (limit,))
 
 
 def query_flood_detail(flood_id):
@@ -181,7 +146,7 @@ def query_flood_detail(flood_id):
     FROM srm_flood_history_base
     WHERE id = %s AND deleted = 0
     """
-    return execute_query(sql, (flood_id,))
+    return execute_query_list(sql, (flood_id,))
 
 
 def query_flood_result(flood_id):
@@ -192,7 +157,7 @@ def query_flood_result(flood_id):
     WHERE flood_id = %s AND type = 7 AND deleted = 0
     ORDER BY sort
     """
-    return execute_query(sql, (flood_id,))
+    return execute_query_list(sql, (flood_id,))
 
 
 def query_flood_result_curve(flood_id):
@@ -203,7 +168,7 @@ def query_flood_result_curve(flood_id):
     WHERE flood_id = %s AND type IN (1, 2, 3, 6) AND deleted = 0
     ORDER BY type, tm
     """
-    return execute_query(sql, (flood_id,))
+    return execute_query_list(sql, (flood_id,))
 
 
 def query_flood_inflow(flood_id):
@@ -214,7 +179,7 @@ def query_flood_inflow(flood_id):
     WHERE flood_id = %s AND type = 1 AND deleted = 0
     ORDER BY tm
     """
-    return execute_query(sql, (flood_id,))
+    return execute_query_list(sql, (flood_id,))
 
 
 def query_flood_statistics(flood_id):
@@ -225,7 +190,7 @@ def query_flood_statistics(flood_id):
     WHERE flood_id = %s AND type = 7 AND deleted = 0
     ORDER BY sort
     """
-    return execute_query(sql, (flood_id,))
+    return execute_query_list(sql, (flood_id,))
 
 
 def query_similar_floods(rainfall, tolerance=0.2, limit=10):
@@ -237,7 +202,7 @@ def query_similar_floods(rainfall, tolerance=0.2, limit=10):
     WHERE deleted = 0 AND status = 2 AND rainfall_data IS NOT NULL
     ORDER BY create_time DESC
     """
-    all_floods = execute_query(sql)
+    all_floods = execute_query_list(sql)
     # 在 Python 中按降雨量容差过滤
     similar = []
     for flood in all_floods:
@@ -277,7 +242,7 @@ def query_scenarios():
     WHERE deleted = 0
     ORDER BY def_flg DESC, create_time DESC
     """
-    return execute_query(sql)
+    return execute_query_list(sql)
 
 
 def query_recent_rainfall(hours=48):
@@ -289,7 +254,7 @@ def query_recent_rainfall(hours=48):
       AND tm >= DATE_SUB(NOW(), INTERVAL %s HOUR)
     ORDER BY tm DESC
     """
-    return execute_query(sql, (hours,))
+    return execute_query_list(sql, (hours,))
 
 
 def query_full_context(hours=48):

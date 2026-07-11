@@ -2,50 +2,24 @@
 """
 告警查询脚本 - 预写常用查询，减少 LLM 推理轮次
 用法: python3 query_early_warning.py --type <查询类型> [参数]
+
+共享库: SmartTwinRes-skills/lib/db.py
+标准文档: docs/db-credential-config.md
 """
 
 import argparse
 import json
 import sys
 import os
-import pymysql
-from datetime import datetime, timedelta
 
-# 数据库配置: SRM_DB_* (SmartTwinRes family)
-# Fallback: POWERELF_DB_* (powerelf family compatibility)
-# (杜绝硬编码口令; 见 forecasting/docs/db-credential-config.md)
-def _require_env(name):
-    val = os.getenv(name)
-    if not val:
-        sys.exit(
-            f"[DB] 环境变量 {name} 未设置。请配置 SRM_DB_* 环境变量后重试"
-            f"（见 forecasting/docs/db-credential-config.md）。"
-        )
-    return val
+# 让脚本既能 `python3 scripts/query_early_warning.py` 又能被 import
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '..'))
 
+# 从统一共享库导入 DB 查询功能
+# 注意: execute_query_list() 返回 list[dict],与原代码兼容
+from lib.db import execute_query_list, _require_env  # noqa: E402
 
-DB_CONFIG = {
-    'host': os.getenv('SRM_DB_HOST') or os.getenv('POWERELF_DB_HOST', '127.0.0.1'),
-    'port': int(os.getenv('SRM_DB_PORT') or os.getenv('POWERELF_DB_PORT', '3306')),
-    'user': os.getenv('SRM_DB_USER') or os.getenv('POWERELF_DB_USER') or _require_env('SRM_DB_USER'),
-    'password': os.getenv('SRM_DB_PASSWORD') or os.getenv('POWERELF_DB_PASSWORD') or _require_env('SRM_DB_PASSWORD'),
-    'database': os.getenv('SRM_DB_NAME') or os.getenv('POWERELF_DB_NAME', 'powerelf_srm_yml'),
-    'charset': 'utf8mb4'
-}
-
-def get_connection():
-    """获取数据库连接"""
-    return pymysql.connect(**DB_CONFIG)
-
-def execute_query(sql, params=None):
-    """执行查询并返回结果"""
-    conn = get_connection()
-    try:
-        with conn.cursor(pymysql.cursors.DictCursor) as cursor:
-            cursor.execute(sql, params)
-            return cursor.fetchall()
-    finally:
-        conn.close()
 
 def query_unconfirmed(days=7):
     """查询未确认告警"""
@@ -55,7 +29,7 @@ def query_unconfirmed(days=7):
     WHERE message_confirm = 0 AND deleted = 0
       AND create_time >= DATE_SUB(NOW(), INTERVAL %s DAY)
     """
-    return execute_query(sql, (days,))
+    return execute_query_list(sql, (days,))
 
 def query_by_level(days=30):
     """按级别统计告警"""
@@ -75,7 +49,7 @@ def query_by_level(days=30):
     GROUP BY level_r
     ORDER BY level_r
     """
-    return execute_query(sql, (days,))
+    return execute_query_list(sql, (days,))
 
 def query_recent(days=3, limit=50):
     """查询最近告警"""
@@ -87,7 +61,7 @@ def query_recent(days=3, limit=50):
     ORDER BY gather_time DESC
     LIMIT %s
     """
-    return execute_query(sql, (days, limit))
+    return execute_query_list(sql, (days, limit))
 
 def query_by_station(station_code, limit=50):
     """查询指定测站告警"""
@@ -98,7 +72,7 @@ def query_by_station(station_code, limit=50):
     ORDER BY gather_time DESC
     LIMIT %s
     """
-    return execute_query(sql, (station_code, limit))
+    return execute_query_list(sql, (station_code, limit))
 
 def query_high_level(days=30):
     """查询高级别告警"""
@@ -110,7 +84,7 @@ def query_high_level(days=30):
     ORDER BY gather_time DESC
     LIMIT 50
     """
-    return execute_query(sql, (days,))
+    return execute_query_list(sql, (days,))
 
 def query_rules():
     """查询告警规则"""
@@ -120,7 +94,7 @@ def query_rules():
     WHERE deleted = 0
     ORDER BY ew_type, level_r
     """
-    return execute_query(sql)
+    return execute_query_list(sql)
 
 def query_station_ranking(days=30, limit=10):
     """查询测站告警排名"""
@@ -133,7 +107,7 @@ def query_station_ranking(days=30, limit=10):
     ORDER BY count DESC
     LIMIT %s
     """
-    return execute_query(sql, (days, limit))
+    return execute_query_list(sql, (days, limit))
 
 def query_hourly_distribution(days=30):
     """查询小时分布"""
@@ -145,7 +119,7 @@ def query_hourly_distribution(days=30):
     GROUP BY HOUR(gather_time)
     ORDER BY count DESC
     """
-    return execute_query(sql, (days,))
+    return execute_query_list(sql, (days,))
 
 def query_device_offline(days=7):
     """查询设备离线告警"""
@@ -157,7 +131,7 @@ def query_device_offline(days=7):
     ORDER BY gather_time DESC
     LIMIT 50
     """
-    return execute_query(sql, (days,))
+    return execute_query_list(sql, (days,))
 
 def query_alarm_trend(start_date, end_date):
     """查询告警趋势"""
@@ -169,7 +143,7 @@ def query_alarm_trend(start_date, end_date):
     GROUP BY DATE(gather_time)
     ORDER BY date
     """
-    return execute_query(sql, (start_date, end_date))
+    return execute_query_list(sql, (start_date, end_date))
 
 def query_rule_detail(rule_name):
     """查询规则详情"""
@@ -178,7 +152,7 @@ def query_rule_detail(rule_name):
     FROM ew_info_rules
     WHERE name LIKE %s AND deleted = 0
     """
-    return execute_query(sql, (f'%{rule_name}%',))
+    return execute_query_list(sql, (f'%{rule_name}%',))
 
 def query_water_level(station_code):
     """查询当前水位"""
@@ -189,7 +163,7 @@ def query_water_level(station_code):
     ORDER BY tm DESC
     LIMIT 1
     """
-    return execute_query(sql, (station_code,))
+    return execute_query_list(sql, (station_code,))
 
 def query_rainfall(station_code):
     """查询当前降雨"""
@@ -200,7 +174,7 @@ def query_rainfall(station_code):
     ORDER BY tm DESC
     LIMIT 1
     """
-    return execute_query(sql, (station_code,))
+    return execute_query_list(sql, (station_code,))
 
 def query_alarm_storm():
     """查询告警风暴状态"""
@@ -213,7 +187,7 @@ def query_alarm_storm():
     WHERE deleted = 0
       AND create_time >= DATE_SUB(NOW(), INTERVAL 1 HOUR)
     """
-    return execute_query(sql)
+    return execute_query_list(sql)
 
 def query_confirmation_rate(days=30):
     """查询确认率"""
@@ -229,7 +203,7 @@ def query_confirmation_rate(days=30):
     GROUP BY level_r
     ORDER BY level_r
     """
-    return execute_query(sql, (days,))
+    return execute_query_list(sql, (days,))
 
 def query_weather_warning():
     """查询有效气象预警"""
@@ -240,7 +214,7 @@ def query_weather_warning():
     ORDER BY docpubtime DESC
     LIMIT 20
     """
-    return execute_query(sql)
+    return execute_query_list(sql)
 
 def main():
     parser = argparse.ArgumentParser(description='告警查询脚本')
