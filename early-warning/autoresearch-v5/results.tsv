@@ -1,0 +1,6 @@
+experiment	score	max_score	pass_rate	status	description
+0	357	366	97.5%	baseline	original skill — no changes
+1	360	366	98.4%	keep	added query-time explanations to business rules
+2	361	366	98.6%	keep	added section alarm explanation
+3	363	366	99.2%	keep	added threshold matching and upgrade judgment details
+4	365	366	99.7%	keep	added threshold rationality analysis and seepage alarm explanation

@@ -1,0 +1,432 @@
+#!/usr/bin/env python3
+"""
+预案数据查询脚本 - 直连数据库获取预案生成所需数据
+用法: python3 query_plan_data.py --type <查询类型> [参数]
+"""
+
+import argparse
+import json
+import sys
+
+from query_utils import execute_query, execute_query_list, unpack
+
+
+# ---------------------------------------------------------------------------
+# Query functions
+# ---------------------------------------------------------------------------
+
+def query_current_water_level():
+    """查询当前水位"""
+    sql = """
+    SELECT rz, inq, otq, w, tm
+    FROM st_rsvr_r
+    WHERE deleted = 0 AND rz IS NOT NULL
+    ORDER BY tm DESC
+    LIMIT 1
+    """
+    return execute_query(sql)
+
+
+def query_rainfall_forecast(hours=48, source=None):
+    """查询降雨预报（取最新发布的一批数据）"""
+    conditions = [
+        "deleted = 0",
+        "ymdh >= NOW()",
+        "ymdh <= DATE_ADD(NOW(), INTERVAL %s HOUR)",
+        "fymdh = (SELECT MAX(fymdh) FROM f_rnfl_h WHERE ymdh >= NOW())",
+    ]
+    params = [hours]
+
+    if source:
+        conditions.append("unitname = %s")
+        params.append(source)
+
+    sql = (
+        "SELECT ymdh, rn, pop, text, temp, wind_dir, wind_speed, unitname"
+        " FROM f_rnfl_h"
+        f" WHERE {' AND '.join(conditions)}"
+        " ORDER BY ymdh"
+    )
+    return execute_query(sql, params)
+
+
+def query_weather_warning(since_date=None, status='1'):
+    """查询活跃气象预警"""
+    conditions = []
+    params = []
+
+    if status is not None:
+        conditions.append("warn_status = %s")
+        params.append(str(status))
+
+    if since_date:
+        conditions.append("docpubtime >= %s")
+        params.append(since_date)
+
+    where = f" WHERE {' AND '.join(conditions)}" if conditions else ""
+    sql = (
+        "SELECT docid, docabstract, docpubtime, docpuburl, warn_status, update_time"
+        f" FROM weather_warn{where}"
+        " ORDER BY docpubtime DESC"
+        " LIMIT 10"
+    )
+    return execute_query(sql, params)
+
+
+def query_flood_limit():
+    """查询当前汛限水位"""
+    # 优先从 att_res_flse_lim 表查询（按当前日期匹配汛期）
+    sql = """
+    SELECT flse_lim_stag, flood_season_name, flood_season_start, flood_season_end
+    FROM att_res_flse_lim
+    WHERE flood_season_start <= DATE_FORMAT(NOW(), '%m%d')
+      AND flood_season_end >= DATE_FORMAT(NOW(), '%m%d')
+    ORDER BY flse_lim_stag DESC
+    LIMIT 1
+    """
+    results = execute_query_list(sql)
+    if results:
+        return results
+
+    # 非汛期：从 att_res_base 查询正常蓄水位作为参考
+    sql2 = """
+    SELECT fl_low_lim_lev as flse_lim_stag,
+           '非汛期' as flood_season_name,
+           NULL as flood_season_start,
+           NULL as flood_season_end
+    FROM att_res_base
+    WHERE fl_low_lim_lev IS NOT NULL AND deleted = 0
+    ORDER BY id
+    LIMIT 1
+    """
+    results2 = execute_query_list(sql2)
+    if results2:
+        return results2
+
+    # 兜底默认值
+    return [{
+        'flse_lim_stag': 462.5,
+        'flood_season_name': '非汛期',
+        'flood_season_start': None,
+        'flood_season_end': None
+    }]
+
+
+def query_historical_plans(limit=20, start_date=None, end_date=None,
+                           min_level=None, max_level=None, keyword=None):
+    """查询历史预案（支持多维度筛选）"""
+    conditions = ["type = 2"]
+    params = []
+
+    if start_date:
+        conditions.append("create_time >= %s")
+        params.append(start_date)
+    if end_date:
+        conditions.append("create_time <= %s")
+        params.append(end_date)
+    if min_level is not None:
+        conditions.append("CAST(adjusted_water_level AS DECIMAL(10,2)) >= %s")
+        params.append(float(min_level))
+    if max_level is not None:
+        conditions.append("CAST(adjusted_water_level AS DECIMAL(10,2)) <= %s")
+        params.append(float(max_level))
+    if keyword:
+        conditions.append("alias LIKE %s")
+        params.append(f"%{keyword}%")
+
+    params.append(limit)
+    sql = (
+        "SELECT id, scheme_id, alias, target_water_level, adjusted_water_level,"
+        " start_time, end_time, create_time, type, extend"
+        " FROM model_result_files"
+        f" WHERE {' AND '.join(conditions)}"
+        " ORDER BY create_time DESC"
+        " LIMIT %s"
+    )
+    return execute_query(sql, params)
+
+
+def query_historical_floods(limit=20, start_date=None, end_date=None,
+                            status=None, keyword=None):
+    """查询历史洪水（支持多维度筛选）"""
+    conditions = ["deleted = 0"]
+    params = []
+
+    if start_date:
+        conditions.append("create_time >= %s")
+        params.append(start_date)
+    if end_date:
+        conditions.append("create_time <= %s")
+        params.append(end_date)
+    if status is not None:
+        conditions.append("status = %s")
+        params.append(int(status))
+    if keyword:
+        conditions.append("(name LIKE %s OR remake LIKE %s)")
+        params.append(f"%{keyword}%")
+        params.append(f"%{keyword}%")
+
+    params.append(limit)
+    sql = (
+        "SELECT id, name, start_time, end_time, adjusted_water_level,"
+        " target_water_level, status, rainfall_data, remake"
+        " FROM srm_flood_history_base"
+        f" WHERE {' AND '.join(conditions)}"
+        " ORDER BY create_time DESC"
+        " LIMIT %s"
+    )
+    return execute_query(sql, params)
+
+
+def query_similar_plans(water_level=None, rainfall=None,
+                        time_range_days=365, limit=5):
+    """查询相似条件的历史预案（按水位接近度排序）"""
+    conditions = ["type = 2"]
+    params = []
+
+    # 时间范围过滤
+    conditions.append("create_time >= DATE_SUB(NOW(), INTERVAL %s DAY)")
+    params.append(time_range_days)
+
+    if water_level is not None:
+        params.append(float(water_level))
+        params.append(limit)
+        sql = (
+            "SELECT id, scheme_id, alias, target_water_level,"
+            " adjusted_water_level, start_time, end_time,"
+            " extend, create_time"
+            " FROM model_result_files"
+            f" WHERE {' AND '.join(conditions)}"
+            " ORDER BY ABS(CAST(adjusted_water_level AS DECIMAL(10,2)) - %s)"
+            " LIMIT %s"
+        )
+    else:
+        # 无水位参数时按时间倒序
+        params.append(limit)
+        sql = (
+            "SELECT id, scheme_id, alias, target_water_level,"
+            " adjusted_water_level, start_time, end_time,"
+            " extend, create_time"
+            " FROM model_result_files"
+            f" WHERE {' AND '.join(conditions)}"
+            " ORDER BY create_time DESC"
+            " LIMIT %s"
+        )
+    return execute_query(sql, params)
+
+
+def query_recent_rainfall(hours=24, station_id=None):
+    """查询最近降雨实况"""
+    conditions = ["deleted = 0", "tm >= DATE_SUB(NOW(), INTERVAL %s HOUR)"]
+    params = [hours]
+
+    if station_id:
+        conditions.append("stcd = %s")
+        params.append(station_id)
+
+    sql = (
+        "SELECT tm, p, dr"
+        " FROM st_pptn_r"
+        f" WHERE {' AND '.join(conditions)}"
+        " ORDER BY tm DESC"
+    )
+    return execute_query(sql, params)
+
+
+def query_scenarios(target=None, def_only=False):
+    """查询调度场景模板"""
+    conditions = ["deleted = 0"]
+    params = []
+
+    if target:
+        conditions.append("scheduling_target = %s")
+        params.append(target)
+    if def_only:
+        conditions.append("def_flg = 1")
+
+    sql = (
+        "SELECT id, name, scheduling_target, scheduling_model, extend, def_flg"
+        " FROM srm_scheduling_scenario"
+        f" WHERE {' AND '.join(conditions)}"
+        " ORDER BY def_flg DESC, create_time DESC"
+    )
+    return execute_query(sql, params)
+
+
+def query_water_level_curve(min_stag=None, max_stag=None):
+    """查询水位-库容曲线（按水位取平均值，消除重复）"""
+    conditions = []
+    params = []
+
+    if min_stag is not None:
+        conditions.append("stag >= %s")
+        params.append(float(min_stag))
+    if max_stag is not None:
+        conditions.append("stag <= %s")
+        params.append(float(max_stag))
+
+    where = f" WHERE {' AND '.join(conditions)}" if conditions else ""
+    sql = (
+        "SELECT stag as water_level, AVG(cap) as capacity"
+        f" FROM att_res_stag_cap_disc{where}"
+        " GROUP BY stag"
+        " ORDER BY stag"
+    )
+    return execute_query(sql, params)
+
+
+def query_discharge_curve(min_stag=None, max_stag=None):
+    """查询泄流曲线"""
+    conditions = []
+    params = []
+
+    if min_stag is not None:
+        conditions.append("stag >= %s")
+        params.append(float(min_stag))
+    if max_stag is not None:
+        conditions.append("stag <= %s")
+        params.append(float(max_stag))
+
+    where = f" WHERE {' AND '.join(conditions)}" if conditions else ""
+    sql = (
+        "SELECT stag as water_level, q as flow"
+        f" FROM att_res_discharge_curve{where}"
+        " ORDER BY stag"
+    )
+    return execute_query(sql, params)
+
+
+def query_config():
+    """查询系统配置（取最新的一组配置）"""
+    sql = """
+    SELECT config_key, value, tenant_id
+    FROM model_config
+    WHERE config_key IN ('max_water_level', 'min_water_level',
+                         'max_drainage_capacity', 'safe_drainage_capacity')
+      AND deleted = 0
+    ORDER BY tenant_id DESC, id DESC
+    """
+    results = execute_query_list(sql)
+    # 按 tenant_id 分组，取最常用的一组（或最新的）
+    # 优先取 tenant_id=18（三岔水库所在租户）
+    config_by_tenant = {}
+    for row in results:
+        tid = row.get('tenant_id', 0)
+        if tid not in config_by_tenant:
+            config_by_tenant[tid] = {}
+        config_by_tenant[tid][row['config_key']] = row['value']
+
+    # 优先返回 tenant_id=18，否则返回最新的
+    if 18 in config_by_tenant:
+        return config_by_tenant[18]
+    elif config_by_tenant:
+        return list(config_by_tenant.values())[0]
+    else:
+        return {}
+
+
+# ---------------------------------------------------------------------------
+# Full context
+# ---------------------------------------------------------------------------
+
+def query_full_context(hours=48):
+    """获取完整上下文数据"""
+    return {
+        'current_water_level': unpack(query_current_water_level()),
+        'rainfall_forecast': unpack(query_rainfall_forecast(hours)),
+        'weather_warning': unpack(query_weather_warning()),
+        'flood_limit': query_flood_limit(),       # plain list from execute_query_list
+        'config': query_config(),                  # plain dict
+        'historical_plans': unpack(query_historical_plans(10)),
+        'historical_floods': unpack(query_historical_floods(10)),
+        'scenarios': unpack(query_scenarios()),
+        'recent_rainfall': unpack(query_recent_rainfall(24)),
+        'water_level_curve': unpack(query_water_level_curve()),
+        'discharge_curve': unpack(query_discharge_curve()),
+    }
+
+
+# ---------------------------------------------------------------------------
+# CLI
+# ---------------------------------------------------------------------------
+
+def main():
+    parser = argparse.ArgumentParser(description='预案数据查询脚本')
+    parser.add_argument('--type', required=True,
+                        choices=['current_water_level', 'rainfall_forecast',
+                                 'weather_warning', 'flood_limit',
+                                 'historical_plans', 'historical_floods',
+                                 'scenarios', 'config', 'recent_rainfall',
+                                 'similar_plans', 'full_context',
+                                 'water_level_curve', 'discharge_curve'],
+                        help='查询类型')
+    # Existing arguments
+    parser.add_argument('--hours', type=int, default=48,
+                        help='时间范围（小时）')
+    parser.add_argument('--limit', type=int, default=5,
+                        help='返回条数')
+    parser.add_argument('--rainfall', type=float,
+                        help='降雨量（用于相似查询）')
+    parser.add_argument('--format', choices=['json', 'table'], default='json',
+                        help='输出格式')
+    # New filter arguments
+    parser.add_argument('--start-date', type=str, default=None,
+                        help='起始日期过滤 (YYYY-MM-DD)')
+    parser.add_argument('--end-date', type=str, default=None,
+                        help='结束日期过滤 (YYYY-MM-DD)')
+    parser.add_argument('--min-level', type=float, default=None,
+                        help='最低水位过滤')
+    parser.add_argument('--max-level', type=float, default=None,
+                        help='最高水位过滤')
+    parser.add_argument('--keyword', type=str, default=None,
+                        help='关键词搜索')
+    parser.add_argument('--status', type=int, default=None,
+                        help='状态过滤')
+    parser.add_argument('--water-level', type=float, default=None,
+                        help='水位（用于相似预案查询）')
+    parser.add_argument('--time-range-days', type=int, default=365,
+                        help='时间范围天数（用于相似预案查询）')
+    parser.add_argument('--source', type=str, default=None,
+                        help='数据来源过滤（unitname）')
+
+    args = parser.parse_args()
+
+    # Map each --type to its function with the new filter args
+    query_map = {
+        'current_water_level': lambda: query_current_water_level(),
+        'rainfall_forecast': lambda: query_rainfall_forecast(
+            hours=args.hours, source=args.source),
+        'weather_warning': lambda: query_weather_warning(
+            since_date=args.start_date, status=str(args.status) if args.status is not None else '1'),
+        'flood_limit': lambda: query_flood_limit(),
+        'historical_plans': lambda: query_historical_plans(
+            limit=args.limit, start_date=args.start_date, end_date=args.end_date,
+            min_level=args.min_level, max_level=args.max_level,
+            keyword=args.keyword),
+        'historical_floods': lambda: query_historical_floods(
+            limit=args.limit, start_date=args.start_date, end_date=args.end_date,
+            status=args.status, keyword=args.keyword),
+        'scenarios': lambda: query_scenarios(),
+        'config': lambda: query_config(),
+        'recent_rainfall': lambda: query_recent_rainfall(
+            hours=args.hours, station_id=args.source),
+        'similar_plans': lambda: query_similar_plans(
+            water_level=args.water_level, rainfall=args.rainfall,
+            time_range_days=args.time_range_days, limit=args.limit),
+        'full_context': lambda: query_full_context(args.hours),
+        'water_level_curve': lambda: query_water_level_curve(
+            min_stag=args.min_level, max_stag=args.max_level),
+        'discharge_curve': lambda: query_discharge_curve(
+            min_stag=args.min_level, max_stag=args.max_level),
+    }
+
+    try:
+        result = query_map[args.type]()
+        print(json.dumps(result, ensure_ascii=False, indent=2, default=str))
+    except Exception as e:
+        print(json.dumps({'error': str(e)}, ensure_ascii=False))
+        sys.exit(1)
+
+
+if __name__ == '__main__':
+    main()

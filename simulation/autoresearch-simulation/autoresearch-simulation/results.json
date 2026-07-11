@@ -1,0 +1,21 @@
+{
+  "skill_name": "simulation",
+  "status": "complete",
+  "current_experiment": 6,
+  "baseline_score": 66.7,
+  "best_score": 95.6,
+  "model": "讯飞 Qwen xopqwen36v35b",
+  "experiments": [
+    {"id": 0, "score": 32, "max_score": 48, "pass_rate": 66.7, "status": "baseline", "description": "v1.0+mimo原始基线"},
+    {"id": 1, "score": 36, "max_score": 48, "pass_rate": 75.0, "status": "baseline", "description": "v1.1+讯飞Qwen模型切换"},
+    {"id": 4, "score": 50, "max_score": 60, "pass_rate": 83.3, "status": "keep", "description": "v1.4分级引用策略"},
+    {"id": "5d", "score": 61, "max_score": 68, "pass_rate": 89.7, "status": "keep", "description": "v1.8输出蓝图+防卡死+鲁棒运行器"},
+    {"id": 6, "score": 65, "max_score": 68, "pass_rate": 95.6, "status": "keep", "description": "v1.9精简模板+顺序铁律（Q40/Q46修复）"}
+  ],
+  "eval_breakdown": [
+    {"name": "E1 数据正确性", "pass_count": 17, "total": 17},
+    {"name": "E2 安全约束", "pass_count": 16, "total": 17},
+    {"name": "E3 结构完整", "pass_count": 16, "total": 17},
+    {"name": "E4 知识引用", "pass_count": 14, "total": 17}
+  ]
+}

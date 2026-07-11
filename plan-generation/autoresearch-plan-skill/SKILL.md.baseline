@@ -1,0 +1,231 @@
+---
+name: plan-generation
+description: "水库调度预案智能生成：收集水情数据、分析形势、生成多方案调度预案、对比推荐。"
+version: 2.1.0
+author: SmartTwinRes Team
+license: MIT
+platforms: [linux, windows, macos]
+metadata:
+  hermes:
+    tags: [water-conservancy, plan, dispatch, reservoir, scheduling]
+    related_skills: [early-warning, water-situation]
+prerequisites:
+  env_vars: [SRM_DB_HOST, SRM_DB_PORT, SRM_DB_NAME, SRM_DB_USER, SRM_DB_PASSWORD]
+---
+
+# 水库调度预案智能生成 Skill v2.1
+
+## 数据库
+
+```bash
+mysql -h 127.0.0.1 -P 3306 -u root -p123456aA. powerelf_srm_yml
+```
+
+**核心表**: st_rsvr_r(水情), att_res_flse_lim(汛限), model_config(配置), model_result_files(历史预案), srm_flood_history_base(历史洪水)
+
+## 快速查询（推荐使用脚本，一次获取所有数据）
+
+```bash
+# 推荐：一次获取所有需要的数据（减少查询次数，避免超时）
+python3 scripts/query_plan_data.py --type full_context
+
+# 或单独查询：
+python3 scripts/query_plan_data.py --type current_water_level
+python3 scripts/query_plan_data.py --type rainfall_forecast --hours 48
+python3 scripts/query_plan_data.py --type weather_warning
+python3 scripts/query_plan_data.py --type flood_limit
+python3 scripts/query_plan_data.py --type config
+python3 scripts/query_plan_data.py --type historical_plans --limit 10
+python3 scripts/query_plan_data.py --type historical_floods --limit 10
+```
+
+**效率提示**：优先使用 `--type full_context` 一次获取所有数据，避免多次查询导致超时。
+
+## 直接SQL查询
+
+```sql
+-- 当前水位
+SELECT rz, inq, otq, tm FROM st_rsvr_r WHERE deleted = 0 AND rz IS NOT NULL ORDER BY tm DESC LIMIT 1;
+
+-- 汛限水位（当前日期匹配）
+SELECT flse_lim_stag, flood_season_name FROM att_res_flse_lim
+WHERE flood_season_start <= DATE_FORMAT(NOW(), '%m%d') AND flood_season_end >= DATE_FORMAT(NOW(), '%m%d') LIMIT 1;
+
+-- 非汛期时从 att_res_base 查询
+SELECT fl_low_lim_lev FROM att_res_base WHERE fl_low_lim_lev IS NOT NULL LIMIT 1;
+
+-- 系统配置
+SELECT config_key, value FROM model_config WHERE config_key IN ('max_water_level','min_water_level','max_drainage_capacity','safe_drainage_capacity') AND deleted = 0;
+
+-- 降雨预报
+SELECT ymdh, rn, text FROM f_rnfl_h WHERE deleted = 0 AND ymdh >= NOW() ORDER BY ymdh LIMIT 48;
+
+-- 气象预警
+SELECT docid, docabstract, docpubtime FROM weather_warn WHERE warn_status = '1' ORDER BY docpubtime DESC LIMIT 5;
+
+-- 历史预案
+SELECT id, alias, target_water_level, adjusted_water_level, start_time, end_time, extend FROM model_result_files WHERE type = 2 ORDER BY create_time DESC LIMIT 10;
+
+-- 历史洪水
+SELECT id, name, start_time, end_time, adjusted_water_level, target_water_level, status, remake FROM srm_flood_history_base WHERE deleted = 0 ORDER BY create_time DESC LIMIT 10;
+
+-- 水位-库容曲线
+SELECT stag, cap FROM att_res_stag_cap_disc ORDER BY stag;
+
+-- 泄流曲线
+SELECT stag, q FROM att_res_discharge_curve ORDER BY stag;
+```
+
+---
+
+## 调度规则（速查）
+
+> 📖 **详细规则**：`${HERMES_SKILL_DIR}/references/dispatch-rules.md`
+
+### 调度目标选择
+
+| 条件 | 调度目标 | schedulingTarget |
+|------|---------|-----------------|
+| 当前水位 > 汛限水位 - 2m | 防洪优先 | 0 |
+| 当前水位 < 死水位 + 3m | 兴利保供 | 1 |
+| 水位适中 | 综合平衡 | 2 |
+
+### 调度模式选择
+
+| 调度目标 | 推荐模式 | schedulingModel | 说明 |
+|---------|---------|-----------------|------|
+| 防洪优先 | 控制最高水位 | 0 | 确保水位不超过上限 |
+| 防洪优先 | 控制最大出库 | 3 | 当下游有防洪要求时 |
+| 兴利保供 | 控制最低水位 | 1 | 确保水位不低于下限 |
+| 兴利保供 | 控制最小出库 | 4 | 当需要保证供水时 |
+| 综合平衡 | 控制水位范围 | 2 | 水位在指定范围内波动 |
+| 综合平衡 | 控制出库流量范围 | 5 | 流量在指定范围内 |
+
+### 目标水位确定
+
+| 场景 | 目标水位 | 说明 |
+|------|---------|------|
+| 防洪优先 | 汛限水位 - 安全余量 | 黄色预警-0.5m，橙色-1.0m，红色-2.0m |
+| 兴利保供 | min(正常蓄水位, 当前水位+需求) | 根据供水需求确定 |
+| 综合平衡 | (汛限+死水位)/2 或 当前水位 | 维持中间水位 |
+
+### 调度时长选择
+
+| 降雨条件 | 调度时长 |
+|---------|---------|
+| 短时强降雨（<6h） | 6h |
+| 一般降雨（6-24h） | 24h |
+| 持续降雨（24-48h） | 48h |
+| 长历时降雨（>48h） | 72h |
+
+---
+
+## 安全约束（不可违反）
+
+> 📖 **法规依据**：`${HERMES_SKILL_DIR}/references/knowledge-base.md`
+
+- 最高允许水位 ≤ 汛限水位（《防洪法》第41条）
+- 下泄流量 ≤ 下游安全泄量（《水库大坝安全管理条例》）
+- 起调水位 > 目标水位（水量平衡约束）
+- 推荐参数必须来自实际查询数据，不能编造
+
+---
+
+## 应急响应规则（速查）
+
+> 📖 **完整流程**：`${HERMES_SKILL_DIR}/references/emergency-response.md`
+
+### 水位超汛限
+- 立即加大泄洪，全力降低水位
+- 通知防汛值班人员
+- 加密水位监测频率（每15分钟一次）
+
+### 暴雨红色预警
+- 提前预泄，降低水位至汛限以下2m
+- 加密监测频率（每30分钟）
+- 通知所有防汛责任人到岗
+
+### 设备故障
+- 确认故障设备数量和位置
+- 评估剩余泄洪能力
+- 调整调度方案，使用可用设备
+
+### 下游险情（管涌/漫堤）
+- 立即减少下泄流量
+- 下泄流量 ≤ min(安全泄量×50%, 入库流量×50%)
+- 密切关注水库水位变化
+
+---
+
+## 多方案生成
+
+每次生成预案时，**必须生成 3 组方案**：
+
+- **方案A：防洪优先**（schedulingTarget=0）— 适合暴雨、高水位
+- **方案B：综合平衡**（schedulingTarget=2）— 适合常规条件
+- **方案C：兴利保供**（schedulingTarget=1）— 适合干旱、低水位
+
+每组方案包含：调度目标、调度模式、最高/最低允许水位、最大下泄、安全泄量、调度时长。
+
+**每个方案必须包含风险提示**：水位安全余量、是否超汛限、主要风险。
+
+---
+
+## 数据缺失处理
+
+| 数据缺失 | 处理方式 |
+|---------|---------|
+| 水位为 NULL | 提示"当前水位数据不可用" |
+| 降雨预报为空 | 使用历史平均降雨量参考 |
+| 历史预案为空 | 跳过历史参考，用配置中心参数 |
+| 汛限水位为空 | 使用 att_res_base 的 fl_low_lim_lev |
+
+---
+
+## SQL 查询参考
+
+> 📖 **更多查询**：`${HERMES_SKILL_DIR}/references/sql-queries.md`
+
+常用查询已包含在"直接SQL查询"部分。如需复杂查询（多表联查、统计分析等），读取上述文件。
+
+---
+
+## API 模式（可选）
+
+如需调用后端 REST API 触发实际计算：
+
+```bash
+export API_BASE=http://127.0.0.1:48080/admin-api
+
+# 执行调度计算
+curl -X POST "$API_BASE/model/dispatch/cal" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "startTime": "2026-06-05 08:00:00",
+    "tmSpan": 48,
+    "adjustedWaterLevel": 338.5,
+    "save": false,
+    "dispatchRequestExtendVO": {
+      "schedulingTarget": "0",
+      "schedulingModel": "0",
+      "maxWaterLevel": 462.88,
+      "minWaterLevel": 451.0,
+      "maxDrainageCapacity": 192,
+      "safeDrainageCapacity": 95.1
+    }
+  }'
+```
+
+---
+
+## 知识库文件索引
+
+当需要深入分析时，请读取对应文件：
+
+| 文件路径 | 内容 | 何时读取 |
+|---------|------|---------|
+| `${HERMES_SKILL_DIR}/references/dispatch-rules.md` | 完整调度规则、参数选择逻辑、调度目标/模式详细说明 | 用户问"调度模式5是什么"、"如何选择调度目标" |
+| `${HERMES_SKILL_DIR}/references/emergency-response.md` | 完整应急响应措施、设备故障处理、下游险情联动 | 用户问"闸门故障怎么办"、"下游管涌如何处理" |
+| `${HERMES_SKILL_DIR}/references/knowledge-base.md` | 国标(GB)、行标(SL)、法律法规全文、预警指标体系 | 用户问"SL 224 具体条款"、"防洪法第41条内容" |
+| `${HERMES_SKILL_DIR}/references/sql-queries.md` | 复杂SQL查询、多表联查、统计分析 | 用户问"如何查询历史预案效果"、"降雨统计SQL" |
+| `${HERMES_SKILL_DIR}/references/INDEX.md` | 知识库索引表，按场景分类 | 不确定读哪个文件时 |

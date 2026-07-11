@@ -1,0 +1,370 @@
+---
+name: early-warning
+description: "智慧水利预警系统智能体：告警分析、诊断、预测、问答。读操作直连数据库，写操作走后端 API。"
+version: 4.1.0
+author: SmartTwinRes Team
+license: MIT
+platforms: [linux, windows, macos]
+metadata:
+  hermes:
+    tags: [water-conservancy, early-warning, alarm, analysis, diagnosis]
+    related_skills: [powerelf-data-governance, powerelf-monitor, powerelf-chatbi]
+prerequisites:
+  env_vars: [POWERELF_DB_HOST, POWERELF_DB_PORT, POWERELF_DB_NAME, POWERELF_DB_USER, POWERELF_DB_PASSWORD, POWERELF_API_BASE, POWERELF_API_TOKEN]
+---
+
+# 智能预警系统 Skill v4.1
+
+水利工程智能预警系统**智能体**。聚焦于需要 AI 能力的复杂分析、诊断推理、知识问答场景。
+
+## 定位
+
+**本 Skill 聚焦智能体层能力**，不包含应用层实现。
+
+| 层级 | 职责 | 实现方式 |
+|------|------|----------|
+| **应用层** | 状态机、合并、审计、风暴检测 | 后端 Java Service（见后端开发文档） |
+| **智能体层** | 根因分析、关联分析、预测、问答 | 本 Skill（Agent 执行） |
+
+## 数据库连接配置
+
+### 连接信息
+
+| 配置项 | 值 | 说明 |
+|--------|-----|------|
+| **主机** | 127.0.0.1 | 本地数据库 |
+| **端口** | 3306 | MySQL 默认端口 |
+| **数据库** | powerelf_srm_yml | 告警业务数据库 |
+| **用户** | root | 只读用户 |
+| **密码** | 123456aA. | 数据库密码 |
+
+### 连接命令
+
+```bash
+mysql -h 127.0.0.1 -P 3306 -u root -p123456aA. powerelf_srm_yml
+```
+
+### 环境变量设置
+
+```bash
+export POWERELF_DB_HOST=127.0.0.1
+export POWERELF_DB_PORT=3306
+export POWERELF_DB_NAME=powerelf_srm_yml
+export POWERELF_DB_USER=root
+export POWERELF_DB_PASSWORD=123456aA.
+```
+
+## 数据访问策略
+
+**混合模式 (C1+C2)：**
+- **读操作 → 直连数据库**：告警查询、统计、趋势分析等使用 MySQL 直连
+- **写操作 → 后端 API**：确认/处理/忽略/配置规则等使用 REST API
+
+## 默认查询参数（性能优化）
+
+### 查询范围限制
+
+| 参数 | 默认值 | 说明 |
+|------|--------|------|
+| **时间范围** | 最近 7 天 | 避免全表扫描 |
+| **分页大小** | 50 条 | 平衡性能和数据量 |
+| **最大分页** | 200 条 | 防止内存溢出 |
+| **排序方式** | 时间倒序 | 最新的在前面 |
+
+### 查询模板（带默认参数）
+
+```sql
+-- 查询活跃告警（默认最近7天，最多50条）
+SELECT id, ew_name, st_code, eq_code, ew_type, level_r, content, 
+       value, gather_time, message_confirm, create_time
+FROM ew_info_message 
+WHERE deleted = 0
+  AND create_time >= DATE_SUB(NOW(), INTERVAL 7 DAY)
+ORDER BY 
+  CASE level_r WHEN '1' THEN 1 WHEN '2' THEN 2 WHEN '3' THEN 3 WHEN '4' THEN 4 END,
+  create_time DESC
+LIMIT 50;
+
+-- 查询高级别告警（默认最近30天）
+SELECT id, ew_name, st_code, eq_code, ew_type, level_r, content, 
+       value, gather_time, message_confirm, create_time
+FROM ew_info_message 
+WHERE deleted = 0
+  AND level_r IN ('1', '2')
+  AND create_time >= DATE_SUB(NOW(), INTERVAL 30 DAY)
+ORDER BY create_time DESC
+LIMIT 50;
+
+-- 查询告警统计（默认最近30天）
+SELECT level_r, COUNT(*) as count
+FROM ew_info_message 
+WHERE deleted = 0
+  AND create_time >= DATE_SUB(NOW(), INTERVAL 30 DAY)
+GROUP BY level_r
+ORDER BY level_r;
+
+-- 查询特定测站告警（默认最近30天）
+SELECT id, ew_name, level_r, value, gather_time, message_confirm
+FROM ew_info_message 
+WHERE st_code = '606K2155' AND deleted = 0
+  AND create_time >= DATE_SUB(NOW(), INTERVAL 30 DAY)
+ORDER BY gather_time DESC
+LIMIT 50;
+```
+
+### 动态参数调整
+
+当用户指定时间范围或数量时，使用用户参数：
+
+```
+用户: "查看最近3天的告警"
+→ 使用 INTERVAL 3 DAY
+
+用户: "查看最近100条告警"
+→ 使用 LIMIT 100
+
+用户: "查看2026年5月的告警"
+→ 使用 create_time >= '2026-05-01' AND create_time < '2026-06-01'
+```
+
+## 核心能力
+
+| 能力 | 说明 | 文件 |
+|------|------|------|
+| **根因分析** | 多因素关联诊断，生成诊断报告 | analysis/root-cause-analysis.md |
+| **关联分析** | 因果链推理，时空关联 | analysis/correlation-analysis.md |
+| **模式识别** | 周期/聚集/级联模式发现 | analysis/alarm-pattern.md |
+| **预测预警** | 趋势预测，超限预警 | analysis/predictive-warning.md |
+| **规则配置** | 自然语言转JSON规则 | analysis/alarm-rule-config.md |
+| **报告生成** | 日报/周报/月报 | analysis/alarm-report.md |
+| **知识问答** | 6种问答模式 | analysis/alarm-knowledge-qa.md |
+| **应急响应** | 案例推理，方案推荐 | scenarios/emergency-response.md |
+| **升级建议** | 升级策略，通知模板 | lifecycle/escalation-agent.md |
+| **恢复判断** | 多条件综合评估 | lifecycle/recovery-agent.md |
+| **参数优化** | 自动调优建议 | evolution/parameters.md |
+| **反馈优化** | 准确率跟踪 | evolution/feedback-log.md |
+
+## 按需加载指令
+
+```
+"分析告警"/"为什么报警"        → analysis/root-cause-analysis.md
+"关联告警"/"告警关系"          → analysis/correlation-analysis.md
+"告警模式"/"规律"              → analysis/alarm-pattern.md
+"预测"/"会不会超限"            → analysis/predictive-warning.md
+"创建规则"/"配置规则"          → analysis/alarm-rule-config.md
+"告警报告"/"日报"/"周报"       → analysis/alarm-report.md
+"告警统计"/"趋势如何"          → analysis/alarm-knowledge-qa.md
+"怎么处理"/"处理建议"          → scenarios/emergency-response.md
+"升级建议"/"要不要升级"        → lifecycle/escalation-agent.md
+"恢复判断"/"可以恢复吗"        → lifecycle/recovery-agent.md
+"参数调优"/"优化建议"          → evolution/parameters.md
+"反馈分析"/"准确率"            → evolution/feedback-log.md
+```
+
+## 核心数据表
+
+| 表名 | 说明 | 关键字段 | 数据量 |
+|------|------|----------|--------|
+| ew_info_message | 预警消息 | ew_name, ew_type, level_r, value, gather_time, message_confirm | 533条 |
+| ew_info_rules | 预警规则 | name, ew_type, level_r, extend(JSON), status | 25条 |
+| ew_audit_log | 操作审计 | alarm_id, action, operator, old_status, new_status | - |
+| ew_notice_record | 通知记录 | ew_info_id, notice_type, notice_status | - |
+| ew_notice_tactics | 通知策略 | name, ew_level, ew_rules_type, notice_manner | 9条 |
+| weather_warn | 天气预警 | docid, docabstract, docpubtime, warn_status | 141条 |
+| st_rsvr_r | 水库水情 | rz, blrz, inq, otq, w, tm | 193,720条 |
+| st_pptn_r | 降雨数据 | p, dr, tm | 260,500条 |
+| st_pressure_r | 渗压数据 | water_pressure, tm | 1,809条 |
+| st_percolation_r | 渗流数据 | percolation, tm | 60条 |
+
+## SQL 查询模板
+
+### 查询活跃告警
+
+```sql
+SELECT id, ew_name, st_code, eq_code, ew_type, level_r, content, 
+       value, gather_time, message_confirm, create_time
+FROM ew_info_message 
+WHERE deleted = 0
+  AND create_time >= DATE_SUB(NOW(), INTERVAL 7 DAY)
+ORDER BY 
+  CASE level_r WHEN '1' THEN 1 WHEN '2' THEN 2 WHEN '3' THEN 3 WHEN '4' THEN 4 END,
+  create_time DESC
+LIMIT 50;
+```
+
+### 查询高级别告警
+
+```sql
+SELECT id, ew_name, st_code, eq_code, ew_type, level_r, content, 
+       value, gather_time, message_confirm, create_time
+FROM ew_info_message 
+WHERE deleted = 0
+  AND level_r IN ('1', '2')
+  AND create_time >= DATE_SUB(NOW(), INTERVAL 30 DAY)
+ORDER BY create_time DESC
+LIMIT 50;
+```
+
+### 查询告警详情
+
+```sql
+SELECT a.id, a.ew_name, a.st_code, a.eq_code, a.ew_type, a.level_r,
+       a.content, a.value, a.gather_time, a.message_confirm,
+       a.create_time, a.update_time,
+       b.name as rule_name, b.extend as rule_extend
+FROM ew_info_message a
+LEFT JOIN ew_info_rules b ON a.ew_rules_id = b.id
+WHERE a.id = #{alarmId} AND a.deleted = 0;
+```
+
+### 查询告警历史
+
+```sql
+SELECT id, ew_name, st_code, ew_type, level_r, value, 
+       gather_time, message_confirm, create_time
+FROM ew_info_message
+WHERE st_code = #{stCode} AND deleted = 0
+  AND create_time >= DATE_SUB(NOW(), INTERVAL 30 DAY)
+ORDER BY create_time DESC
+LIMIT 50;
+```
+
+### 查询告警统计
+
+```sql
+SELECT level_r, COUNT(*) as count
+FROM ew_info_message 
+WHERE deleted = 0
+  AND create_time >= DATE_SUB(NOW(), INTERVAL 30 DAY)
+GROUP BY level_r
+ORDER BY level_r;
+```
+
+### 查询告警趋势
+
+```sql
+SELECT DATE(create_time) as date, level_r, COUNT(*) as count
+FROM ew_info_message 
+WHERE deleted = 0
+  AND create_time >= DATE_SUB(NOW(), INTERVAL 30 DAY)
+GROUP BY DATE(create_time), level_r
+ORDER BY date, level_r;
+```
+
+### 查询关联告警
+
+```sql
+SELECT id, ew_name, st_code, ew_type, level_r, value, gather_time
+FROM ew_info_message
+WHERE deleted = 0
+  AND st_code = #{stCode}
+  AND create_time >= DATE_SUB(NOW(), INTERVAL 30 DAY)
+ORDER BY gather_time DESC
+LIMIT 50;
+```
+
+### 查询设备当前值
+
+```sql
+-- 水位
+SELECT rz as current_value, tm as current_time
+FROM st_rsvr_r WHERE eq_code = #{eqCode} ORDER BY tm DESC LIMIT 1;
+
+-- 降雨
+SELECT p as current_value, tm as current_time
+FROM st_pptn_r WHERE eq_code = #{eqCode} ORDER BY tm DESC LIMIT 1;
+
+-- 渗压
+SELECT water_pressure as current_value, tm as current_time
+FROM st_pressure_r WHERE eq_code = #{eqCode} ORDER BY tm DESC LIMIT 1;
+
+-- 渗流
+SELECT percolation as current_value, tm as current_time
+FROM st_percolation_r WHERE eq_code = #{eqCode} ORDER BY tm DESC LIMIT 1;
+```
+
+### 查询告警规则
+
+```sql
+SELECT id, name, ew_type, level_r, st_code, extend
+FROM ew_info_rules
+WHERE deleted = 0
+ORDER BY ew_type, level_r;
+```
+
+## API 端点（写操作）
+
+| 端点 | 方法 | 说明 |
+|------|------|------|
+| `/earlywaring/info-message/confirm` | PUT | 确认告警 |
+| `/earlywaring/info-message/resolve` | POST | 处理告警 |
+| `/earlywaring/info-message/ignore` | POST | 忽略告警 |
+| `/earlywaring/info-rules/create` | POST | 创建规则 |
+| `/earlywaring/info-rules/update` | PUT | 更新规则 |
+
+通用头：`Authorization: Bearer ${POWERELF_API_TOKEN}`、`tenant-id: 1`
+
+## ew_type 预警类型
+
+| 值 | 含义 | 值 | 含义 |
+|----|------|----|------|
+| 0 | 水位预警 | 12 | 设备离线 |
+| 1 | 水质预警 | 20 | 渗压预警 |
+| 2 | 雨量预警 | 30 | 渗流预警 |
+| 3 | 开关变化 | 40 | 位移预警 |
+| 4 | 开关量 | 5 | 大坝安全 |
+
+## 告警等级
+
+| 等级 | 值 | 含义 | 颜色 |
+|------|-----|------|------|
+| I级 | 1 | 特别严重 | 红色 |
+| II级 | 2 | 严重 | 橙色 |
+| III级 | 3 | 较重 | 黄色 |
+| IV级 | 4 | 一般 | 蓝色 |
+
+## 告警状态
+
+| 状态 | 值 | 含义 |
+|------|-----|------|
+| TRIGGERED | 0 | 已触发 |
+| CONFIRMED | 1 | 已确认 |
+| ESCALATED | 2 | 已升级 |
+| RESOLVED | 3 | 已处理 |
+| RECOVERED | 4 | 已恢复 |
+| IGNORED | 5 | 已忽略 |
+
+## 性能优化说明
+
+### 查询性能基准
+
+| 查询类型 | 预期时间 | 数据量 |
+|----------|----------|--------|
+| 查询活跃告警 | < 0.1s | 50条 |
+| 查询高级别告警 | < 0.1s | 50条 |
+| 查询告警统计 | < 0.05s | 4条 |
+| 查询告警趋势 | < 0.1s | 30天 |
+| 查询设备当前值 | < 0.05s | 1条 |
+
+### 性能优化措施
+
+1. **时间范围限制**：默认查询最近7天或30天数据
+2. **分页限制**：默认最多返回50条记录
+3. **索引优化**：确保 `deleted`, `create_time`, `level_r` 字段有索引
+4. **本地数据库**：使用 127.0.0.1 避免网络延迟
+
+### 索引建议
+
+```sql
+-- 添加联合索引
+CREATE INDEX idx_deleted_create_time ON ew_info_message(deleted, create_time);
+CREATE INDEX idx_level_deleted ON ew_info_message(level_r, deleted);
+CREATE INDEX idx_st_code_deleted ON ew_info_message(st_code, deleted);
+```
+
+## 配置文件
+
+- 数据库配置：`db-config.md`
+- 性能优化配置：`performance-config.md`
+- 可调参数：`evolution/parameters.md`
+- 反馈日志：`evolution/feedback-log.md`

@@ -1,0 +1,27 @@
+# =============================================================================
+# crontab.demo — 预报 demo 数据模拟器(可选 cron 部署)
+#
+# 默认用法是【手动窗口模式】:演示前手动跑一次
+#     python3 generate_forecast_data.py
+# 即可生成完整标准 demo 窗口(实测 NOW-30d→NOW,预报 NOW→NOW+168h,10 表全覆盖)。
+#
+# 本 crontab 是【可选】的"持续新鲜"方案:让 mock 数据每隔约 50 分钟自动滚动一次
+# (读各表 MAX(tm) 真实断点,从断点续写到 NOW)。仅当需要 demo 数据长期实时跟随
+# 系统时钟(而非每次手动重跑)时才部署。**不需要可不装。**
+#
+# -----------------------------------------------------------------------------
+# 部署方法:
+#   1. 把下面 <预置> 换成 application-prod.yaml 里的真实 DB 密码
+#      (grep password SmartResMatrix/SmartResMatrix-server/src/main/resources/application-prod.yaml)
+#      —— 密码只能放在【本机 crontab / 环境变量】里,严禁提交进 git。
+#   2. crontab crontab.demo   # 或 crontab -e 后粘贴该行
+#   3. 确认日志:/var/log/demo-sim.log
+# -----------------------------------------------------------------------------
+# 安全说明:
+#   - flock /tmp/demo-sim.lock 防止上一次滚动未完成时重叠执行(导致断点读错/行叠)。
+#   - 每行只跑 --roll(断点续到 NOW),不改任何真实 seed/config 表,只插 MOCK 行。
+#   - 清理仍用 --purge-mock(手动);--clear-faults 还原真实 seed/config 表(手动)。
+# =============================================================================
+
+# 每 50 分钟滚动一次 demo 数据(断点续到 NOW,持续新鲜)。默认不用——手动窗口为主。
+*/50 * * * * flock /tmp/demo-sim.lock bash -c 'cd /opt/git/hermes-agent && SRM_DB_PASSWORD=<预置> python3 /home/scada/SmartTwinRes20260601/SmartTwinRes-skills/forecasting/data/generate_forecast_data.py --roll >> /var/log/demo-sim.log 2>&1'
