@@ -21,23 +21,29 @@ sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), '..'
 #       execute_query() 返回 dict (含 data/count/truncated)
 from lib.db import execute_query_list, DB_CONFIG  # noqa: E402
 from lib.db import execute_query, unpack  # noqa: E402 (用于需要元数据的场景)
+from lib.tenant import current_tenant_id, resolve_tenant  # noqa: E402 -- 水库身份(SRM_TENANT_ID,默认18三岔)
+
+DEFAULT_TENANT = current_tenant_id()
 
 
-def query_current_water_level():
+def query_current_water_level(tenant_id=None):
     """查询当前水位"""
+    tid = resolve_tenant(tenant_id)
     sql = """
     SELECT rz, inq, otq, w, tm
     FROM st_rsvr_r
-    WHERE deleted = 0 AND rz IS NOT NULL
+    WHERE deleted = 0 AND rz IS NOT NULL AND tenant_id = %s
     ORDER BY tm DESC
     LIMIT 1
     """
-    return execute_query_list(sql)
+    return execute_query_list(sql, (tid,))
 
 
-def query_flood_limit():
+def query_flood_limit(tenant_id=None):
     """查询当前汛限水位"""
+    tid = resolve_tenant(tenant_id)
     # 优先从 att_res_flse_lim 表查询（按当前日期匹配汛期）
+    # 注：att_res_flse_lim 无 tenant_id 列（见 lib/filters.py），不按 tenant 过滤
     sql = """
     SELECT flse_lim_stag, flood_season_name, flood_season_start, flood_season_end
     FROM att_res_flse_lim
@@ -57,54 +63,45 @@ def query_flood_limit():
            NULL as flood_season_start,
            NULL as flood_season_end
     FROM att_res_base
-    WHERE fl_low_lim_lev IS NOT NULL AND deleted = 0
+    WHERE fl_low_lim_lev IS NOT NULL AND deleted = 0 AND tenant_id = %s
     ORDER BY id
     LIMIT 1
     """
-    results2 = execute_query(sql2)
+    results2 = execute_query(sql2, (tid,))
     if results2:
         return results2
 
-    # 兜底默认值
-    return [{
-        'flse_lim_stag': 462.5,
-        'flood_season_name': '非汛期',
-        'flood_season_start': None,
-        'flood_season_end': None
-    }]
+    # 无兜底硬编码值——汛限必须来自数据库。缺失返回空，禁止编造水库特定数值。
+    return []
 
 
-def query_config():
-    """查询系统配置（取最新的一组配置）"""
+def query_config(tenant_id=None):
+    """查询系统配置（取当前租户的一组配置）"""
+    tid = resolve_tenant(tenant_id)
     sql = """
     SELECT config_key, value, tenant_id
     FROM model_config
     WHERE config_key IN ('max_water_level', 'min_water_level',
-                         'max_drainage_capacity', 'safe_drainage_capacity')
-      AND deleted = 0
-    ORDER BY tenant_id DESC, id DESC
+                         'max_drainage_capacity', 'safe_drainage_capacity',
+                         'st_rsvr_r_master', 'st_pptn_r_master', 'res_guid',
+                         'watershed_area_km2', 'flood_limit_main', 'flood_limit_secondary',
+                         'normal_pool_level', 'design_flood_level', 'check_flood_level',
+                         'dead_water_level', 'total_storage')
+      AND deleted = 0 AND tenant_id = %s
+    ORDER BY id DESC
     """
-    results = execute_query_list(sql)
-    # 按 tenant_id 分组，取最常用的一组（或最新的）
-    # 优先取 tenant_id=18（三岔水库所在租户）
-    config_by_tenant = {}
+    results = execute_query_list(sql, (tid,))
+    config = {}
     for row in results:
-        tid = row.get('tenant_id', 0)
-        if tid not in config_by_tenant:
-            config_by_tenant[tid] = {}
-        config_by_tenant[tid][row['config_key']] = row['value']
-
-    # 优先返回 tenant_id=18，否则返回最新的
-    if 18 in config_by_tenant:
-        return config_by_tenant[18]
-    elif config_by_tenant:
-        return list(config_by_tenant.values())[0]
-    else:
-        return {}
+        if row['config_key'] not in config:
+            config[row['config_key']] = row['value']
+    return config
 
 
-def query_water_level_curve():
+def query_water_level_curve(tenant_id=None):
     """查询水位-库容曲线（按水位取平均值，消除重复）"""
+    # tenant_id 预留：阶段2曲线表 ALTER TABLE 加 tenant_id 列后启用过滤
+    _ = resolve_tenant(tenant_id)
     sql = """
     SELECT stag as water_level, AVG(cap) as capacity
     FROM att_res_stag_cap_disc
@@ -114,8 +111,9 @@ def query_water_level_curve():
     return execute_query_list(sql)
 
 
-def query_discharge_curve():
+def query_discharge_curve(tenant_id=None):
     """查询泄流曲线"""
+    _ = resolve_tenant(tenant_id)  # 预留：阶段2曲线表加 tenant_id 列后启用过滤
     sql = """
     SELECT stag as water_level, q as flow
     FROM att_res_discharge_curve
@@ -124,17 +122,18 @@ def query_discharge_curve():
     return execute_query_list(sql)
 
 
-def query_historical_floods(limit=10):
+def query_historical_floods(limit=10, tenant_id=None):
     """查询历史洪水（已完成状态）"""
+    tid = resolve_tenant(tenant_id)
     sql = """
     SELECT id, name, start_time, end_time, adjusted_water_level,
            target_water_level, status, rainfall_data, remake
     FROM srm_flood_history_base
-    WHERE deleted = 0 AND status = 2
+    WHERE deleted = 0 AND status = 2 AND tenant_id = %s
     ORDER BY create_time DESC
     LIMIT %s
     """
-    return execute_query_list(sql, (limit,))
+    return execute_query_list(sql, (tid, limit))
 
 
 def query_flood_detail(flood_id):
@@ -289,8 +288,14 @@ def main():
     parser.add_argument('--limit', type=int, default=10, help='返回条数')
     parser.add_argument('--format', choices=['json', 'table'], default='json',
                         help='输出格式')
+    parser.add_argument('--tenant', type=int, default=None,
+                        help='租户/水库ID（覆盖 SRM_TENANT_ID 环境变量，默认18=三岔）')
 
     args = parser.parse_args()
+
+    # --tenant 覆盖环境变量，所有 resolve_tenant() 运行时统一读取
+    if args.tenant is not None:
+        os.environ['SRM_TENANT_ID'] = str(args.tenant)
 
     # 参数校验：需要 --flood-id 的查询类型
     flood_id_types = ['flood_detail', 'flood_result', 'flood_result_curve',

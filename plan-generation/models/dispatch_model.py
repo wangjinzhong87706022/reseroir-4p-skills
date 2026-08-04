@@ -245,7 +245,9 @@ class DispatchModel:
         return max(0, delta_cap * 10000 / 3600 / dt_hours)
 
 
-# 默认水位-库容曲线（三岔水库简化数据）
+# ⚠️ 三岔水库专属兜底曲线（仅供三岔部署实例向后兼容）。
+# 多水库部署（如桃曲坡）必须由调用方从 att_res_stag_cap_disc / att_res_discharge_curve
+# 按 tenant_id 取曲线后显式传入，禁止走此 fallback（否则会误用三岔曲线）。
 DEFAULT_WL_CURVE = [
     (451.0, 3900), (452.0, 4200), (453.0, 4500), (454.0, 4836),
     (455.0, 5200), (456.0, 5600), (457.0, 6100), (458.0, 6455),
@@ -254,7 +256,7 @@ DEFAULT_WL_CURVE = [
     (466.0, 11800), (467.0, 13000), (468.0, 14500),
 ]
 
-# 默认水位-泄流曲线（三岔水库简化数据）
+# ⚠️ 三岔水库专属兜底泄流曲线（同上警告）。
 DEFAULT_DC_CURVE = [
     (451.0, 0), (453.0, 20), (455.0, 80), (456.0, 83),
     (457.0, 85), (458.0, 87), (459.0, 89), (460.0, 91),
@@ -262,6 +264,16 @@ DEFAULT_DC_CURVE = [
     (464.0, 120), (465.0, 150), (466.0, 200), (467.0, 300),
     (468.0, 500),
 ]
+
+
+def _warn_default_curve(reservoir_hint="三岔"):
+    """兜底曲线被使用时发出警告（多水库场景的防串库提醒）。"""
+    import warnings
+    warnings.warn(
+        f"使用了 {reservoir_hint} 默认曲线 fallback。多水库部署必须由调用方"
+        f"从 DB 按 tenant_id 取曲线显式传入，禁止依赖此兜底。",
+        stacklevel=3,
+    )
 
 
 @app.route('/health', methods=['GET'])
@@ -316,9 +328,13 @@ def optimize():
             'scheduling_model': data.get('scheduling_model', '0'),
         }
 
-        # 曲线数据
-        wl_curve = data.get('water_level_curve', DEFAULT_WL_CURVE)
-        dc_curve = data.get('discharge_curve', DEFAULT_DC_CURVE)
+        # 曲线数据（多水库部署必须由调用方传入，否则走三岔兜底并告警）
+        wl_curve = data.get('water_level_curve')
+        dc_curve = data.get('discharge_curve')
+        if wl_curve is None or dc_curve is None:
+            _warn_default_curve()
+            wl_curve = wl_curve or DEFAULT_WL_CURVE
+            dc_curve = dc_curve or DEFAULT_DC_CURVE
 
         if not inflow:
             return jsonify({"error": "入库流量数据不能为空"}), 400

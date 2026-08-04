@@ -25,14 +25,25 @@ from pathlib import Path
 from typing import Optional, List
 
 # =============================================================================
-# 配置
+# 路径配置（使用统一的路径管理）
 # =============================================================================
+# 将 lib/ 目录添加到 Python 路径
+sys.path.insert(0, str(Path(__file__).parent / "lib"))
 
-BASE_DIR = Path("/home/scada/SmartTwinRes20260601")
-SKILLS_DIR = BASE_DIR / "SmartTwinRes-skills"
+from paths import (
+    PROJECT_ROOT,
+    SKILLS_DIR,
+    RESULTS_DIR,
+    LOGS_DIR,
+    get_skill_dir,
+    ensure_dirs
+)
+
+# 确保必需的目录存在
+ensure_dirs()
+
+# Hermes 超时设置
 HERMES_TIMEOUT = 300  # 5分钟超时
-TEST_RESULTS_DIR = Path("/tmp/skills-tests")
-SKILLS_DIR.mkdir(exist_ok=True)
 
 # =============================================================================
 # Skill 定义
@@ -53,21 +64,21 @@ SKILLS = [
         id="forecasting",
         name="预报系统",
         description="降雨预报、水情查询、汛限水位、气象预警",
-        skill_dir=SKILLS_DIR / "forecasting",
+        skill_dir=get_skill_dir("forecasting"),
         enabled=True
     ),
     SkillDefinition(
         id="plan-generation",
         name="预案生成",
         description="调度预案、形势研判、方案对比",
-        skill_dir=SKILLS_DIR / "plan-generation",
+        skill_dir=get_skill_dir("plan-generation"),
         enabled=True  # builtin skill
     ),
     SkillDefinition(
         id="simulation",
         name="预演模拟",
         description="多方案对比、虚拟场景、结果解读",
-        skill_dir=SKILLS_DIR / "simulation",
+        skill_dir=get_skill_dir("simulation"),
         enabled=True  # builtin skill
     ),
 ]

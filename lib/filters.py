@@ -4,21 +4,29 @@ SmartTwinRes Skills 表过滤规则库
 
 提供 tenant_id / deleted 自动过滤功能,确保数据隔离和软删除规则统一应用。
 
+tenant_id 取值统一由 tenant.current_tenant_id() 解析（显式参数 > 环境变量
+SRM_TENANT_ID > 默认 18）。下方 docstring 示例输出中的 tenant_id = 18 为
+"未设置 SRM_TENANT_ID 时的默认值（三岔水库）"，并非硬编码常量。
+
 标准文档: docs/shared-tables.md
 """
 
 from typing import List, Optional, Tuple
 
+from .tenant import current_tenant_id
+
 # ===========================================================================
 # 表过滤规则配置
 # ===========================================================================
 
-# tenant_id 过滤规则
+# tenant_id 过滤规则（纯布尔：该表是否需要 tenant_id 过滤）
+# 具体的 tenant_id 取值统一由 tenant.current_tenant_id() 解析，
+# 不再在字典里写死 value（原 value:18 已移除，避免水库耦合）。
 TENANT_ID_FILTER_TABLES = {
-    'st_rsvr_r': {'filter': True, 'value': 18},
-    'st_pptn_r': {'filter': True, 'value': 18},
-    'srm_flood_history_base': {'filter': True, 'value': 18},
-    'model_result_files': {'filter': True, 'value': 18},
+    'st_rsvr_r': {'filter': True},
+    'st_pptn_r': {'filter': True},
+    'srm_flood_history_base': {'filter': True},
+    'model_result_files': {'filter': True},
     'ew_info_message': {'filter': False},  # 告警跨租户,不强制
     # 以下表无 tenant_id 列
     'f_rnfl_h': {'filter': False},
@@ -85,8 +93,8 @@ def apply_tenant_filter(
     if not rule['filter']:
         return sql
 
-    # 获取 tenant_id 值
-    tid = tenant_id if tenant_id is not None else rule.get('value', 18)
+    # 获取 tenant_id 值：显式参数优先，否则从 env 解析（默认回退 18）
+    tid = tenant_id if tenant_id is not None else current_tenant_id()
 
     # 判断 WHERE 子句位置
     sql_upper = sql.upper().strip()
@@ -208,7 +216,7 @@ def validate_table_filter(
 
     messages = []
     if need_tenant:
-        tid = TENANT_ID_FILTER_TABLES[base_table].get('value', 18)
+        tid = current_tenant_id()
         messages.append(f"tenant_id={tid}")
     else:
         messages.append("无 tenant_id 列,不过滤")
@@ -252,7 +260,7 @@ def generate_where_clause(
     # tenant_id 过滤
     rule = TENANT_ID_FILTER_TABLES.get(base_table, {})
     if rule.get('filter', False):
-        tid = tenant_id if tenant_id is not None else rule.get('value', 18)
+        tid = tenant_id if tenant_id is not None else current_tenant_id()
         conditions.append(f"tenant_id = {tid}")
 
     # deleted 过滤
