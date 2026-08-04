@@ -1,0 +1,475 @@
+{
+  "meta": {
+    "generated_at": "2026-08-03",
+    "total_unique_pdfs": 23,
+    "text_extractable": 14,
+    "scanned_no_text": 3,
+    "corrupted_invalid": 2,
+    "duplicate_dirs_removed": true
+  },
+  "agents": [
+    {
+      "id": "four_prevision",
+      "name_zh": "四预智能体",
+      "name_en": "Four-Prevision Agent",
+      "core_functions": ["AI洪水预报", "智能预警", "风险预演", "预知决策"],
+      "ai_enablement": ["深度学习洪水预报", "多源数据融合", "预警自动研判", "洪水演进可视化"],
+      "document_sources": [
+        {
+          "file": "2026年桃曲坡水库防洪抢险应急预案(1).pdf",
+          "pages": "第2.3.3节(预报方法), 第3.2节(溃坝分析), 第4.2节(预警流程), 第6.4节(通信), 第7章(四级响应)",
+          "key_content": ["三种洪水预报方法", "溃坝流量计算", "预警响应阈值", "通信保障方案"]
+        },
+        {
+          "file": "2026年度桃曲坡水库汛期调度运用计划(2).pdf",
+          "pages": "第2.7.2节(判断方法), 第2.7.3节(防御方案), 附表1(设计洪水过程线)",
+          "key_content": ["七级洪水标准流量阈值表", "面雨量阈值表", "暴雨量统计表", "预警级别判定"]
+        },
+        {
+          "file": "2026年桃曲坡水库调度规程(1)(1).pdf",
+          "pages": "第2.4节(水文气象情报), 第3章(防洪调度)",
+          "key_content": ["水文预报信息来源", "调度依据", "调度权限"]
+        },
+        {
+          "file": "2026年桃曲坡水库大坝安全管理应急预案(1).pdf",
+          "pages": "第4.1节(预测与预警), 第4.2节(应急响应)",
+          "key_content": ["水情工情监测预报", "通信方式", "报警系统", "预警级别"]
+        }
+      ],
+      "data_elements": {
+        "flood_forecast_methods": [
+          "气象服务平台+经验公式法",
+          "柳林水文站面积比拟法(系数1.23)",
+          "库容增值反推法"
+        ],
+        "flood_standards": {
+          "10年一遇": {"peak": 340, "label": "一般洪水以下"},
+          "20年一遇": {"peak": 550, "label": "Ⅳ级防御"},
+          "30年一遇": {"peak": 700, "label": "过渡"},
+          "50年一遇": {"peak": 910, "label": "Ⅲ级防御"},
+          "100年一遇": {"peak": 1780, "design": true, "label": "设计标准"},
+          "1000年一遇": {"peak": 3250, "check": true, "label": "校核标准"},
+          "超标准": {"peak": 3520, "label": "Ⅰ级响应"}
+        },
+        "rainfall_thresholds": {
+          "24h_面雨量_Ⅳ级": "60-120mm",
+          "24h_面雨量_Ⅲ级": "120-190mm",
+          "24h_面雨量_Ⅱ级": "190-260mm",
+          "24h_面雨量_Ⅰ级": ">260mm"
+        },
+        "monitoring_stations": {
+          "hydrological": ["柳林水文站(上游12km)"],
+          "rainfall_self_built": ["石门", "马栏", "水库枢纽"],
+          "rainfall_shared": ["陈家坡", "大峪", "黄堡", "柳林", "庙湾", "青草坪", "石柱", "杏树坪", "瑶曲", "耀县"]
+        }
+      }
+    },
+    {
+      "id": "data_governance",
+      "name_zh": "数据治理智能体",
+      "name_en": "Data Governance Agent",
+      "core_functions": ["数据标准", "主数据管理", "数据质量", "数据融合"],
+      "ai_enablement": ["数据质量自动巡检", "主数据关联", "数据血缘追踪", "多源数据融合"],
+      "document_sources": [
+        {
+          "file": "2026年桃曲坡水库防洪抢险应急预案(1).pdf",
+          "pages": "第2.3节(水文), 第2.4节(监测), 第4.1节(巡查)",
+          "key_content": ["监测项目标准", "巡查频次规则", "站点分布"]
+        },
+        {
+          "file": "2026年桃曲坡水库调度规程(1)(1).pdf",
+          "pages": "第2章(调度条件与依据)",
+          "key_content": ["调度参数", "安全运用条件", "监测要求"]
+        },
+        {
+          "file": "2026年桃曲坡水库大坝安全管理应急预案(1).pdf",
+          "pages": "第2章(突发事件分析)",
+          "key_content": ["事件分类标准", "分级标准", "后果分析"]
+        },
+        {
+          "file": "陕西省桃曲坡灌区水利工程管理范围及保护范围划界报告.pdf",
+          "pages": "第5章(测量技术方案)",
+          "key_content": ["坐标系统", "高程系统", "界桩坐标"]
+        },
+        {
+          "file": "2026年度桃曲坡水库汛期调度运用计划(2).pdf",
+          "pages": "附表(工程特性表, 洪水表)",
+          "key_content": ["工程参数", "洪水标准", "调度指标"]
+        }
+      ],
+      "master_data_entities": {
+        "engineering": {
+          "name": "工程主数据",
+          "source": "工程特性表",
+          "fields": ["水库名称", "位置", "坝型", "库容", "水位", "流量", "闸门参数", "启闭机型号"]
+        },
+        "organization": {
+          "name": "组织主数据",
+          "source": "联防指挥部/防汛机构",
+          "fields": ["单位名称", "职责", "联系人", "电话"]
+        },
+        "personnel": {
+          "name": "人员主数据",
+          "source": "抢险队伍名单",
+          "fields": ["姓名", "职务", "支队", "队长", "电话"]
+        },
+        "material": {
+          "name": "物资主数据",
+          "source": "物资清单",
+          "fields": ["物资名称", "规格", "单位", "标准数量", "实有数量", "存放地点"]
+        },
+        "station": {
+          "name": "站点主数据",
+          "source": "监测站点分布",
+          "fields": ["站点名称", "类型", "位置", "观测项目", "隶属关系"]
+        },
+        "monitoring_facility": {
+          "name": "监测设施主数据",
+          "source": "监测系统",
+          "fields": ["设施名称", "类型", "位置", "安装时间", "维护周期"]
+        }
+      },
+      "data_quality_rules": {
+        "hydrological": {
+          "frequency": "实时/每日",
+          "accuracy": "符合水文规范",
+          "completeness": "不允许连续缺失>3个测次"
+        },
+        "monitoring": {
+          "displacement": "每季度至少1次",
+          "crack_seepage": "每天至少1次",
+          "rainfall_water_level": "每天至少1次"
+        }
+      }
+    },
+    {
+      "id": "smart_inspection",
+      "name_zh": "智能巡检智能体",
+      "name_en": "Smart Inspection Agent",
+      "core_functions": ["AI辅助巡查", "缺陷识别", "异常分析", "知识推荐"],
+      "ai_enablement": ["图像识别缺陷检测", "监测数据异常预警", "巡检路线优化", "处置方案推荐"],
+      "document_sources": [
+        {
+          "file": "2026年桃曲坡水库防洪抢险应急预案(1).pdf",
+          "pages": "第4.1节(险情监测和巡查)",
+          "key_content": ["六类巡查对象", "巡查内容", "检查方法和频次", "人员组成"]
+        },
+        {
+          "file": "2026年桃曲坡水库调度规程(1)(1).pdf",
+          "pages": "第2.1节(安全运用条件), 第2.2节(监测要求)",
+          "key_content": ["各设备安全运用条件", "巡查养护要求", "年度/特别巡查"]
+        },
+        {
+          "file": "2026年桃曲坡水库大坝安全管理应急预案(1).pdf",
+          "pages": "第4.3.4节(应急监测和巡查)",
+          "key_content": ["应急巡查要求", "险情监测"]
+        }
+      ],
+      "inspection_knowledge": {
+        "objects": {
+          "dam_body": {
+            "name": "坝体",
+            "frequency": "1次/天(主汛期加密至2次)",
+            "items": ["裂缝", "滑坡/坍塌/隆起", "动物洞穴", "排水设备", "防浪墙", "坝前漏水点"]
+          },
+          "tunnel": {
+            "name": "放水洞",
+            "frequency": "1次/天",
+            "items": ["进水口塔体", "洞身变形/裂缝/渗水/气蚀", "出口流态", "消能设施"]
+          },
+          "spillway": {
+            "name": "溢洪道",
+            "frequency": "1次/周",
+            "items": ["进口岸坡稳定", "堰面/闸墩裂缝", "陡坡底板", "挑流鼻坎", "下游岸坡"]
+          },
+          "gate_hoist": {
+            "name": "闸门及启闭机",
+            "frequency": "1次/天",
+            "items": ["闸门变形/裂纹/锈蚀/焊缝", "止水设备", "钢丝绳", "启闭机运转/润滑"]
+          },
+          "high_slope": {
+            "name": "高边坡",
+            "frequency": "1次/周",
+            "items": ["裂缝开裂", "滑坡险情", "位移观测", "排水设施"]
+          },
+          "equipment": {
+            "name": "机电设备",
+            "frequency": "1次/天",
+            "items": ["备用发电机", "通讯照明", "防汛变压器", "预警系统"]
+          }
+        },
+        "special_inspection": {
+          "trigger": ["大洪水", "大暴雨", "有感地震", "库水位骤变", "高水位运行"],
+          "organizer": "中心灌溉科",
+          "frequency": "不定期"
+        },
+        "annual_inspection": {
+          "frequency": "≥2次/年",
+          "timing": ["汛前", "汛后"],
+          "organizer": "中心灌溉科"
+        },
+        "defect_knowledge_base": [
+          {
+            "defect": "大坝横向裂缝",
+            "cause": "不均匀沉降",
+            "treatment": ["开挖回填(深度>裂缝+0.5m)", "横墙隔断", "充填灌浆"]
+          },
+          {
+            "defect": "大坝纵向裂缝",
+            "cause": "纵向不均匀沉陷",
+            "treatment": "开挖回填(深度至裂缝下0.3-0.5m,底宽≥0.5m)"
+          },
+          {
+            "defect": "坝肩渗漏",
+            "cause": "浸润线抬高/接触渗流",
+            "treatment": ["贴坡式反滤层", "导渗沟", "降低库水位"]
+          },
+          {
+            "defect": "管涌/流土",
+            "cause": "渗透坡降超标",
+            "treatment": ["反滤压盖", "透水压渗台", "反滤围井", "降低库水位"]
+          },
+          {
+            "defect": "高边坡滑坡",
+            "cause": "泥质页岩软化/雨水入渗",
+            "treatment": ["削坡减载", "锚索加固", "清理滑塌体"]
+          }
+        ]
+      }
+    },
+    {
+      "id": "dispatch_optimization",
+      "name_zh": "调度优化智能体",
+      "name_en": "Dispatch Optimization Agent",
+      "core_functions": ["多目标调度", "实时优化", "方案生成", "多库联合"],
+      "ai_enablement": ["强化学习调度", "多目标进化算法", "数字孪生仿真", "方案自动生成"],
+      "document_sources": [
+        {
+          "file": "2026年度桃曲坡水库汛期调度运用计划(2).pdf",
+          "pages": "第2章(防洪调度), 第3章(兴利调度), 第4章(安全度汛)",
+          "key_content": ["调度原则", "防御方案", "调度权限", "用水需求"]
+        },
+        {
+          "file": "2026年桃曲坡水库调度规程(1)(1).pdf",
+          "pages": "全文(第1-10章)",
+          "key_content": ["调度原则", "防洪/灌溉/供水/生态/泥沙调度", "调度权限", "调度程序"]
+        },
+        {
+          "file": "2026年桃曲坡水库防洪抢险应急预案(1).pdf",
+          "pages": "第5.1节(应急调度)",
+          "key_content": ["超标准洪水调度", "地质灾害调度"]
+        }
+      ],
+      "dispatch_parameters": {
+        "flood_control": {
+          "design_standard": "100年一遇",
+          "check_standard": "1000年一遇",
+          "design_peak": 1780,
+          "check_peak": 3250,
+          "normal_level": 788.5,
+          "design_level": 788.54,
+          "check_level": 790.5,
+          "limit_level_main": 786.8,
+          "limit_level_sub": 788.0,
+          "downstream_limit": 500
+        },
+        "benefit": {
+          "total_capacity": 57200000,
+          "benefit_capacity": 42900000,
+          "dead_capacity": 10500000,
+          "flood_capacity": 8200000,
+          "irrigation_area": 318300,
+          "avg_inflow": 75760000,
+          "avg_sediment": 1039000
+        },
+        "dispatch_modes": {
+          "flood_phase_1": "控制泄流段(库水位维持汛限水位)",
+          "flood_phase_2": "自由泄流段(闸门全开)",
+          "flood_phase_3": "控制泄流段(回落至汛限水位)"
+        },
+        "dispatch_authority": {
+          "IV": "中心主任",
+          "III": "联防指挥部总指挥",
+          "II": "市防指副总指挥",
+          "I": "市防指总指挥"
+        }
+      }
+    },
+    {
+      "id": "safety_assessment",
+      "name_zh": "安全评估智能体",
+      "name_en": "Safety Assessment Agent",
+      "core_functions": ["风险分析", "溃坝模拟", "安全鉴定辅助", "隐患识别"],
+      "ai_enablement": ["机器学习风险识别", "溃坝洪水智能模拟", "监测数据趋势预测", "鉴定报告辅助"],
+      "document_sources": [
+        {
+          "file": "2026年桃曲坡水库防洪抢险应急预案(1).pdf",
+          "pages": "第3章(工程险情及危害性分析)",
+          "key_content": ["险情因素分析", "溃坝分析", "淹没范围统计"]
+        },
+        {
+          "file": "《桃曲坡等三座大坝安全评价报告》.pdf",
+          "pages": "全文",
+          "key_content": ["三座大坝概况", "运行情况", "安全鉴定历史", "设计施工回顾"]
+        },
+        {
+          "file": "2026年桃曲坡水库大坝安全管理应急预案(1).pdf",
+          "pages": "第2章(突发事件及其后果分析)",
+          "key_content": ["洪水事件后果", "水污染后果", "事件分级"]
+        },
+        {
+          "file": "大坝安全鉴定报告书2020.pdf",
+          "pages": "扫描件(需OCR)",
+          "key_content": ["安全鉴定结论", "三类坝认定"]
+        },
+        {
+          "file": "2026年度桃曲坡水库汛期调度运用计划(2).pdf",
+          "pages": "第1.4节(上年度总结)",
+          "key_content": ["运行情况总结", "高水位运行记录"]
+        }
+      ],
+      "risk_analysis": {
+        "risk_factors": [
+          {
+            "category": "自然灾害",
+            "items": ["超标准洪水", "地震", "地质灾害", "上游漂移物撞击"]
+          },
+          {
+            "category": "工程隐患",
+            "items": ["大坝裂缝", "高边坡滑坡", "绕坝渗流", "渗透破坏", "溢洪道冲刷"]
+          },
+          {
+            "category": "人为因素",
+            "items": ["调度事故", "管理不当", "恐怖袭击", "战争破坏"]
+          },
+          {
+            "category": "环境污染",
+            "items": ["上游水污染", "人为投毒", "洪水含沙量突增"]
+          }
+        ],
+        "dam_break_analysis": {
+          "max_break_flow": 17200,
+          "total_volume": 50650000,
+          "peak_time": "3.68h",
+          "wave_speed": "7170m³/s@耀城断面",
+          "inundation": {
+            "population": 92000,
+            "area": "5.34万亩",
+            "villages": 25,
+            "enterprises": 170,
+            "roads": 2,
+            "railways": 2,
+            "schools": 5
+          }
+        },
+        "safety_history": [
+          {"year": 2001, "event": "首次安全鉴定"},
+          {"year": 2019, "event": "安全鉴定评审"},
+          {"year": 2020, "event": "三类坝认定(陕水河湖函〔2020〕20号)"},
+          {"year": 2021, "event": "水利部核查确认三类坝(坝函〔2021〕996号)"},
+          {"year": 2023, "event": "除险加固可研批复(陕发改农经[2023]118号)"}
+        ]
+      }
+    },
+    {
+      "id": "emergency_response",
+      "name_zh": "应急响应智能体",
+      "name_en": "Emergency Response Agent",
+      "core_functions": ["预案管理", "应急调度", "方案生成", "转移优化"],
+      "ai_enablement": ["预案智能匹配", "应急方案自动生成", "转移路线优化", "物资调度优化"],
+      "document_sources": [
+        {
+          "file": "2026年桃曲坡水库防洪抢险应急预案(1).pdf",
+          "pages": "第5章(险情处置), 第6章(应急保障), 第7章(应急响应), 第8章(后期处置)",
+          "key_content": ["抢险措施", "组织保障", "四级响应", "善后处置"]
+        },
+        {
+          "file": "2026年桃曲坡水库大坝安全管理应急预案(1).pdf",
+          "pages": "第3章(组织体系), 第4章(运行机制), 第5章(应急保障)",
+          "key_content": ["应急组织", "预测预警", "应急响应", "保障措施"]
+        },
+        {
+          "file": "2026年度桃曲坡水库汛期调度运用计划(2).pdf",
+          "pages": "第4章(安全度汛)",
+          "key_content": ["防汛组织", "保障措施", "泄洪预警", "撤离方案"]
+        }
+      ],
+      "emergency_organization": {
+        "joint_command": {
+          "total_commander": "铜川市副市长",
+          "commanders": ["耀州区区长", "铜川市水务局局长", "水库灌溉中心主任"],
+          "members": 20
+        },
+        "expert_group": {
+          "leader": "副主任(秦鹏)",
+          "chief": "总工程师(田荣)",
+          "members": 8,
+          "duties": ["决策建议", "技术咨询", "方案制定", "现场指导"]
+        },
+        "rescue_teams": {
+          "military": {"size": 400, "organizer": "铜川军分区/耀州区人武部"},
+          "center_1st": {"size": 74, "leader": "叶绥鹏", "phone": "13992915083"},
+          "center_2nd": {"size": 20, "leader": "杨一波", "phone": "13488004216"},
+          "center_3rd": {"size": 28, "leader": "王鹏", "phone": "18220889690"}
+        }
+      },
+      "response_levels": {
+        "IV": {
+          "name": "一般事件",
+          "flood": "20年一遇及以下",
+          "authority": "中心主任",
+          "actions": ["会商调度", "加强巡查", "河道巡查"]
+        },
+        "III": {
+          "name": "较大事件",
+          "flood": "20-100年一遇",
+          "authority": "市防指副总指挥",
+          "actions": ["联防会商", "上报省厅", "撤离准备", "抢险待命"]
+        },
+        "II": {
+          "name": "重大事件",
+          "flood": "100-1000年一遇",
+          "authority": "市防指副总指挥",
+          "actions": ["全力保坝", "加大泄量", "人员撤离"]
+        },
+        "I": {
+          "name": "特别重大事件",
+          "flood": "1000年一遇及以上/溃坝",
+          "authority": "市防指总指挥",
+          "actions": ["全面撤离", "确保生命安全", "服从上级指挥"]
+        }
+      }
+    }
+  ],
+  "document_summary": {
+    "total_unique": 23,
+    "by_category": {
+      "emergency_plan": 6,
+      "dispatch_plan": 3,
+      "safety_report": 4,
+      "monitoring_data": 4,
+      "drawing": 5,
+      "boundary_report": 1
+    },
+    "extraction_status": {
+      "text_ok": 14,
+      "scanned": 3,
+      "corrupted": 2,
+      "image_graphics": 5
+    },
+    "duplicate_paths": 7,
+    "recommended_unique_set": [
+      "应急预案/防洪抢险应急预案(2026).pdf",
+      "应急预案/大坝安全管理应急预案(2026).pdf",
+      "调度计划/汛期调度运用计划(2026).pdf",
+      "规程/调度规程(2026).pdf",
+      "安全鉴定/大坝安全鉴定(2020).pdf",
+      "安全评价/桃曲坡等三座大坝安全评价报告.pdf",
+      "划界/灌区水利工程管理范围及保护范围划界报告.pdf",
+      "历史洪水/历年洪水调度资料/",
+      "水情快报/2021年水情通报/",
+      "竣工图/加闸竣工图(需OCR分析).pdf",
+      "施工图/数字孪生施工图(需OCR分析).pdf"
+    ]
+  }
+}

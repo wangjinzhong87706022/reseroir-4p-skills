@@ -10,3 +10,14 @@ forecasting/20260710_170809_e9d454
 
 # 大文件排除 (超过 GitHub 100MB 限制)
 forecasting/20260710*
+
+# 原始 PDF 资料（4.9G，不入库；提取文本见 pdf_text_analysis/）
+pdfs/
+
+# 本地工具配置（Claude Code 等）
+.claude/
+
+# 编辑器临时文件
+*.swp
+*.swo
+*~
