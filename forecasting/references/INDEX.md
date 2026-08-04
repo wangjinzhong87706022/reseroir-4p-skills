@@ -4,12 +4,18 @@
 > **规则**：遇到以下场景时，先读取对应文件再回答
 > **自洽**：本索引引用的所有文件均在 `references/` 目录下实际存在（skill-auditor C1 校验项）
 
+> **🏛️ 水库身份感知（最高优先级）**：本 skill 通过 `SRM_RESERVOIR_NAME`（默认 sancha）适配多水库。
+> **凡涉及具体水位/汛限/特征水位/站网/预报阈值，必须先读 reservoir profile**：
+> `../../reservoirs/${SRM_RESERVOIR_NAME:-sancha}/`（identity.md / characteristic-levels.md / stations.md）。
+> 禁止照抄示例数字（三岔 ~460m、桃曲坡 ~788m），以当前 profile 为准。
+
 ---
 
 ## 索引表
 
 | 场景 | 触发关键词 | 读取文件 |
 |------|-----------|---------|
+| **水库身份/站网/预报阈值** | "哪个水库"、"汛限"、"站码"、"预报阈值"、"特征水位" | `../../reservoirs/{当前水库}/identity.md`、`characteristic-levels.md`、`stations.md` |
 | **表结构/字段** | "字段"、"表结构"、"哪张表"、"f_rnfl_h 列名"、"有无 deleted"、"taskid 拼写" | `table-schema.md` |
 | **SQL 拼接** | "查询模板"、"怎么查"、"参数化"、"forecast_timeline"、"fusion_detail" | `sql-templates.md` |
 | **预警等级判定** | "蓝色预警"、"黄色预警"、"橙色预警"、"红色预警"、"预警等级"、"趋势预警"、"339.0" | `forecast-rules.md` |
