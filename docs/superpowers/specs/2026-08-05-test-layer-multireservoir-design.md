@@ -164,18 +164,34 @@ result = subprocess.run(cmd, capture_output=True, text=True,
 - **新** `tests/reservoirs/sancha.yaml`（迁移 F1-F6 / PG1-3 / SIM1-2）
 - **新** `tests/reservoirs/taoqupo.yaml`（§5.2 表）
 
+### 9.1 顺手数据层修复（纳入本任务）
+
+`f_rnfl_h` 表已有 `tenant_id` 列（`default 1`），但被测 skill 的查询函数未按 tenant 过滤（与曲线查询 bug 同性质）。补 `AND tenant_id = %s`：
+- `forecasting/scripts/query_forecast_data.py`
+- `forecasting/scripts/query_forecast_analysis.py`
+- `plan-generation/scripts/query_plan_data.py`（`query_rainfall_forecast`，含 `MAX(fymdh)` 子查询也需按 tenant 限定，避免取到别库最新预报批次）
+
+> 此修复只让"查询"按 tenant 隔离；数据层（桃曲坡预报按 `tenant_id=20` 标注）仍待平台接入。
+
+## 10. 平台层议题（不在本任务范围）
+
+- **`weather_warn` 区域隔离**：该表无 `tenant_id` 列，也无结构化区域字段（区域仅在 `docabstract` 文本里）。气象预警按行政/地理区域发布，一条预警可能同时覆盖多个水库，单 `tenant_id` 语义不准；独立部署形态下物理隔离已替代 tenant 隔离，加列多余。若未来单库需隔离，正确方向是"结构化区域字段 + 区域↔水库映射"，而非 `tenant_id` 列。属平台级工程（DDL + 写入端改造），不在本任务。
+- **`f_rnfl_h` 完整修复**：本任务只补 §9.1 的被测 skill 查询过滤；`diagnosis-verification` 的 f_rnfl_h 查询、`generate_forecast_data` 写入端的 tenant 标注，留待相应模块 / 数据治理统一处理。
+
 ---
 
-## 10. YAGNI 取舍（明确不做）
+## 11. YAGNI 取舍（明确不做）
 
 - **不做** question 模板渲染（已选独立用例集）。
 - **不做** `skip` 字段机制（实时类用例直接不列入桃曲坡 yaml 即可；未来实时数据接入后再加用例）。
 - **不扩到 5 skill**（early-warning / diagnosis-verification 加用例是独立工作，不在本任务范围）。
 - **不引入** Jinja2 / 新依赖（pyyaml 6.0.3 已装，沿用）。
+- **不碰 `weather_warn` 表结构** → 见 §10 平台层议题。
+- **不全量改 `f_rnfl_h`**（本任务只补 §9.1 的被测 skill 查询过滤；其余留待相应模块）→ 见 §10。
 
 ---
 
-## 11. 验证方法
+## 12. 验证方法
 
 ```bash
 # 单水库
@@ -195,10 +211,11 @@ python3 test_skills.py --all-reservoirs --timeout 300
 
 ---
 
-## 12. 决策记录
+## 13. 决策记录
 
 1. **用例组织** = per-reservoir 独立集（用户选定，偏好简单无渲染）。
 2. **桃曲坡实时类用例** = 不列（实时表 t20 全空）。
 3. **forbidden_keywords** = profile 顶层、继承全部 case（防串库核心）。
 4. **expected_range** = 可选、正则提数、任一落区间即过（容忍中文表述）。
 5. **hermes env 注入** = 必须修复（多水库测试成立的前提）。
+6. **f_rnfl_h 查询** = 补 tenant 过滤（表已有 `tenant_id` 列，纳入顺手修复 §9.1）；**weather_warn** = 不加 tenant（区域数据单 tenant 语义不准 + 独立部署物理隔离已够，留平台层 §10）。
