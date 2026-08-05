@@ -99,27 +99,28 @@ def query_config(tenant_id=None):
 
 
 def query_water_level_curve(tenant_id=None):
-    """查询水位-库容曲线（按水位取平均值，消除重复）"""
-    # tenant_id 预留：阶段2曲线表 ALTER TABLE 加 tenant_id 列后启用过滤
-    _ = resolve_tenant(tenant_id)
+    """查询水位-库容曲线（按 tenant 过滤，按水位取平均值消除重复点）"""
+    tid = resolve_tenant(tenant_id)
     sql = """
     SELECT stag as water_level, AVG(cap) as capacity
     FROM att_res_stag_cap_disc
+    WHERE tenant_id = %s
     GROUP BY stag
     ORDER BY stag
     """
-    return execute_query_list(sql)
+    return execute_query_list(sql, (tid,))
 
 
 def query_discharge_curve(tenant_id=None):
-    """查询泄流曲线"""
-    _ = resolve_tenant(tenant_id)  # 预留：阶段2曲线表加 tenant_id 列后启用过滤
+    """查询泄流曲线（按 tenant 过滤）"""
+    tid = resolve_tenant(tenant_id)
     sql = """
     SELECT stag as water_level, q as flow
     FROM att_res_discharge_curve
+    WHERE tenant_id = %s
     ORDER BY stag
     """
-    return execute_query_list(sql)
+    return execute_query_list(sql, (tid,))
 
 
 def query_historical_floods(limit=10, tenant_id=None):

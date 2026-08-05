@@ -257,13 +257,10 @@ def query_scenarios(target=None, def_only=False):
 
 
 def query_water_level_curve(min_stag=None, max_stag=None, tenant_id=None):
-    """查询水位-库容曲线（按水位取平均值，消除重复）"""
-    # tenant_id 参数预留：阶段2 曲线表 ALTER TABLE 加 tenant_id 列后，
-    # 在 conditions 里追加 "tenant_id = %s" 并把 resolve_tenant(tenant_id) 加入 params。
-    # 当前表无 tenant_id 列，独立部署下每库一套曲线，暂不过滤。
-    _ = resolve_tenant(tenant_id)  # 预留：阶段2启用
-    conditions = []
-    params = []
+    """查询水位-库容曲线（按 tenant 过滤，按水位取平均值消除重复点）"""
+    tid = resolve_tenant(tenant_id)
+    conditions = ["tenant_id = %s"]
+    params = [tid]
 
     if min_stag is not None:
         conditions.append("stag >= %s")
@@ -272,10 +269,10 @@ def query_water_level_curve(min_stag=None, max_stag=None, tenant_id=None):
         conditions.append("stag <= %s")
         params.append(float(max_stag))
 
-    where = f" WHERE {' AND '.join(conditions)}" if conditions else ""
     sql = (
         "SELECT stag as water_level, AVG(cap) as capacity"
-        f" FROM att_res_stag_cap_disc{where}"
+        " FROM att_res_stag_cap_disc"
+        f" WHERE {' AND '.join(conditions)}"
         " GROUP BY stag"
         " ORDER BY stag"
     )
@@ -283,10 +280,10 @@ def query_water_level_curve(min_stag=None, max_stag=None, tenant_id=None):
 
 
 def query_discharge_curve(min_stag=None, max_stag=None, tenant_id=None):
-    """查询泄流曲线"""
-    _ = resolve_tenant(tenant_id)  # 预留：阶段2曲线表加 tenant_id 列后启用过滤
-    conditions = []
-    params = []
+    """查询泄流曲线（按 tenant 过滤）"""
+    tid = resolve_tenant(tenant_id)
+    conditions = ["tenant_id = %s"]
+    params = [tid]
 
     if min_stag is not None:
         conditions.append("stag >= %s")
@@ -295,10 +292,10 @@ def query_discharge_curve(min_stag=None, max_stag=None, tenant_id=None):
         conditions.append("stag <= %s")
         params.append(float(max_stag))
 
-    where = f" WHERE {' AND '.join(conditions)}" if conditions else ""
     sql = (
         "SELECT stag as water_level, q as flow"
-        f" FROM att_res_discharge_curve{where}"
+        " FROM att_res_discharge_curve"
+        f" WHERE {' AND '.join(conditions)}"
         " ORDER BY stag"
     )
     return execute_query(sql, params)
