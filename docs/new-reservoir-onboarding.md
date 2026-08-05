@@ -23,7 +23,7 @@
 ## 二、逐步详解
 
 ### 步骤 1：确定 tenant_id
-- 向 DBA 申请一个现网未占用的租户号（桃曲坡示例用 19）。
+- 向 DBA 申请一个现网未占用的租户号。现网占用情况（截至 2026-08-04）：17=石盘 / 18=三岔 / 19=测试水库 / **20=桃曲坡**。下一个新水库建议从 21 起。
 - 该值将贯穿 model_config / att_res_base / 曲线表的所有录入行。
 
 ### 步骤 2：部署代码
@@ -37,15 +37,15 @@ git checkout feat/multi-reservoir   # 多水库扩展分支
 ### 步骤 3：建库 + DDL
 - 建独立数据库实例（或独立 schema）。
 - 执行项目表 DDL。
-- **必须**：曲线表加 `res_guid` + `tenant_id` 列（多水库支持），见 `data/taoqupo-reservoir-data.sql` 第1步。
-- 回填现有数据为该水库的 tenant_id。
+- **曲线表 `res_guid` + `tenant_id` 列**：现网 `powerelf_srm_yml` 的 `att_res_stag_cap_disc` / `att_res_discharge_curve` **已含**这两列（实测确认），按平台当前 DDL 建新库即已包含。**仅当迁移缺列的旧库时**才需 `ALTER TABLE ... ADD COLUMN`（脚本旧版有注释，新库默认跳过）。
+- 录入脚本采用"先 `DELETE WHERE tenant_id=X` 再 `INSERT`"的幂等模式，可安全重跑。
 
 ### 步骤 4：录数据（DBA 执行）
 参照 `data/taoqupo-reservoir-data.sql`，按新水库参数改写后执行。**必须录入**：
 
 | 表 | 内容 | 关键字段 |
 |---|---|---|
-| `model_config` | 配置键全集（15键） | config_key / value / tenant_id |
+| `model_config` | 配置键全集（17键） | config_key / value / tenant_id |
 | `att_res_base` | 水库基础（1行） | fl_low_lim_lev / dead_level / tenant_id |
 | `att_res_flse_lim` | 汛限分段（主汛/次汛） | flse_lim_stag / 汛期起止(MMdd) |
 | `att_res_stag_cap_disc` | 水位-库容曲线（逐点） | stag / cap / tenant_id / res_guid |
@@ -103,13 +103,13 @@ hermes chat -q "{水库名}的汛限水位是多少" --skills plan-generation -Q
 
 | 步骤 | 桃曲坡产物 | 状态 |
 |---|---|---|
-| 1 tenant_id | 19（建议） | ⏳ 待 DBA 确认 |
+| 1 tenant_id | **20（已分配）** | ✅ |
 | 2 代码 | `feat/multi-reservoir` 分支 | ✅ |
-| 3 DDL | `data/taoqupo-reservoir-data.sql` 第1步 | ⏳ 待 DBA 执行 |
-| 4 录数据 | `data/taoqupo-reservoir-data.sql` 第3-7步 | ⏳ 待 DBA 执行 |
-| 5 env | `SRM_TENANT_ID=19 SRM_RESERVOIR_NAME=taoqupo` | ⏳ 待部署 |
+| 3 DDL | 曲线表已含列，无需 ALTER | ✅ |
+| 4 录数据 | `data/taoqupo-reservoir-data.sql`（已执行） | ✅ |
+| 5 env | `SRM_TENANT_ID=20 SRM_RESERVOIR_NAME=taoqupo` | ⏳ 待部署 |
 | 6 profile | `reservoirs/taoqupo/` 6 文件 | ✅ |
-| 7 验证 | `docs/plan-generation试点现网验证清单.md` | ⏳ 待现网跑 |
+| 7 验证 | config/flood_limit/曲线 均按 tenant=20 命中 ✅；hermes 端到端待跑 | 🟡 |
 
 ---
 
@@ -117,7 +117,7 @@ hermes chat -q "{水库名}的汛限水位是多少" --skills plan-generation -Q
 
 | 问题 | 处理 |
 |---|---|
-| 曲线表无 tenant_id 列 | 执行 DDL 加列（第3步），回填现有数据 |
+| 曲线表无 tenant_id 列 | 现网平台 DDL 已含该列；仅旧库迁移时需 ALTER 加列（步骤3） |
 | model_config 读不到值 | 确认 config_key 拼写、tenant_id 匹配、deleted=0；数值比较需 CAST |
 | agent 返回其他水库数值 | 检查 SRM_RESERVOIR_NAME env；reservoir profile 是否填对；hermes 重启使 env 生效 |
 | 位移/沉陷监测误报缺失 | 这些是季度人工观测，不套 60min 在线阈值（见 profile stations.md） |
