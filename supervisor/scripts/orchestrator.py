@@ -35,7 +35,8 @@ from pathlib import Path
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from supervisor_state import _connect, _state_dir  # noqa: E402
 from scene_router import route  # noqa: E402
-from arbitrator import arbitrate_plan_vs_simulation, asdict  # noqa: E402
+from arbitrator import (arbitrate_plan_vs_simulation, arbitrate_dam_diagnosis,
+                        arbitrate_emergency, arbitrate_risk_levels, asdict)  # noqa: E402
 
 # ===========================================================================
 # DAG 定义：stage → (agent, 调用命令模板)
@@ -171,21 +172,79 @@ def resolve_thresholds(flood_limit, safe_discharge):
     }
 
 
-def do_arbitration(event_id, conn, flood_limit, safe_discharge) -> dict:
-    """step6 仲裁：读 step4(simulation) + step5(plan-gen) 结果交叉校验"""
+def _unpack_stage_result(raw_result: str) -> dict:
+    """把 State 中某阶段的 result_json 解包为真实数据 dict：
+    兼容 {ok, stdout, stderr} 包装结构（stdout 为 JSON 字符串）。"""
+    if not raw_result:
+        return {}
+    try:
+        data = json.loads(raw_result)
+    except (json.JSONDecodeError, TypeError):
+        return {}
+    if isinstance(data, dict) and isinstance(data.get("stdout"), str) and data["stdout"].strip():
+        try:
+            inner = json.loads(data["stdout"])
+            if isinstance(inner, dict):
+                return inner
+        except json.JSONDecodeError:
+            try:
+                dec = json.JSONDecoder()
+                inner, _ = dec.raw_decode(data["stdout"].lstrip())
+                if isinstance(inner, dict):
+                    return inner
+            except (json.JSONDecodeError, ValueError):
+                pass
+    return data
+
+
+def do_arbitration(event_id, conn, scene, flood_limit, safe_discharge) -> dict:
+    """按场景分派仲裁：
+      - 场景A（暴雨研判）: plan-generation vs simulation 交叉校验
+      - 场景B（大坝诊断）: 风险定级 + 处置建议（数据质量/缺陷/超限）
+      - 场景D（应急响应）: 方案 vs 仿真 + 超限否决（复用 plan-vs-sim，HITL 由编排层控制）
+    """
     stages = {
         s["stage"]: dict(s) for s in conn.execute(
             "SELECT stage, result_json FROM stage_results WHERE event_id=?",
             (event_id,),
         ).fetchall()
     }
-    sim = json.loads(stages.get("step4", {}).get("result_json") or "{}")
-    plan = json.loads(stages.get("step5", {}).get("result_json") or "{}")
-    # 从 full_context 结果中提取水位/泄量（若子 skill 脚本输出符合约定字段）
-    sim_vals = {
-        "max_level": sim.get("max_level") or sim.get("water_level") or sim.get("highest_level"),
-        "max_discharge": sim.get("max_discharge") or sim.get("discharge"),
-    }
+
+    # 场景B：大坝诊断专用仲裁
+    if scene == "B":
+        diagnosis = _unpack_stage_result(stages.get("step1", {}).get("result_json"))
+        inspection = _unpack_stage_result(stages.get("step2", {}).get("result_json"))
+        simulation = _unpack_stage_result(stages.get("step3", {}).get("result_json"))
+        return arbitrate_dam_diagnosis(
+            diagnosis, inspection, simulation, flood_limit=flood_limit,
+        )
+
+    # 场景D：应急响应专用仲裁（方案否决 + 超限升级 + HITL 强制）
+    if scene == "D":
+        early_warning = _unpack_stage_result(stages.get("step1", {}).get("result_json"))
+        sim_d = _unpack_stage_result(stages.get("step3", {}).get("result_json"))
+        plan_d = _unpack_stage_result(stages.get("step2", {}).get("result_json"))
+        return arbitrate_emergency(
+            early_warning, plan_d, sim_d,
+            flood_limit=flood_limit, safe_discharge=safe_discharge,
+        )
+
+    # 场景A/D：方案 vs 仿真交叉校验（D 的 HITL 由编排层强制）
+    sim = _unpack_stage_result(stages.get("step4", {}).get("result_json"))
+    plan = _unpack_stage_result(stages.get("step5", {}).get("result_json"))
+    # 从 full_context 结果中提取水位/泄量（simulation 为 current_water_level 数组）
+    sim_vals = {"max_level": None, "max_discharge": None}
+    sim_cwl = sim.get("current_water_level") if isinstance(sim, dict) else None
+    if isinstance(sim_cwl, list) and sim_cwl:
+        sim_vals["max_level"] = max(
+            (float(x.get("rz") or 0) for x in sim_cwl if x.get("rz")), default=None)
+        sim_vals["max_discharge"] = max(
+            (float(x.get("otq") or 0) for x in sim_cwl if x.get("otq")), default=None)
+    sim_vals["max_level"] = sim_vals["max_level"] or sim.get("max_level") \
+        or sim.get("highest_level")
+    sim_vals["max_discharge"] = sim_vals["max_discharge"] or sim.get("max_discharge") \
+        or sim.get("discharge")
+
     plan_vals = {
         "max_level": plan.get("max_level") or plan.get("highest_level") or plan.get("max_water_level"),
         "max_discharge": plan.get("max_discharge") or plan.get("discharge"),
@@ -401,7 +460,7 @@ def execute_dag(event_id, scene, conn, flood_limit, safe_discharge, dry_run, app
 
         if stage in (special.get("arbitrate"), special.get("report")):
             # 内存执行（仲裁/报告）
-            result = do_arbitration(event_id, conn, flood_limit, safe_discharge) \
+            result = do_arbitration(event_id, conn, scene, flood_limit, safe_discharge) \
                 if stage == arbitrate_stage else do_report(event_id, conn)
             status = "ok"
             print(f"  [{stage}] {agent} → {json.dumps(result, ensure_ascii=False)[:300]}")
@@ -468,12 +527,16 @@ def cmd_run(args):
     thr = resolve_thresholds(args.flood_limit, args.safe_discharge)
     conn = _connect()
     from supervisor_state import cmd_new
-    # 复用 supervisor_state 的事件创建逻辑
+    # 复用 supervisor_state 的事件创建逻辑；优先级：CLI 显式优先，否则按场景自动映射
+    # （D应急=高、A暴雨/B诊断=中、C日常=低——高优先级事件在 queue 中优先处理）
+    scene_default_pri = {"D": "高", "A": "中", "B": "中", "C": "低"}
+    priority = getattr(args, "priority", None) or scene_default_pri.get(routed["scene"], "中")
     import argparse as _argparse
-    na = _argparse.Namespace(scene=routed["scene"], risk=None, trigger=args.trigger)
+    na = _argparse.Namespace(scene=routed["scene"], risk=None, trigger=args.trigger,
+                             priority=priority)
     created = cmd_new(na)
     event_id = created["event_id"]
-    print(json.dumps({"thresholds": thr}, ensure_ascii=False, indent=2))
+    print(json.dumps({"thresholds": thr, "priority": priority}, ensure_ascii=False, indent=2))
     execute_dag(event_id, routed["scene"], conn,
                 thr["flood_limit"], thr["safe_discharge"], args.dry_run, args.approve)
     conn.close()

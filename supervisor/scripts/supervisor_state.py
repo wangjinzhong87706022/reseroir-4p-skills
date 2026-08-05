@@ -75,6 +75,7 @@ def _ensure_schema(conn: sqlite3.Connection) -> None:
             status      TEXT NOT NULL DEFAULT 'running',
             risk_level  TEXT,
             trigger     TEXT,
+            priority    TEXT NOT NULL DEFAULT '中',   -- 高/中/低（优先级队列排序依据）
             created_at  TEXT NOT NULL,
             updated_at  TEXT NOT NULL
         );
@@ -91,6 +92,10 @@ def _ensure_schema(conn: sqlite3.Connection) -> None:
         CREATE INDEX IF NOT EXISTS idx_events_scene ON events(scene);
         """
     )
+    # 兼容旧库：events 表已存在但缺 priority 列时补列
+    cols = [r[1] for r in conn.execute("PRAGMA table_info(events)").fetchall()]
+    if "priority" not in cols:
+        conn.execute("ALTER TABLE events ADD COLUMN priority TEXT NOT NULL DEFAULT '中'")
     conn.commit()
 
 
@@ -123,14 +128,35 @@ def cmd_new(args) -> dict:
     today = datetime.now().strftime("%Y%m%d")
     event_id = _next_event_seq(conn, args.scene, today)
     now = datetime.now().isoformat(timespec="seconds")
+    priority = getattr(args, "priority", None) or "中"
     conn.execute(
-        "INSERT INTO events (event_id, scene, status, risk_level, trigger, created_at, updated_at) "
-        "VALUES (?, ?, 'running', ?, ?, ?, ?)",
-        (event_id, args.scene, args.risk, args.trigger, now, now),
+        "INSERT INTO events (event_id, scene, status, risk_level, trigger, priority, created_at, updated_at) "
+        "VALUES (?, ?, 'running', ?, ?, ?, ?, ?)",
+        (event_id, args.scene, args.risk, args.trigger, priority, now, now),
     )
     conn.commit()
     conn.close()
-    return {"event_id": event_id, "scene": args.scene, "status": "running"}
+    return {"event_id": event_id, "scene": args.scene, "status": "running",
+            "priority": priority}
+
+
+def cmd_queue(args) -> dict:
+    """优先级队列：列出未结束事件（running/awaiting_approval），按 优先级(高>中>低) + 创建时间 排序。
+    这是"多事件并行"的调度视图——调用方可据此决定先处理哪个事件。"""
+    conn = _connect()
+    order = {"高": 0, "中": 1, "低": 2}
+    rows = conn.execute(
+        "SELECT event_id, scene, status, risk_level, trigger, priority, created_at "
+        "FROM events WHERE status IN ('running','awaiting_approval') "
+        "ORDER BY CASE priority WHEN '高' THEN 0 WHEN '中' THEN 1 ELSE 2 END, created_at"
+    ).fetchall()
+    conn.close()
+    items = []
+    for r in rows:
+        d = dict(r)
+        d["order"] = order.get(d.get("priority"), 1)
+        items.append(d)
+    return {"queue_size": len(items), "events": items}
 
 
 def cmd_set(args) -> dict:
@@ -245,7 +271,12 @@ def main():
     p_new.add_argument("--scene", required=True, help="场景 A/B/C/D")
     p_new.add_argument("--trigger", default="", help="触发信号")
     p_new.add_argument("--risk", default=None, help="初始风险等级 高/中/低")
+    p_new.add_argument("--priority", default="中", choices=["高", "中", "低"],
+                       help="事件优先级（高/中/低，队列排序依据）")
     p_new.set_defaults(func=cmd_new)
+
+    p_queue = sub.add_parser("queue", help="优先级队列：未结束事件按优先级排序")
+    p_queue.set_defaults(func=cmd_queue)
 
     p_set = sub.add_parser("set", help="写入阶段结果")
     p_set.add_argument("--event", required=True)
