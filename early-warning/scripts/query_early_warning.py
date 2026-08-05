@@ -75,9 +75,10 @@ def query_by_station(station_code, limit=50):
     return execute_query_list(sql, (station_code, limit))
 
 def query_high_level(days=30):
-    """查询高级别告警"""
+    """查询高级别告警（level_r 含 1/2 即 Ⅰ/Ⅱ 级，供 supervisor arbitrator 消费）。
+    输出含 level_r 字段，对齐 arbitrate_emergency 期望的 {ew_name, level_r}。"""
     sql = """
-    SELECT id, ew_name, st_code, value, gather_time
+    SELECT id, ew_name, st_code, level_r, value, gather_time
     FROM ew_info_message
     WHERE level_r IN ('1', '2') AND deleted = 0
       AND create_time >= DATE_SUB(NOW(), INTERVAL %s DAY)

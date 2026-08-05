@@ -30,7 +30,23 @@ python3 supervisor/scripts/orchestrator.py resume --event A-20260805-004 --appro
 
 # 3. 单独调试某个阶段
 python3 supervisor/scripts/orchestrator.py stage --event <id> --stage step1
+
+# 4. 一键四场景演示（5 分钟跑完 A/B/C/D，输出落 demo-output/）
+bash supervisor/demo.sh
 ```
+
+## 5 分钟演示
+
+`demo.sh` 顺序跑四场景（A暴雨/B诊断/C日常/D应急），每场景 `--approve` 跳过 HITL
+自动续跑到报告生成，输出落到 `supervisor/demo-output/<场景>-<时间>.json`，
+控制台只打印关键里程碑（场景/优先级/仲裁结论/最终状态）：
+
+```bash
+bash supervisor/demo.sh                                # 桃曲坡（默认）
+SRM_RESERVOIR_NAME=sancha bash supervisor/demo.sh      # 三岔
+```
+
+最近一次演示结果（2026-08-05）：4 场景全通过，输出目录 `supervisor/demo-output/`。
 
 ## 已验证闭环（2026-08-05，桃曲坡 tenant 20）
 

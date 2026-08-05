@@ -74,7 +74,7 @@ STAGE_CMDS = {
     "B": {
         "step1": ("diagnosis-verification",
                   ["python3", str(REPO_ROOT / "diagnosis-verification/scripts/check_data_quality.py"),
-                   "--type", "all"]),
+                   "--type", "all", "--json"]),
         "step2": ("inspection",
                   ["python3", str(REPO_ROOT / "supervisor/scripts/inspection_check.py"),
                    "--type", "defects"]),
@@ -98,7 +98,7 @@ STAGE_CMDS = {
     "D": {
         "step1": ("early-warning",
                   ["python3", str(REPO_ROOT / "early-warning/scripts/query_early_warning.py"),
-                   "--type", "high_level", "--days", "7"]),
+                   "--type", "high_level", "--days", "365", "--format", "json"]),
         "step2": ("plan-generation",
                   ["python3", str(REPO_ROOT / "plan-generation/scripts/query_plan_data.py"),
                    "--type", "full_context"]),
@@ -176,9 +176,12 @@ def resolve_thresholds(flood_limit, safe_discharge):
     }
 
 
-def _unpack_stage_result(raw_result: str) -> dict:
-    """把 State 中某阶段的 result_json 解包为真实数据 dict：
-    兼容 {ok, stdout, stderr} 包装结构（stdout 为 JSON 字符串）。"""
+def _unpack_stage_result(raw_result: str):
+    """把 State 中某阶段的 result_json 解包为真实数据（dict 或 list）：
+    兼容 {ok, stdout, stderr} 包装结构（stdout 为 JSON 字符串）。
+    当 stdout 混有子脚本人类可读日志（如 check_data_quality 的"❌ 高危告警过多..."）时，
+    从首个 `{` 或 `[` 起尝试 raw_decode 提取内嵌 JSON。
+    返回值可能为 dict / list / 空 dict（解析失败兜底）。"""
     if not raw_result:
         return {}
     try:
@@ -186,18 +189,26 @@ def _unpack_stage_result(raw_result: str) -> dict:
     except (json.JSONDecodeError, TypeError):
         return {}
     if isinstance(data, dict) and isinstance(data.get("stdout"), str) and data["stdout"].strip():
+        stdout = data["stdout"]
+        # 直接整体解析（纯 JSON stdout 的快路径）
         try:
-            inner = json.loads(data["stdout"])
-            if isinstance(inner, dict):
+            inner = json.loads(stdout)
+            if isinstance(inner, (dict, list)):
                 return inner
         except json.JSONDecodeError:
-            try:
-                dec = json.JSONDecoder()
-                inner, _ = dec.raw_decode(data["stdout"].lstrip())
-                if isinstance(inner, dict):
-                    return inner
-            except (json.JSONDecodeError, ValueError):
-                pass
+            pass
+        # 混合文本：从首个 `{` 或 `[` 起 raw_decode 提取内嵌 JSON（跳过人类可读前缀）
+        for opener in ("{", "["):
+            idx = stdout.find(opener)
+            while idx >= 0:
+                try:
+                    dec = json.JSONDecoder()
+                    inner, _ = dec.raw_decode(stdout[idx:])
+                    if isinstance(inner, (dict, list)):
+                        return inner
+                except (json.JSONDecodeError, ValueError):
+                    pass
+                idx = stdout.find(opener, idx + 1)
     return data
 
 
@@ -309,14 +320,17 @@ def do_report(event_id, conn) -> dict:
     plan = _safe_load("step5") or {}
     arb = _safe_load("step6") or {}
 
-    # 水位/入库（forecasting full_context 结构）
-    wl = fc.get("current_water_level") or {}
+    # 水位/入库（forecasting full_context 结构：current_water_level 可为 dict 或数组）
+    wl_raw = fc.get("current_water_level")
+    wl = wl_raw[0] if isinstance(wl_raw, list) and wl_raw else (wl_raw or {})
+    if not isinstance(wl, dict):
+        wl = {}
     rz = wl.get("rz")
     inq = wl.get("inq")
     otq = wl.get("otq")
     wlv = wl.get("w")
     flood_limit = fc.get("flood_limit") or {}
-    fl_val = flood_limit.get("value")
+    fl_val = flood_limit.get("value") if isinstance(flood_limit, dict) else None
 
     # 降雨预报峰值（f_rnfl_h data 数组）
     rf = fc.get("rainfall_forecast") or {}

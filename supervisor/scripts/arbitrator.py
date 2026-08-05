@@ -136,19 +136,25 @@ def arbitrate_emergency(
     passed = True
 
     # --- 告警维度（early_warning）---
+    # early-warning 脚本 --format json 输出顶层数组 [{ew_name, level_r, ...}]；
+    # 兼容被 {data: [...]} / {alerts: [...]} 包装的形态
     alert_count = 0
     high_alerts = []
-    if isinstance(early_warning, dict):
+    if isinstance(early_warning, list):
+        high_alerts = early_warning
+    elif isinstance(early_warning, dict):
         for key in ("data", "alerts", "high_level", "list"):
             val = early_warning.get(key)
             if isinstance(val, list):
                 high_alerts = val
                 break
-        alert_count = len(high_alerts)
-        for a in high_alerts[:3]:
-            name = a.get("ew_name") or a.get("name") or "告警"
-            level = a.get("level_r") or a.get("level") or "?"
-            issues.append(f"高级别告警: {name}（{level}级）")
+    alert_count = len(high_alerts)
+    for a in high_alerts[:3]:
+        if not isinstance(a, dict):
+            continue
+        name = a.get("ew_name") or a.get("name") or "告警"
+        level = a.get("level_r") or a.get("level") or "?"
+        issues.append(f"高级别告警: {name}（{level}级）")
 
     # --- 仿真水位/下泄（simulation）---
     sim_level = None

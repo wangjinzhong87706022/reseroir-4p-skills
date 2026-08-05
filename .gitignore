@@ -31,3 +31,4 @@ pdf_text_analysis/video_analysis/audio/
 
 # supervisor 运行时状态库（可重新生成）
 supervisor/state/
+supervisor/demo-output/

@@ -182,52 +182,62 @@ def check_alerts():
     return result
 
 
-def check_all(output_file=None):
-    """综合检查所有数据质量"""
+def _normalize_quality_dict(result: dict, table_key: str) -> dict:
+    """把 SQL 返回的中文键质量字典归一为 arbitrator 期望的字段名：
+    age_hours/stale_hours（数据过期小时）、null_rate（空值率，0-1）。
+    按表类型适配水位/降雨/告警三套键。"""
+    if not isinstance(result, dict):
+        return {}
+    out = {}
+    if table_key == "water_level":
+        out["age_hours"] = result.get("距现在小时")
+        null_count = result.get("rz为空")
+        total = result.get("总行数")
+        if null_count is not None and total and total > 0:
+            out["null_rate"] = round(float(null_count) / float(total) * 100, 1)
+    elif table_key == "rainfall_forecast":
+        out["stale_hours"] = result.get("批次距现在小时")
+    elif table_key == "alerts":
+        out["stale_hours"] = result.get("距现在小时")
+        total = result.get("未确认总数")
+        if total is not None:
+            out["null_rate"] = 0.0  # 告警不空即视为正常；堆积由 count 判断
+    return out
+
+
+def check_all(output_file=None, as_json=False):
+    """综合检查所有数据质量。
+    as_json=True 时打印结构化 JSON（供 supervisor arbitrator 消费），
+    字段对齐 arbitrate_dam_diagnosis 期望的 {table_key: {age_hours, null_rate}}。"""
+    wl = check_water_level()
+    rf = check_rainfall_forecast()
+    al = check_alerts()
     results = {
         "check_time": datetime.now().isoformat(),
-        "water_level": check_water_level(),
-        "rainfall_forecast": check_rainfall_forecast(),
-        "alerts": check_alerts()
+        "water_level": wl,
+        "rainfall_forecast": rf,
+        "alerts": al,
     }
+
+    # 结构化输出模式：归一为 arbitrator 期望格式后打印 JSON，不打印人类可读问题集
+    if as_json:
+        structured = {
+            "water_level": _normalize_quality_dict(wl, "water_level"),
+            "rainfall_forecast": _normalize_quality_dict(rf, "rainfall_forecast"),
+            "alerts": _normalize_quality_dict(al, "alerts"),
+            "problems_count": 0,
+        }
+        # 复用下方问题集逻辑计数
+        structured["problems_count"] = sum(1 for _ in _iter_problems(wl, rf, al))
+        print(json.dumps(structured, ensure_ascii=False, indent=2, default=str))
+        return results
 
     # 生成问题集
     print("\n" + "=" * 70)
     print("【问题集汇总】")
     print("=" * 70)
 
-    problems = []
-
-    # 检查水位
-    wl = results['water_level']
-    if wl['距现在小时'] > 24:
-        problems.append({
-            "type": "P0",
-            "category": "水位数据时效性",
-            "description": f"水位数据已过期 {wl['距现在小时']} 小时",
-            "data": wl
-        })
-
-    # 检查降雨预报
-    rf = results['rainfall_forecast']
-    if rf['批次距现在小时'] > 12:
-        problems.append({
-            "type": "P0",
-            "category": "降雨预报时效性",
-            "description": f"降雨预报已过期 {rf['批次距现在小时']} 小时",
-            "data": rf
-        })
-
-    # 检查告警
-    al = results['alerts']
-    if al['未确认总数'] > 500:
-        problems.append({
-            "type": "P1",
-            "category": "告警堆积",
-            "description": f"未确认告警堆积 {al['未确认总数']} 条",
-            "data": al
-        })
-
+    problems = list(_iter_problems(wl, rf, al))
     if problems:
         print(f"\n发现 {len(problems)} 个问题：")
         for i, p in enumerate(problems, 1):
@@ -245,11 +255,26 @@ def check_all(output_file=None):
     return results
 
 
+def _iter_problems(wl, rf, al):
+    """问题集生成器（供 check_all 复用）。"""
+    if wl and wl.get('距现在小时', 0) > 24:
+        yield {"type": "P0", "category": "水位数据时效性",
+               "description": f"水位数据已过期 {wl['距现在小时']} 小时", "data": wl}
+    if rf and rf.get('批次距现在小时', 0) > 12:
+        yield {"type": "P0", "category": "降雨预报时效性",
+               "description": f"降雨预报已过期 {rf['批次距现在小时']} 小时", "data": rf}
+    if al and al.get('未确认总数', 0) > 500:
+        yield {"type": "P1", "category": "告警堆积",
+               "description": f"未确认告警堆积 {al['未确认总数']} 条", "data": al}
+
+
 def main():
     parser = argparse.ArgumentParser(description='数据质量检查脚本')
     parser.add_argument('--type', choices=['water_level', 'rainfall_forecast', 'alerts', 'all'],
                        default='all', help='检查类型')
     parser.add_argument('--output', help='输出文件路径（仅 type=all 时有效）')
+    parser.add_argument('--json', action='store_true',
+                       help='结构化 JSON 输出（供 supervisor arbitrator 消费，仅 type=all）')
     args = parser.parse_args()
 
     if args.type == 'water_level':
@@ -259,7 +284,7 @@ def main():
     elif args.type == 'alerts':
         check_alerts()
     elif args.type == 'all':
-        check_all(args.output)
+        check_all(args.output, as_json=args.json)
 
 
 if __name__ == '__main__':
