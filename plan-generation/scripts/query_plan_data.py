@@ -6,25 +6,30 @@
 
 import argparse
 import json
+import os
 import sys
 
 from query_utils import execute_query, execute_query_list, unpack
+from lib.tenant import current_tenant_id, resolve_tenant  # 水库身份(SRM_TENANT_ID,默认18三岔)
+
+DEFAULT_TENANT = current_tenant_id()
 
 
 # ---------------------------------------------------------------------------
 # Query functions
 # ---------------------------------------------------------------------------
 
-def query_current_water_level():
+def query_current_water_level(tenant_id=None):
     """查询当前水位"""
+    tid = resolve_tenant(tenant_id)
     sql = """
     SELECT rz, inq, otq, w, tm
     FROM st_rsvr_r
-    WHERE deleted = 0 AND rz IS NOT NULL
+    WHERE deleted = 0 AND rz IS NOT NULL AND tenant_id = %s
     ORDER BY tm DESC
     LIMIT 1
     """
-    return execute_query(sql)
+    return execute_query(sql, (tid,))
 
 
 def query_rainfall_forecast(hours=48, source=None):
@@ -73,9 +78,11 @@ def query_weather_warning(since_date=None, status='1'):
     return execute_query(sql, params)
 
 
-def query_flood_limit():
+def query_flood_limit(tenant_id=None):
     """查询当前汛限水位"""
+    tid = resolve_tenant(tenant_id)
     # 优先从 att_res_flse_lim 表查询（按当前日期匹配汛期）
+    # 注：att_res_flse_lim 无 tenant_id 列（见 lib/filters.py），不按 tenant 过滤
     sql = """
     SELECT flse_lim_stag, flood_season_name, flood_season_start, flood_season_end
     FROM att_res_flse_lim
@@ -95,21 +102,17 @@ def query_flood_limit():
            NULL as flood_season_start,
            NULL as flood_season_end
     FROM att_res_base
-    WHERE fl_low_lim_lev IS NOT NULL AND deleted = 0
+    WHERE fl_low_lim_lev IS NOT NULL AND deleted = 0 AND tenant_id = %s
     ORDER BY id
     LIMIT 1
     """
-    results2 = execute_query_list(sql2)
+    results2 = execute_query_list(sql2, (tid,))
     if results2:
         return results2
 
-    # 兜底默认值
-    return [{
-        'flse_lim_stag': 462.5,
-        'flood_season_name': '非汛期',
-        'flood_season_start': None,
-        'flood_season_end': None
-    }]
+    # 无兜底硬编码值——汛限必须来自数据库（model_config 的 flood_limit_main/secondary
+    # 或 att_res_base）。缺失时返回空，由调用方处理（禁止编造水库特定数值）。
+    return []
 
 
 def query_historical_plans(limit=20, start_date=None, end_date=None,
@@ -253,10 +256,11 @@ def query_scenarios(target=None, def_only=False):
     return execute_query(sql, params)
 
 
-def query_water_level_curve(min_stag=None, max_stag=None):
-    """查询水位-库容曲线（按水位取平均值，消除重复）"""
-    conditions = []
-    params = []
+def query_water_level_curve(min_stag=None, max_stag=None, tenant_id=None):
+    """查询水位-库容曲线（按 tenant 过滤，按水位取平均值消除重复点）"""
+    tid = resolve_tenant(tenant_id)
+    conditions = ["tenant_id = %s"]
+    params = [tid]
 
     if min_stag is not None:
         conditions.append("stag >= %s")
@@ -265,20 +269,21 @@ def query_water_level_curve(min_stag=None, max_stag=None):
         conditions.append("stag <= %s")
         params.append(float(max_stag))
 
-    where = f" WHERE {' AND '.join(conditions)}" if conditions else ""
     sql = (
         "SELECT stag as water_level, AVG(cap) as capacity"
-        f" FROM att_res_stag_cap_disc{where}"
+        " FROM att_res_stag_cap_disc"
+        f" WHERE {' AND '.join(conditions)}"
         " GROUP BY stag"
         " ORDER BY stag"
     )
     return execute_query(sql, params)
 
 
-def query_discharge_curve(min_stag=None, max_stag=None):
-    """查询泄流曲线"""
-    conditions = []
-    params = []
+def query_discharge_curve(min_stag=None, max_stag=None, tenant_id=None):
+    """查询泄流曲线（按 tenant 过滤）"""
+    tid = resolve_tenant(tenant_id)
+    conditions = ["tenant_id = %s"]
+    params = [tid]
 
     if min_stag is not None:
         conditions.append("stag >= %s")
@@ -287,42 +292,37 @@ def query_discharge_curve(min_stag=None, max_stag=None):
         conditions.append("stag <= %s")
         params.append(float(max_stag))
 
-    where = f" WHERE {' AND '.join(conditions)}" if conditions else ""
     sql = (
         "SELECT stag as water_level, q as flow"
-        f" FROM att_res_discharge_curve{where}"
+        " FROM att_res_discharge_curve"
+        f" WHERE {' AND '.join(conditions)}"
         " ORDER BY stag"
     )
     return execute_query(sql, params)
 
 
-def query_config():
-    """查询系统配置（取最新的一组配置）"""
+def query_config(tenant_id=None):
+    """查询系统配置（取当前租户的一组配置）"""
+    tid = resolve_tenant(tenant_id)
     sql = """
     SELECT config_key, value, tenant_id
     FROM model_config
     WHERE config_key IN ('max_water_level', 'min_water_level',
-                         'max_drainage_capacity', 'safe_drainage_capacity')
-      AND deleted = 0
-    ORDER BY tenant_id DESC, id DESC
+                         'max_drainage_capacity', 'safe_drainage_capacity',
+                         'st_rsvr_r_master', 'st_pptn_r_master', 'res_guid',
+                         'watershed_area_km2', 'flood_limit_main', 'flood_limit_secondary',
+                         'normal_pool_level', 'design_flood_level', 'check_flood_level',
+                         'dead_water_level', 'total_storage')
+      AND deleted = 0 AND tenant_id = %s
+    ORDER BY id DESC
     """
-    results = execute_query_list(sql)
-    # 按 tenant_id 分组，取最常用的一组（或最新的）
-    # 优先取 tenant_id=18（三岔水库所在租户）
-    config_by_tenant = {}
+    results = execute_query_list(sql, (tid,))
+    config = {}
     for row in results:
-        tid = row.get('tenant_id', 0)
-        if tid not in config_by_tenant:
-            config_by_tenant[tid] = {}
-        config_by_tenant[tid][row['config_key']] = row['value']
-
-    # 优先返回 tenant_id=18，否则返回最新的
-    if 18 in config_by_tenant:
-        return config_by_tenant[18]
-    elif config_by_tenant:
-        return list(config_by_tenant.values())[0]
-    else:
-        return {}
+        # 同 key 多行时取最新（已按 id DESC 排序，首次出现即最新）
+        if row['config_key'] not in config:
+            config[row['config_key']] = row['value']
+    return config
 
 
 # ---------------------------------------------------------------------------
@@ -388,8 +388,14 @@ def main():
                         help='时间范围天数（用于相似预案查询）')
     parser.add_argument('--source', type=str, default=None,
                         help='数据来源过滤（unitname）')
+    parser.add_argument('--tenant', type=int, default=None,
+                        help='租户/水库ID（覆盖 SRM_TENANT_ID 环境变量，默认18=三岔）')
 
     args = parser.parse_args()
+
+    # --tenant 覆盖环境变量，所有 resolve_tenant() 运行时统一读取
+    if args.tenant is not None:
+        os.environ['SRM_TENANT_ID'] = str(args.tenant)
 
     # Map each --type to its function with the new filter args
     query_map = {

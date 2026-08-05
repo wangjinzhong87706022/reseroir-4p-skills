@@ -1,7 +1,7 @@
 ---
 name: forecasting
-description: "水库水文预报智能解读：降雨预报解读、水库影响估算、多源预报融合、水位趋势预测、预报精度评估、三岔水库预报决策。"
-version: 1.0.0
+description: "水库水文预报智能解读：降雨预报解读、水库影响估算、多源预报融合、水位趋势预测、预报精度评估、预报决策。"
+version: 1.0.1
 author: SmartTwinRes Team
 license: MIT
 platforms: [linux, windows, macos]
@@ -9,8 +9,11 @@ metadata:
   hermes:
     tags: [water-conservancy, forecast, rainfall, hydrology]
     related_skills: []
+  reservoir:
+    default: sancha
+    env: SRM_RESERVOIR_NAME
 prerequisites:
-  env_vars: [SRM_DB_HOST, SRM_DB_PORT, SRM_DB_NAME, SRM_DB_USER, SRM_DB_PASSWORD]
+  env_vars: [SRM_DB_HOST, SRM_DB_PORT, SRM_DB_NAME, SRM_DB_USER, SRM_DB_PASSWORD, SRM_TENANT_ID, SRM_RESERVOIR_NAME]
 ---
 
 # 水库水文预报智能解读 Skill v1.0
@@ -27,7 +30,9 @@ prerequisites:
 
 ## 数据源优先级告警
 
-> **⚠️ 数据源优先级（必须遵守）**：三岔水库的所有预报/实况/汛限/精度/历史数据**必须从本 skill 的 `scripts/query_forecast_data.py` 与 `scripts/query_forecast_analysis.py` 获取**（查询 `powerelf_srm_yml` 数据库）。**禁止**混用 water-situation / water-warning / rainfall / plan-generation 等 skill 的数据源——它们查询的是 `sl323` 全区域河道站或 `model_result_files(type=2)` 调度结果，不适用于水文预报解读。本 skill 只读 `model_result_files(type=1)` 预报来水过程，**不触发任何模型计算**。
+> **🏛️ 水库身份感知（多水库必读）**：本 skill 通过 `SRM_RESERVOIR_NAME`（默认 sancha）适配不同水库。**凡涉及具体水位/汛限/特征水位/站网/预报阈值前，先读 reservoir profile**：`reservoirs/${SRM_RESERVOIR_NAME:-sancha}/`（identity/characteristic-levels/stations）。禁止照抄示例数字——三岔 ~460m 量级、桃曲坡 ~788m 量级，必须以当前 profile 为准。
+
+> **⚠️ 数据源优先级（必须遵守）**：当前水库的所有预报/实况/汛限/精度/历史数据**必须从本 skill 的 `scripts/query_forecast_data.py` 与 `scripts/query_forecast_analysis.py` 获取**（按 `SRM_TENANT_ID` 隔离查询调度数据库）。**禁止**混用 water-situation / water-warning / rainfall / plan-generation 等 skill 的数据源——它们查询的是全区域河道站或 `model_result_files(type=2)` 调度结果，不适用于水文预报解读。本 skill 只读 `model_result_files(type=1)` 预报来水过程，**不触发任何模型计算**。
 
 ## ⛔ 输出蓝图（开始分析前先规划这 3 段，分析后逐段填充）
 

@@ -117,6 +117,26 @@
 
 ---
 
+### 🧭 supervisor（四预智能体协同编排层）— 新增
+
+**描述**: 四预智能体集群的编排层（Supervisor）：场景识别、DAG 编排、跨 skill 调度、结果仲裁、全局 State 持久化与断点续跑。
+
+**状态**: v0.2.0 四场景（A/B/C/D）全部实测跑通（2026-08-05）
+
+**核心功能**:
+- 四类场景识别（A暴雨研判 / B大坝诊断 / C日常管控 / D应急）
+- 场景 A 七步 DAG 一键编排（forecasting→diagnosis→inspection→simulation→plan-gen→仲裁→报告）
+- SQLite 全局 State（事件/阶段结果持久化、断点续跑、HITL 检查点）
+- 结果仲裁（方案 vs 仿真一致性、下泄 vs 安全泄量、风险等级取高）
+
+**文档**: [supervisor/SKILL.md](supervisor/SKILL.md)
+**落地状态**: [supervisor/README.md](supervisor/README.md)
+**脚本**: [supervisor/scripts/](supervisor/scripts/)
+
+> 背景：详见 [docs/多Agent集群方案评估与Supervisor落地.md](docs/多Agent集群方案评估与Supervisor落地.md) 与 [docs/四预智能体深入分析报告.md](docs/四预智能体深入分析报告.md)
+
+---
+
 ### 🔍 diagnosis-verification（诊断验证）
 
 **描述**: 系统诊断、数据验证、问题排查

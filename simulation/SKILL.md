@@ -9,12 +9,17 @@ metadata:
   hermes:
     tags: [water-conservancy, simulation, rehearsal, flood, dispatch, analysis]
     related_skills: [plan-generation, early-warning]
+  reservoir:
+    default: sancha
+    env: SRM_RESERVOIR_NAME
 prerequisites:
-  env_vars: [SRM_DB_HOST, SRM_DB_PORT, SRM_DB_NAME, SRM_DB_USER, SRM_DB_PASSWORD]
+  env_vars: [SRM_DB_HOST, SRM_DB_PORT, SRM_DB_NAME, SRM_DB_USER, SRM_DB_PASSWORD, SRM_TENANT_ID, SRM_RESERVOIR_NAME]
   services: [xaj-model:18081, dispatch-model:18082, routing-model:18083, orchestrator:18084]
 ---
 
 # 水库预演 AI 增强 Skill v1.9.3（速查卡）
+
+> **🏛️ 水库身份感知（多水库必读）**：本 skill 通过 `SRM_RESERVOIR_NAME`（默认 sancha）适配多水库。预演涉及的水位/汛限/曲线/泄量/调度参数**必须以当前 reservoir profile 为准**：`reservoirs/${SRM_RESERVOIR_NAME:-sancha}/`（characteristic-levels.md / curve-data.md）。模型计算所需水位-库容/泄流曲线应从该水库读取，禁止使用其他水库的兜底曲线（三岔 ~460m、桃曲坡 ~788m，基准不同）。
 
 ## ⛔ 输出蓝图（开始分析前先规划这3段，分析后逐段填充）
 

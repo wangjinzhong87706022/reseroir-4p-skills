@@ -9,11 +9,16 @@ metadata:
   hermes:
     tags: [water-conservancy, early-warning, alarm, analysis, diagnosis]
     related_skills: [powerelf-data-governance, powerelf-monitor, powerelf-chatbi]
+  reservoir:
+    default: sancha
+    env: SRM_RESERVOIR_NAME
 prerequisites:
-  env_vars: [POWERELF_DB_HOST, POWERELF_DB_PORT, POWERELF_DB_NAME, POWERELF_DB_USER, POWERELF_DB_PASSWORD]
+  env_vars: [POWERELF_DB_HOST, POWERELF_DB_PORT, POWERELF_DB_NAME, POWERELF_DB_USER, POWERELF_DB_PASSWORD, SRM_TENANT_ID, SRM_RESERVOIR_NAME]
 ---
 
 # 智能预警系统 Skill v5.2（速查卡）
+
+> **🏛️ 水库身份感知（多水库必读）**：本 skill 通过 `SRM_RESERVOIR_NAME`（默认 sancha）适配多水库。预警阈值（汛限/特征水位/降雨量级/响应级别）**必须以当前 reservoir profile 为准**：`reservoirs/${SRM_RESERVOIR_NAME:-sancha}/characteristic-levels.md`。不同水库水位基准不同（三岔 ~460m、桃曲坡 ~788m），禁止跨水库套用阈值。
 
 ## 数据库
 

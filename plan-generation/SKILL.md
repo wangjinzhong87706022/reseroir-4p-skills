@@ -1,7 +1,7 @@
 ---
 name: plan-generation
-description: "水库调度预案智能生成：防汛形势评估、汛情研判、水情数据分析、调度预案生成、方案对比推荐、历史预案查询、三岔水库调度决策。"
-version: 3.2.0
+description: "水库调度预案智能生成：防汛形势评估、汛情研判、水情数据分析、调度预案生成、方案对比推荐、历史预案查询、调度决策。"
+version: 3.2.1
 author: SmartTwinRes Team
 license: MIT
 platforms: [linux, windows, macos]
@@ -9,13 +9,23 @@ metadata:
   hermes:
     tags: [water-conservancy, plan, dispatch, reservoir, scheduling]
     related_skills: []
+  reservoir:                  # 水库身份（多水库可插拔）：由 SRM_RESERVOIR_NAME 激活对应 profile
+    default: sancha
+    env: SRM_RESERVOIR_NAME
 prerequisites:
-  env_vars: [SRM_DB_HOST, SRM_DB_PORT, SRM_DB_NAME, SRM_DB_USER, SRM_DB_PASSWORD]
+  env_vars: [SRM_DB_HOST, SRM_DB_PORT, SRM_DB_NAME, SRM_DB_USER, SRM_DB_PASSWORD, SRM_TENANT_ID, SRM_RESERVOIR_NAME]
 ---
 
 # 水库调度预案智能生成 Skill v3.2
 
-> **⚠️ 数据源优先级（必须遵守）**：当本 skill 与 water-situation / water-warning / rainfall 等 skill 同时加载时，三岔水库的所有水情、汛限、配置、历史数据**必须从本 skill 的 `scripts/query_plan_data.py` 获取**（查询 powerelf_srm_yml 数据库）。**禁止**使用其他 skill 的数据源——它们查询的是 sl323 数据库的全区域河道站数据（古运河、邗沟等），不适用于三岔水库调度决策。
+> **⚠️ 数据源优先级（必须遵守）**：当本 skill 与 water-situation / water-warning / rainfall 等 skill 同时加载时，当前水库的所有水情、汛限、配置、历史数据**必须从本 skill 的 `scripts/query_plan_data.py` 获取**（查询调度数据库，按 `SRM_TENANT_ID` 隔离）。**禁止**使用其他 skill 的数据源——它们查询的是区域河道站数据，不适用于本水库调度决策。
+
+> **🏛️ 水库身份感知（多水库必读）**：本 skill 通过环境变量 `SRM_RESERVOIR_NAME`（默认 `sancha`）适配不同水库。**凡涉及具体水位/汛限/特征水位/曲线/站码/下游参数前，先读 reservoir profile**：
+> - profile 目录：`reservoirs/${SRM_RESERVOIR_NAME:-sancha}/`
+> - 桃曲坡（`SRM_RESERVOIR_NAME=taoqupo`）：汛限 786.80m(主汛)/788.00m(次汛)、正常蓄水位 788.5m、设计洪水位 788.54m、校核洪水位 790.5m、死水位 755m、下游安全泄量 500m³/s
+> - 三岔（`SRM_RESERVOIR_NAME=sancha`）：见 `reservoirs/sancha/`（或运行时从 model_config 动态读取）
+> - 详见各 profile 的 `identity.md` / `characteristic-levels.md` / `curve-data.md`
+> - **禁止**照抄本 skill 示例里的具体数字——那些只是某个水库的取值，必须以当前 profile 为准。
 
 ## ⛔ 输出蓝图（开始分析前先规划这3段，分析后逐段填充）
 
@@ -71,7 +81,7 @@ prerequisites:
 | 闸门故障怎么办 | 应急处置 | 不查库，直接读知识 | emergency-response.md |
 | 调度模式5是什么 | 知识问答 | 不查库，直接读知识 | dispatch-rules.md |
 | 红色预警该怎么做 | 应急处置 | 快捷路径 + 知识 | emergency-response.md |
-| 当前形势如何、三岔水库汛情 | 形势研判 | 快捷路径：full_context + historical_plans + similar_plans | knowledge-base.md |
+| 当前形势如何、本水库汛情 | 形势研判 | 快捷路径：full_context + historical_plans + similar_plans | knowledge-base.md + reservoir profile |
 | 应选防洪优先还是综合平衡 | 调度决策 | 快捷路径：full_context + historical_plans + similar_plans + 知识参考 | dispatch-rules.md |
 
 ## 第二步 — 执行查询

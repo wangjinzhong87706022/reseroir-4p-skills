@@ -10,3 +10,24 @@ forecasting/20260710_170809_e9d454
 
 # 大文件排除 (超过 GitHub 100MB 限制)
 forecasting/20260710*
+
+# 原始 PDF 资料（4.9G，不入库；提取文本见 pdf_text_analysis/）
+pdfs/
+
+# 本地工具配置（Claude Code 等）
+.claude/
+
+# 编辑器临时文件
+*.swp
+*.swo
+*~
+
+# 原始 PDF 备份（2.1G，不入库）
+pdfs_backup/
+
+# 视频分析中间产物（抽帧图片/音频，可重新生成；保留 json 结果）
+pdf_text_analysis/video_analysis/frames/
+pdf_text_analysis/video_analysis/audio/
+
+# supervisor 运行时状态库（可重新生成）
+supervisor/state/

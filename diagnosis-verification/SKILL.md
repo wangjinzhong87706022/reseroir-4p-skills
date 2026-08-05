@@ -9,11 +9,16 @@ metadata:
   hermes:
     tags: [water-conservancy, diagnosis, verification, auto-fix, root-cause]
     related_skills: [forecasting, early-warning, plan-generation, simulation]
+  reservoir:
+    default: sancha
+    env: SRM_RESERVOIR_NAME
 prerequisites:
-  env_vars: [SRM_DB_HOST, SRM_DB_PORT, SRM_DB_NAME, SRM_DB_USER, SRM_DB_PASSWORD]
+  env_vars: [SRM_DB_HOST, SRM_DB_PORT, SRM_DB_NAME, SRM_DB_USER, SRM_DB_PASSWORD, SRM_TENANT_ID, SRM_RESERVOIR_NAME]
 ---
 
 # 水库四预系统诊断与验证 Skill v1.0
+
+> **🏛️ 水库身份感知（多水库必读）**：本 skill 通过 `SRM_RESERVOIR_NAME`（默认 sancha）适配多水库，诊断覆盖 forecasting/early-warning/plan-generation/simulation 全场景。诊断涉及的水库参数（tenant_id/特征水位/站网/曲线）以当前 reservoir profile 为准：`reservoirs/${SRM_RESERVOIR_NAME:-sancha}/`。
 
 ## 概述
 

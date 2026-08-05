@@ -41,9 +41,10 @@ from datetime import datetime
 # 让脚本既能 `python3 scripts/query_forecast_data.py` 又能被 import
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from query_utils import execute_query, execute_query_list, unpack  # noqa: E402
+from lib.tenant import current_tenant_id  # noqa: E402 -- 水库身份(SRM_TENANT_ID,默认18三岔)
 
 
-DEFAULT_TENANT = 18
+DEFAULT_TENANT = current_tenant_id()
 DEFAULT_HOURS = 48
 DEFAULT_LIMIT = 1000
 

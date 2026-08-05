@@ -28,7 +28,7 @@ class XAJModel:
     def __init__(self, watershed_area_km2=161.25):
         """
         初始化模型参数
-        :param watershed_area_km2: 流域面积(km²)，三岔水库默认161.25
+        :param watershed_area_km2: 流域面积(km²)，默认161.25=三岔（多水库必须显式传入，如桃曲坡1335）
         """
         self.area_km2 = watershed_area_km2
         self.area_m2 = watershed_area_km2 * 1e6  # 转换为m²
@@ -239,7 +239,10 @@ class XAJModel:
         return flow
 
 
-# 全局模型实例
+# ⚠️ 全局模型实例——三岔水库默认（流域面积 161.25 km²）。
+# 多水库部署必须由 HTTP 调用方在请求体传入 watershed_area（见 /api/xaj/forecast
+# 的 data.get('watershed_area') 覆盖逻辑），否则按三岔面积计算，结果错误。
+# 桃曲坡流域面积 = 1335 km²。
 xaj_model = XAJModel(watershed_area_km2=161.25)
 
 

@@ -37,9 +37,10 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from query_utils import execute_query, execute_query_list, unpack  # noqa: E402
 # 复用 query_forecast_data 的 master-stcd 读取器(绝不硬编码站点)
 from query_forecast_data import get_master_stcd  # noqa: E402
+from lib.tenant import current_tenant_id  # noqa: E402 -- 水库身份(SRM_TENANT_ID,默认18三岔)
 
 
-DEFAULT_TENANT = 18
+DEFAULT_TENANT = current_tenant_id()
 DEFAULT_HOURS = 48
 DEFAULT_LIMIT = 1000
 
