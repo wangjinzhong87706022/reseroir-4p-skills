@@ -21,3 +21,13 @@ pdfs/
 *.swp
 *.swo
 *~
+
+# 原始 PDF 备份（2.1G，不入库）
+pdfs_backup/
+
+# 视频分析中间产物（抽帧图片/音频，可重新生成；保留 json 结果）
+pdf_text_analysis/video_analysis/frames/
+pdf_text_analysis/video_analysis/audio/
+
+# supervisor 运行时状态库（可重新生成）
+supervisor/state/
