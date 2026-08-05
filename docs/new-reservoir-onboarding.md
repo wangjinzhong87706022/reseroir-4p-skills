@@ -109,7 +109,7 @@ hermes chat -q "{水库名}的汛限水位是多少" --skills plan-generation -Q
 | 4 录数据 | `data/taoqupo-reservoir-data.sql`（已执行） | ✅ |
 | 5 env | `SRM_TENANT_ID=20 SRM_RESERVOIR_NAME=taoqupo` | ⏳ 待部署 |
 | 6 profile | `reservoirs/taoqupo/` 6 文件 | ✅ |
-| 7 验证 | config/flood_limit/曲线 均按 tenant=20 命中 ✅；hermes 端到端待跑 | 🟡 |
+| 7 验证 | config/flood_limit/曲线 按 tenant=20 命中 ✅；曲线串库修复 ✅；hermes 端到端已跑通（主汛限786.8/设计788.54/校核790.5/泄量2331，无三岔污染） | ✅ |
 
 ---
 
