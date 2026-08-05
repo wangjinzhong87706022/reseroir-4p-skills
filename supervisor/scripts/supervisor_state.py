@@ -259,6 +259,194 @@ def cmd_list(args) -> dict:
     return {"events": [dict(r) for r in rows]}
 
 
+def cmd_stats(args) -> dict:
+    """运维观测：事件总数/各场景分布/状态分布/失败率/阶段完成率/平均阶段数。
+    用于快速判断 supervisor 健康度与瓶颈场景。"""
+    conn = _connect()
+
+    # 总览：按 scene × status 二维分布
+    scene_status = [dict(r) for r in conn.execute(
+        "SELECT scene, status, COUNT(*) as cnt "
+        "FROM events GROUP BY scene, status ORDER BY scene, status"
+    ).fetchall()]
+
+    # 状态汇总
+    status_counts = {r["status"]: r["cnt"] for r in conn.execute(
+        "SELECT status, COUNT(*) as cnt FROM events GROUP BY status"
+    ).fetchall()}
+    total = sum(status_counts.values())
+    done = status_counts.get("done", 0)
+    aborted = status_counts.get("aborted", 0)
+    running = status_counts.get("running", 0) + status_counts.get("awaiting_approval", 0)
+    fail_rate = round(aborted / total * 100, 1) if total else 0.0
+
+    # 阶段完成率：stage_results 中 ok/error/skipped 占比
+    stage_counts = {r["status"]: r["cnt"] for r in conn.execute(
+        "SELECT status, COUNT(*) as cnt FROM stage_results GROUP BY status"
+    ).fetchall()}
+    stage_total = sum(stage_counts.values())
+    stage_ok = stage_counts.get("ok", 0)
+    stage_err = stage_counts.get("error", 0)
+    stage_ok_rate = round(stage_ok / stage_total * 100, 1) if stage_total else 0.0
+    stage_err_rate = round(stage_err / stage_total * 100, 1) if stage_total else 0.0
+
+    # 平均阶段数（每事件完成几个阶段）
+    avg_stages = round(stage_total / total, 2) if total else 0.0
+
+    # 错误阶段清单（最近 5 条，供 replay 定位）
+    recent_errors = [dict(r) for r in conn.execute(
+        "SELECT event_id, stage, agent, ts FROM stage_results "
+        "WHERE status='error' ORDER BY ts DESC LIMIT 5"
+    ).fetchall()]
+
+    conn.close()
+    return {
+        "total_events": total,
+        "status_counts": status_counts,
+        "running": running, "done": done, "aborted": aborted,
+        "fail_rate_pct": fail_rate,
+        "scene_status": scene_status,
+        "stages": {
+            "total": stage_total, "ok": stage_ok, "error": stage_err,
+            "ok_rate_pct": stage_ok_rate, "error_rate_pct": stage_err_rate,
+            "avg_per_event": avg_stages,
+        },
+        "recent_errors": recent_errors,
+    }
+
+
+def cmd_replay(args) -> dict:
+    """运维：为失败/未完成事件生成一键重放提示命令。
+    扫描 status IN ('aborted','running','awaiting_approval') 的事件，
+    对每个给出对应的 orchestrator resume/stage 重放命令，便于运维人员直接复制执行。
+    """
+    conn = _connect()
+    targets = [dict(r) for r in conn.execute(
+        "SELECT event_id, scene, status, trigger FROM events "
+        "WHERE status IN ('aborted','running','awaiting_approval') "
+        "ORDER BY CASE status WHEN 'aborted' THEN 0 "
+        "WHEN 'awaiting_approval' THEN 1 ELSE 2 END, event_id"
+    ).fetchall()]
+
+    items = []
+    for ev in targets:
+        eid, scene, status = ev["event_id"], ev["scene"], ev["status"]
+        # 列出该事件未完成/失败的阶段
+        bad_stages = [dict(r) for r in conn.execute(
+            "SELECT stage, status FROM stage_results "
+            "WHERE event_id=? AND status IN ('error','skipped') ORDER BY stage",
+            (eid,)
+        ).fetchall()]
+        done_stages = [r["stage"] for r in conn.execute(
+            "SELECT stage FROM stage_results WHERE event_id=? AND status='ok' ORDER BY stage",
+            (eid,)
+        ).fetchall()]
+        next_stage = bad_stages[0]["stage"] if bad_stages else (
+            "step7" if len(done_stages) >= 5 else f"step{len(done_stages)+1}"
+        )
+
+        # 重放命令：awaiting_approval 用 resume --approve；其余用 stage 单阶段重跑
+        if status == "awaiting_approval":
+            cmd = f"python3 supervisor/scripts/orchestrator.py resume --event {eid} --approve"
+        elif bad_stages:
+            cmd = (f"python3 supervisor/scripts/orchestrator.py stage "
+                   f"--event {eid} --stage {bad_stages[0]['stage']}")
+        else:
+            cmd = (f"python3 supervisor/scripts/orchestrator.py resume --event {eid} "
+                   f"--approve  # 从 {next_stage} 续跑")
+
+        items.append({
+            "event_id": eid, "scene": scene, "status": status,
+            "trigger": ev["trigger"],
+            "done_stages": done_stages,
+            "bad_stages": [s["stage"] for s in bad_stages],
+            "next_stage": next_stage,
+            "replay_cmd": cmd,
+        })
+
+    conn.close()
+    return {"replay_count": len(items), "events": items}
+
+
+def cmd_health(args) -> dict:
+    """运维：cron 数据时效健康检查。
+    检查 forecasting 依赖的 st_rsvr_r（水位时效）与 f_rnfl_h（未来预报覆盖），
+    判断 cron 续写任务是否在正常运行（age 过大 → cron 异常）。
+    阈值：水位 age <= 6h（cron 每 50 分钟续写）；未来预报 >= 168h（7 天覆盖）。"""
+    import sys as _sys, os as _os
+    _SCRIPTS = _os.path.dirname(_os.path.abspath(__file__))
+    if _SCRIPTS not in _sys.path:
+        _sys.path.insert(0, _SCRIPTS)
+    _sys.path.insert(0, _os.path.join(_SCRIPTS, "..", ".."))
+    from lib.db import execute_query_list  # noqa: E402
+
+    # 水位时效（st_rsvr_r master stcd）
+    stcd = _os.getenv("SRM_RSVR_MASTER", "TQP")  # 桃曲坡默认；三岔可覆盖
+    wl = execute_query_list(
+        "SELECT MAX(tm) as max_tm, TIMESTAMPDIFF(HOUR, MAX(tm), NOW()) as age_h, "
+        "COUNT(*) as cnt FROM st_rsvr_r WHERE deleted=0 AND stcd=%s",
+        (stcd,)
+    )[0]
+    wl_age = float(wl["age_h"]) if wl["age_h"] is not None else None
+
+    # 未来预报覆盖（f_rnfl_h 未来预报行数）
+    rf = execute_query_list(
+        "SELECT COUNT(*) as cnt, MAX(ymdh) as max_ymdh "
+        "FROM f_rnfl_h WHERE deleted=0 AND ymdh > NOW()"
+    )[0]
+    rf_cnt = int(rf["cnt"]) if rf["cnt"] is not None else 0
+
+    # 告警堆积（ew_info_message 未确认 + 高级别）
+    al = execute_query_list(
+        "SELECT COUNT(*) as total, "
+        "SUM(CASE WHEN level_r IN ('1','2') THEN 1 ELSE 0 END) as high "
+        "FROM ew_info_message WHERE deleted=0 AND message_confirm=0"
+    )[0]
+    al_total = int(al["total"] or 0)
+    al_high = int(al["high"] or 0)
+
+    # 健康判定
+    checks = []
+    if wl_age is None:
+        checks.append({"item": "st_rsvr_r", "status": "error", "msg": f"无 {stcd} 数据"})
+    elif wl_age > 6:
+        checks.append({"item": "st_rsvr_r", "status": "warn",
+                        "msg": f"水位数据过期 {wl_age}h（阈值 6h，cron 可能停摆）"})
+    else:
+        checks.append({"item": "st_rsvr_r", "status": "ok",
+                        "msg": f"水位新鲜（age={wl_age}h）"})
+
+    if rf_cnt < 168:
+        checks.append({"item": "f_rnfl_h", "status": "warn",
+                        "msg": f"未来预报仅 {rf_cnt}h（阈值 168h，--forecast 未跑）"})
+    else:
+        checks.append({"item": "f_rnfl_h", "status": "ok",
+                        "msg": f"未来预报 {rf_cnt}h �覆盖完整"})
+
+    if al_total > 1000:
+        checks.append({"item": "ew_info_message", "status": "warn",
+                        "msg": f"告警堆积 {al_total} 条（阈值 1000，需确认清理）"})
+    else:
+        checks.append({"item": "ew_info_message", "status": "ok",
+                        "msg": f"告警数量正常（{al_total} 条，高级别 {al_high}）"})
+
+    overall = "ok" if all(c["status"] == "ok" for c in checks) else (
+        "error" if any(c["status"] == "error" for c in checks) else "warn")
+
+    return {
+        "overall": overall,
+        "reservoir": _os.getenv("SRM_RESERVOIR_NAME", "?"),
+        "tenant_id": _os.getenv("SRM_TENANT_ID", "?"),
+        "checks": checks,
+        "detail": {
+            "st_rsvr_r": {"stcd": stcd, "max_tm": wl["max_tm"],
+                          "age_h": wl_age, "rows": wl["cnt"]},
+            "f_rnfl_h": {"future_rows": rf_cnt, "max_ymdh": rf["max_ymdh"]},
+            "ew_info_message": {"unconfirmed": al_total, "high_level": al_high},
+        },
+    }
+
+
 # ===========================================================================
 # main
 # ===========================================================================
@@ -277,6 +465,15 @@ def main():
 
     p_queue = sub.add_parser("queue", help="优先级队列：未结束事件按优先级排序")
     p_queue.set_defaults(func=cmd_queue)
+
+    p_stats = sub.add_parser("stats", help="运维观测：事件/状态/失败率/阶段完成率")
+    p_stats.set_defaults(func=cmd_stats)
+
+    p_replay = sub.add_parser("replay", help="失败/未完成事件一键重放提示")
+    p_replay.set_defaults(func=cmd_replay)
+
+    p_health = sub.add_parser("health", help="cron 数据时效健康检查（水位/预报/告警）")
+    p_health.set_defaults(func=cmd_health)
 
     p_set = sub.add_parser("set", help="写入阶段结果")
     p_set.add_argument("--event", required=True)

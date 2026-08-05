@@ -110,6 +110,27 @@ step1 early-warning（高级别告警）→ step2 plan-gen（应急方案）→ 
   （CLI `--priority` 可覆盖）
 - **验证**：queue 排序正确（高→中→低）；场景D run 自动"高"、场景C 自动"低"
 
+## 运维与观测（v0.5.0）
+
+三个 `supervisor_state.py` 子命令支撑日常运维：
+
+```bash
+# 1. stats：事件/状态/失败率/阶段完成率总览（判断 supervisor 健度与瓶颈场景）
+python3 supervisor/scripts/supervisor_state.py stats
+
+# 2. replay：失败/未完成事件一键重放提示（直接复制命令续跑）
+python3 supervisor/scripts/supervisor_state.py replay
+
+# 3. health：cron 数据时效健康检查（水位/预报/告警，阈値水位 age<=6h、预报>=168h）
+python3 supervisor/scripts/supervisor_state.py health
+# 三岔：SRM_RSVR_MASTER=sancha python3 supervisor/scripts/supervisor_state.py health
+```
+
+**实测**（2026-08-05，桃曲坡 tenant 20）：
+- `stats`：45 事件（done 33/running 10/awaiting 2），失败率 0%，阶段 ok 率 100%
+- `replay`：12 待重放事件，awaiting_approval 给 `resume --approve`，running 给续跑提示
+- `health`：overall=warn（水位 age=0h ok、预报 168h ok、告警堆积 1165 条 warn）
+
 ## v0.3.0 更新记录（2026-08-05）
 
 ### 仲裁阈值自动读取
