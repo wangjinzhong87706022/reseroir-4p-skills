@@ -1,6 +1,6 @@
 # Supervisor 协同编排层（四预智能体落地）
 
-> **状态**: v0.2.0 —— 四场景（A/B/C/D）全部实测跑通（2026-08-05）
+> **状态**: v0.4.0 —— 四场景（A/B/C/D）全部实测跑通 + 场景B/D专用仲裁 + 优先级队列（2026-08-05）
 > **定位**: 把 forecasting / early-warning / plan-generation / simulation / diagnosis-verification 等专业 skill 编排成自动化闭环，非新专业能力。
 
 ## 已实现能力

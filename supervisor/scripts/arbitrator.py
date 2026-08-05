@@ -160,7 +160,13 @@ def arbitrate_emergency(
             sim_disch = max((float(x.get("otq") or 0) for x in cwl if x.get("otq")), default=None)
 
     # --- 方案参数（plan）---
-    plan_disch = plan.get("max_discharge") or plan.get("discharge")
+    plan_disch = None
+    if isinstance(plan, dict):
+        plan_disch = plan.get("max_discharge") or plan.get("discharge")
+        try:
+            plan_disch = float(plan_disch) if plan_disch is not None else None
+        except (TypeError, ValueError):
+            plan_disch = None
 
     # 规则1: Ⅰ/Ⅱ级告警 → 升级
     if alert_count > 0:
@@ -168,7 +174,7 @@ def arbitrate_emergency(
         decision = "escalate"
         passed = False
 
-    # 规则2: 下泄超安全泄量 → 否决
+    # 规则2: 下泄超安全泄量 → 否决（reject 优先级高于 escalate，最后赋值覆盖）
     if safe_discharge is not None and plan_disch is not None and plan_disch > safe_discharge:
         issues.append(f"方案下泄 {plan_disch}m³/s 超过下游安全泄量 {safe_discharge}m³/s，方案否决")
         decision = "reject"
@@ -177,7 +183,9 @@ def arbitrate_emergency(
     # 规则3: 仿真超汛限 → 升级
     if flood_limit is not None and sim_level is not None and sim_level > flood_limit:
         issues.append(f"仿真最高水位 {sim_level}m 超汛限 {flood_limit}m，需降库/预泄")
-        decision = "escalate"
+        # reject（方案否决）优先级高于 escalate，不覆盖已有的 reject
+        if decision != "reject":
+            decision = "escalate"
         passed = False
 
     # 处置建议
@@ -227,7 +235,6 @@ def arbitrate_dam_diagnosis(
     处置建议：基于风险等级 + 具体问题给出（对接 defect-disposal 思路，不硬编码具体数值）。
     """
     issues = []
-    level_scores = {"低": 0, "中": 1, "高": 2}
 
     risk = "低"
 
@@ -240,8 +247,19 @@ def arbitrate_dam_diagnosis(
                 continue
             age = table_info.get("age_hours") or table_info.get("stale_hours")
             null_rate = table_info.get("null_rate")
+            # 守卫：DB 返回的 age 可能是字符串，统一转 float 再比较
+            if age is not None:
+                try:
+                    age = float(age)
+                except (TypeError, ValueError):
+                    age = None
             if age is not None and age > 24:
                 dq_issues.append(f"{table_key} 数据过期 {age}h")
+            if null_rate is not None:
+                try:
+                    null_rate = float(null_rate)
+                except (TypeError, ValueError):
+                    null_rate = None
             if null_rate is not None and null_rate > 50:
                 dq_issues.append(f"{table_key} 空值率 {null_rate}%")
     if dq_issues:
@@ -251,9 +269,10 @@ def arbitrate_dam_diagnosis(
     # --- 缺陷维度（inspection） ---
     open_defects = []
     if isinstance(inspection, dict):
-        defs = inspection.get("open_defects") or inspection.get("defects", {}).get("open_defects")
+        # 守卫：defects 值可能为 None，用 `or {}` 兜底再 .get()
+        defs = inspection.get("open_defects") or (inspection.get("defects") or {}).get("open_defects")
         if isinstance(defs, list):
-            open_defects = [d for d in defs if d.get("handle_status") == 0]
+            open_defects = [d for d in defs if isinstance(d, dict) and d.get("handle_status") == 0]
     if open_defects:
         issues.append(f"存在 {len(open_defects)} 条未处理缺陷"
                       f"（如 {open_defects[0].get('name', '—')}）")

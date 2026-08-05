@@ -37,6 +37,10 @@ from supervisor_state import _connect, _state_dir  # noqa: E402
 from scene_router import route  # noqa: E402
 from arbitrator import (arbitrate_plan_vs_simulation, arbitrate_dam_diagnosis,
                         arbitrate_emergency, arbitrate_risk_levels, asdict)  # noqa: E402
+from supervisor_state import cmd_new  # noqa: E402
+
+# 场景默认优先级映射（D应急=高、A暴雨/B诊断=中、C日常=低；CLI --priority 可覆盖）
+_SCENE_DEFAULT_PRIORITY = {"D": "高", "A": "中", "B": "中", "C": "低"}
 
 # ===========================================================================
 # DAG 定义：stage → (agent, 调用命令模板)
@@ -234,21 +238,24 @@ def do_arbitration(event_id, conn, scene, flood_limit, safe_discharge) -> dict:
     plan = _unpack_stage_result(stages.get("step5", {}).get("result_json"))
     # 从 full_context 结果中提取水位/泄量（simulation 为 current_water_level 数组）
     sim_vals = {"max_level": None, "max_discharge": None}
-    sim_cwl = sim.get("current_water_level") if isinstance(sim, dict) else None
-    if isinstance(sim_cwl, list) and sim_cwl:
-        sim_vals["max_level"] = max(
-            (float(x.get("rz") or 0) for x in sim_cwl if x.get("rz")), default=None)
-        sim_vals["max_discharge"] = max(
-            (float(x.get("otq") or 0) for x in sim_cwl if x.get("otq")), default=None)
-    sim_vals["max_level"] = sim_vals["max_level"] or sim.get("max_level") \
-        or sim.get("highest_level")
-    sim_vals["max_discharge"] = sim_vals["max_discharge"] or sim.get("max_discharge") \
-        or sim.get("discharge")
+    if isinstance(sim, dict):
+        sim_cwl = sim.get("current_water_level")
+        if isinstance(sim_cwl, list) and sim_cwl:
+            sim_vals["max_level"] = max(
+                (float(x.get("rz") or 0) for x in sim_cwl if x.get("rz")), default=None)
+            sim_vals["max_discharge"] = max(
+                (float(x.get("otq") or 0) for x in sim_cwl if x.get("otq")), default=None)
+        sim_vals["max_level"] = sim_vals["max_level"] or sim.get("max_level") \
+            or sim.get("highest_level")
+        sim_vals["max_discharge"] = sim_vals["max_discharge"] or sim.get("max_discharge") \
+            or sim.get("discharge")
 
-    plan_vals = {
-        "max_level": plan.get("max_level") or plan.get("highest_level") or plan.get("max_water_level"),
-        "max_discharge": plan.get("max_discharge") or plan.get("discharge"),
-    }
+    plan_vals = {"max_level": None, "max_discharge": None}
+    if isinstance(plan, dict):
+        plan_vals = {
+            "max_level": plan.get("max_level") or plan.get("highest_level") or plan.get("max_water_level"),
+            "max_discharge": plan.get("max_discharge") or plan.get("discharge"),
+        }
     result = arbitrate_plan_vs_simulation(
         plan_vals, sim_vals,
         flood_limit=flood_limit, safe_discharge=safe_discharge,
@@ -526,13 +533,9 @@ def cmd_run(args):
     # 阈值自动读取：CLI 传入优先，缺省从 model_config 读（汛限/安全泄量）
     thr = resolve_thresholds(args.flood_limit, args.safe_discharge)
     conn = _connect()
-    from supervisor_state import cmd_new
-    # 复用 supervisor_state 的事件创建逻辑；优先级：CLI 显式优先，否则按场景自动映射
-    # （D应急=高、A暴雨/B诊断=中、C日常=低——高优先级事件在 queue 中优先处理）
-    scene_default_pri = {"D": "高", "A": "中", "B": "中", "C": "低"}
-    priority = getattr(args, "priority", None) or scene_default_pri.get(routed["scene"], "中")
-    import argparse as _argparse
-    na = _argparse.Namespace(scene=routed["scene"], risk=None, trigger=args.trigger,
+    # 优先级：CLI 显式优先，否则按场景自动映射（D=高/A·B=中/C=低）
+    priority = getattr(args, "priority", None) or _SCENE_DEFAULT_PRIORITY.get(routed["scene"], "中")
+    na = argparse.Namespace(scene=routed["scene"], risk=None, trigger=args.trigger,
                              priority=priority)
     created = cmd_new(na)
     event_id = created["event_id"]

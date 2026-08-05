@@ -1,7 +1,7 @@
 ---
 name: supervisor
 description: "四预智能体协同编排层（Supervisor）：场景识别、任务拆解、DAG 编排、跨 skill 调度、结果仲裁、全局 State 持久化与断点续跑。把 forecasting / early-warning / plan-generation / simulation / diagnosis-verification 等专业 skill 组织成自动化闭环。"
-version: 0.1.0
+version: 0.4.0
 author: SmartTwinRes Team
 license: MIT
 platforms: [linux, windows, macos]
@@ -16,7 +16,7 @@ prerequisites:
   env_vars: [SRM_DB_HOST, SRM_DB_PORT, SRM_DB_NAME, SRM_DB_USER, SRM_DB_PASSWORD, SRM_TENANT_ID, SRM_RESERVOIR_NAME]
 ---
 
-# 四预智能体 Supervisor 协同编排层 v0.1（速查卡）
+# 四预智能体 Supervisor 协同编排层 v0.4（速查卡）
 
 > **定位**：本 skill 是四预智能体集群的**编排层**，不是新专业能力。它把已有的
 > `forecasting`（预知/预报）、`early-warning`（预警）、`simulation`（预演/仿真）、
@@ -67,6 +67,7 @@ CREATE TABLE IF NOT EXISTS events (
     scene         TEXT NOT NULL,           -- A/B/C/D
     status        TEXT NOT NULL DEFAULT 'running',  -- running|awaiting_approval|done|aborted
     risk_level    TEXT,                    -- 高/中/低（阶段性更新）
+    priority      TEXT NOT NULL DEFAULT '中',   -- 高/中/低（优先级队列排序依据，v0.4）
     created_at    TEXT NOT NULL,
     updated_at    TEXT NOT NULL
 );
@@ -83,16 +84,20 @@ CREATE TABLE IF NOT EXISTS stage_results (
 
 **用法**：
 ```bash
-# 新建事件
-python3 scripts/supervisor_state.py new --scene A --trigger "暴雨预警"    # → event_id
+# 新建事件（--priority 可选，缺省按场景自动映射：D=高/A·B=中/C=低）
+python3 scripts/supervisor_state.py new --scene A --trigger "暴雨预警" [--priority 高]
 # 写入某阶段结果
 python3 scripts/supervisor_state.py set --event A-20260805-001 --stage step4 --agent simulation --result '{"max_level": 787.1}'
 # 读事件全貌 / 断点续跑（列出未完成阶段）
 python3 scripts/supervisor_state.py get --event A-20260805-001
 python3 scripts/supervisor_state.py resume --event A-20260805-001
+# 优先级队列（v0.4）：未结束事件按 优先级(高>中>低) + 创建时间 排序——多事件并行的调度视图
+python3 scripts/supervisor_state.py queue
 ```
 
 ## 四、仲裁规则（arbitrator.py）
+
+**通用规则（场景A）**：
 
 | 冲突类型 | 仲裁规则 |
 |---------|---------|
@@ -101,7 +106,25 @@ python3 scripts/supervisor_state.py resume --event A-20260805-001
 | 多 skill 风险等级不一致 | 取**更高**等级（防洪优先原则） |
 | 预报源分歧 | 沿用 forecasting 的多源裁决（NMC>模型源>和风，反向取保守） |
 
-> 阈值（汛限/安全泄量/特征水位）**全部运行时从 reservoir profile / full_context 读取**，
+**场景B 专用仲裁（`arbitrate_dam_diagnosis`，v0.4）**——风险定级 + 处置建议：
+
+| 维度 | 定级 |
+|------|------|
+| 数据严重过期(>24h)或空值率>50% | 高（数据可信度不足） |
+| 存在未处理缺陷 | 中（一般）/ 高（P0/P1 级） |
+| 仿真最高水位超汛限 | 高 |
+| 数据正常且无缺陷 | 低 |
+
+**场景D 专用仲裁（`arbitrate_emergency`，v0.4）**——方案否决 + 超限升级 + HITL 强制：
+
+| 规则 | 裁决 |
+|------|------|
+| Ⅰ/Ⅱ级告警存在 | escalate（强制升级） |
+| 方案下泄 > 安全泄量 | reject（否决，重新拟定） |
+| 仿真最高水位 > 汛限 | escalate（降库/预泄） |
+| 其余 | pending_approval（HITL，`hitl_required=true` 恒强制） |
+
+> 阈值（汛限/安全泄量/特征水位）**全部运行时从 reservoir profile / model_config / full_context 读取**，
 > 禁止在仲裁代码里硬编码数字（与各 skill 的 C2 拦截口径一致）。
 
 ## 五、多水库适配

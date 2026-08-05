@@ -148,7 +148,7 @@ def cmd_queue(args) -> dict:
     rows = conn.execute(
         "SELECT event_id, scene, status, risk_level, trigger, priority, created_at "
         "FROM events WHERE status IN ('running','awaiting_approval') "
-        "ORDER BY CASE priority WHEN '高' THEN 0 WHEN '中' THEN 1 ELSE 2 END, created_at"
+        "ORDER BY CASE priority WHEN '高' THEN 0 WHEN '中' THEN 1 WHEN '低' THEN 2 ELSE 99 END, created_at"
     ).fetchall()
     conn.close()
     items = []
