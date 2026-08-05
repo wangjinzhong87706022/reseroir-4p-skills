@@ -115,14 +115,60 @@ SPECIAL_STAGES = {
 
 
 def run_stage_cmd(cmd, dry_run=False) -> dict:
-    """执行子 skill 命令，返回 (ok, stdout_text)。超时 60s。"""
+    """执行子 skill 命令，返回 (ok, stdout_text)。超时 60s。
+    stdout 截断到 20000 字符：保证 full_context 核心字段（水位/降雨/汛限，位于 JSON 前部）完整可解析。"""
     if dry_run:
         return {"dry_run": True, "cmd": " ".join(str(c) for c in cmd)}
     try:
         r = subprocess.run(cmd, capture_output=True, text=True, timeout=60)
-        return {"ok": r.returncode == 0, "stdout": r.stdout[:4000], "stderr": r.stderr[:1000]}
+        return {"ok": r.returncode == 0, "stdout": r.stdout[:20000], "stderr": r.stderr[:1000]}
     except Exception as e:
         return {"ok": False, "stderr": str(e)}
+
+
+def load_reservoir_params() -> dict:
+    """
+    自动读取当前水库（SRM_TENANT_ID）的仲裁阈值，来源 model_config 表：
+      - flood_limit_main      汛限水位（主汛期）
+      - safe_drainage_capacity 下游安全泄量
+    CLI 显式传入的 --flood-limit / --safe-discharge 优先；未传入时用本函数返回值。
+    读取失败（表/行缺失、非数值）时返回空 dict，由调用方决定是否用 CLI 值或跳过。
+    """
+    sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", ".."))
+    from lib.tenant import current_tenant_id
+    from lib.db import execute_query_list
+
+    tenant = current_tenant_id()
+    out = {}
+    try:
+        rows = execute_query_list(
+            "SELECT config_key, value FROM model_config "
+            "WHERE tenant_id=%s AND deleted=0",
+            (tenant,),
+        )
+        for r in rows:
+            key = r.get("config_key")
+            val = r.get("value")
+            if key in ("flood_limit_main", "safe_drainage_capacity") and val:
+                try:
+                    out[key] = float(val)
+                except (TypeError, ValueError):
+                    continue
+    except Exception:
+        pass  # 读取失败不阻断编排，阈值缺失时仲裁跳过对应检查
+    return out
+
+
+def resolve_thresholds(flood_limit, safe_discharge):
+    """合并 CLI 参数与 model_config 自动读取值：CLI 优先，缺省回退自动值。"""
+    auto = load_reservoir_params()
+    return {
+        "flood_limit": flood_limit if flood_limit is not None
+                       else auto.get("flood_limit_main"),
+        "safe_discharge": safe_discharge if safe_discharge is not None
+                          else auto.get("safe_drainage_capacity"),
+        "auto": auto,
+    }
 
 
 def do_arbitration(event_id, conn, flood_limit, safe_discharge) -> dict:
@@ -152,20 +198,155 @@ def do_arbitration(event_id, conn, flood_limit, safe_discharge) -> dict:
 
 
 def do_report(event_id, conn) -> dict:
-    """step7 chatbi：生成研判报告（占位模板，后续接 powerelf chatbi）"""
+    """
+    step7 报告生成：从 State 汇总各阶段真实结果，生成结构化研判报告（Markdown）。
+    数据来源全部为 stage_results.result_json（各阶段子 skill 的真实输出），
+    不做二次查询、不编造数字；缺失阶段标注"未执行"。
+    """
     stages = conn.execute(
-        "SELECT stage, agent, status FROM stage_results WHERE event_id=? ORDER BY stage",
+        "SELECT stage, agent, result_json, status FROM stage_results "
+        "WHERE event_id=? ORDER BY stage",
         (event_id,),
     ).fetchall()
+    by_stage = {s["stage"]: s for s in stages}
+    ev = conn.execute("SELECT scene, status, risk_level, trigger FROM events WHERE event_id=?",
+                      (event_id,)).fetchone()
+
+    def _safe_load(stage_key):
+        s = by_stage.get(stage_key)
+        if not s or s["status"] != "ok":
+            return None
+        try:
+            data = json.loads(s["result_json"] or "{}")
+        except (json.JSONDecodeError, TypeError):
+            return {}
+        # 解包子脚本包装结构: {"ok":true, "stdout":"{...}"} → 取 stdout 内的 JSON
+        if isinstance(data, dict) and isinstance(data.get("stdout"), str) and data["stdout"].strip():
+            # 先试完整解析; 若因 8000 字符截断失败, 用 raw_decode 取首个完整 JSON 对象
+            try:
+                inner = json.loads(data["stdout"])
+                if isinstance(inner, dict):
+                    return inner
+            except json.JSONDecodeError:
+                try:
+                    decoder = json.JSONDecoder()
+                    inner, _ = decoder.raw_decode(data["stdout"].lstrip())
+                    if isinstance(inner, dict):
+                        return inner
+                except (json.JSONDecodeError, ValueError):
+                    pass
+        return data
+
+    # 从各阶段真实结果中提取关键数值
+    fc = _safe_load("step1") or {}
+    sim = _safe_load("step4") or {}
+    plan = _safe_load("step5") or {}
+    arb = _safe_load("step6") or {}
+
+    # 水位/入库（forecasting full_context 结构）
+    wl = fc.get("current_water_level") or {}
+    rz = wl.get("rz")
+    inq = wl.get("inq")
+    otq = wl.get("otq")
+    wlv = wl.get("w")
+    flood_limit = fc.get("flood_limit") or {}
+    fl_val = flood_limit.get("value")
+
+    # 降雨预报峰值（f_rnfl_h data 数组）
+    rf = fc.get("rainfall_forecast") or {}
+    rf_data = rf.get("data") or []
+    rf_peak = None
+    if rf_data:
+        rf_peak = max(rf_data, key=lambda x: float(x.get("RN", 0) or 0))
+
+    # 设备核查（step3 inspection）
+    insp = _safe_load("step3") or {}
+    insp_ov = insp.get("overview") or {}
+    equip_total = insp_ov.get("equip_total")
+    defect_open = insp_ov.get("defect_open_count")
+    offline_open = insp_ov.get("offline_open_count")
+
+    lines = []
+    scene_name = {"A": "汛期暴雨研判调度", "B": "大坝安全诊断",
+                  "C": "日常管控", "D": "应急响应"}.get(ev["scene"], ev["scene"])
+    lines.append(f"# {scene_name}研判报告")
+    lines.append("")
+    lines.append(f"- **事件号**: {event_id}")
+    lines.append(f"- **场景**: {ev['scene']}（{scene_name}）")
+    lines.append(f"- **触发**: {ev['trigger'] or '—'}")
+    lines.append(f"- **风险等级**: {ev['risk_level'] or '待评定'}")
+    lines.append(f"- **状态**: {ev['status']}")
+    lines.append("")
+
+    lines.append("## 一、水情实况（step1 forecasting）")
+    lines.append("")
+    if rz is not None:
+        fl_str = f"（汛限 {fl_val}m）" if fl_val else ""
+        status = "超汛限" if (fl_val and rz > fl_val) else "未超限"
+        lines.append(f"- 当前水位 **{rz}m** {fl_str} → {status}")
+        lines.append(f"- 入库流量 {inq} m³/s / 出库 {otq} m³/s / 蓄水量 {wlv} 万m³")
+    else:
+        lines.append("- 水位数据不可用（st_rsvr_r 无有效行）")
+    if rf_peak:
+        lines.append(f"- 降雨预报峰值 **{rf_peak.get('RN')}mm/h** @ {rf_peak.get('YMDH')}"
+                     f"（预见期 {rf.get('count')}h）")
+    lines.append("")
+
+    lines.append("## 二、工情与设备核查（step2/3）")
+    lines.append("")
+    if equip_total is not None:
+        lines.append(f"- 设备总数 {equip_total}，待处理缺陷 {defect_open}，未恢复离线 {offline_open}")
+    else:
+        lines.append("- 设备核查数据不可用")
+    lines.append("")
+
+    lines.append("## 三、推演与方案（step4/5）")
+    lines.append("")
+    # simulation full_context 结构: current_water_level 是数组（含 rz/inq/otq），
+    # 取最高水位/最大下泄；flood_limit 数组取汛限。
+    sim_cwl = sim.get("current_water_level") if isinstance(sim, dict) else None
+    sim_level = None
+    sim_disch = None
+    if isinstance(sim_cwl, list) and sim_cwl:
+        sim_level = max((float(x.get("rz") or 0) for x in sim_cwl if x.get("rz")), default=None)
+        sim_disch = max((float(x.get("otq") or 0) for x in sim_cwl if x.get("otq")), default=None)
+    sim_level = sim_level or sim.get("max_level") or sim.get("highest_level")
+    sim_disch = sim_disch or sim.get("max_discharge") or sim.get("discharge")
+    if sim_level is not None:
+        lines.append(f"- 仿真推演最高水位 {sim_level}m / 最大下泄 {sim_disch or '—'} m³/s")
+    else:
+        lines.append("- 仿真推演结果不可用")
+    lines.append("")
+
+    lines.append("## 四、仲裁结论（step6）")
+    lines.append("")
+    if arb:
+        decision = arb.get("decision", "—")
+        lines.append(f"- **裁决**: {decision}")
+        for issue in arb.get("issues", [])[:5]:
+            lines.append(f"  - ⚠️ {issue}")
+        if arb.get("suggestion"):
+            lines.append(f"- 建议: {arb['suggestion']}")
+    else:
+        lines.append("- 仲裁未执行（可能停在 HITL 检查点）")
+    lines.append("")
+
+    lines.append("## 五、执行链路")
+    lines.append("")
+    lines.append("| 步骤 | 智能体 | 状态 |")
+    lines.append("|------|--------|:----:|")
+    for s in stages:
+        lines.append(f"| {s['stage']} | {s['agent'] or '—'} | {s['status']} |")
+    lines.append("")
+    lines.append("---")
+    lines.append(f"*生成: supervisor orchestrator（数据源：各阶段真实结果）*")
+
     return {
-        "report_md": (
-            f"# 暴雨研判报告（event={event_id}）\n\n"
-            + "\n".join(
-                f"- **{s['stage']}** [{s['agent']}] → {s['status']}"
-                for s in stages if s["status"] in ("ok", "skipped")
-            )
-            + "\n\n*生成: supervisor orchestrator (占位)*"
-        )
+        "report_md": "\n".join(lines),
+        "water_level": rz,
+        "flood_limit": fl_val,
+        "rain_peak_rn": rf_peak.get("RN") if rf_peak else None,
+        "arbitration": arb.get("decision") if arb else None,
     }
 
 
@@ -232,11 +413,11 @@ def execute_dag(event_id, scene, conn, flood_limit, safe_discharge, dry_run, app
             print(f"  [{stage}] {agent} → ok={out.get('ok')} "
                   f"stdout={str(out.get('stdout',''))[:150]}")
 
-        # 写入 State
+        # 写入 State（上限 40000，避免截断破坏合法 JSON——子脚本 stdout 转义后可能超 8000）
         conn.execute(
             "INSERT OR REPLACE INTO stage_results (event_id, stage, agent, result_json, status, ts) "
             "VALUES (?, ?, ?, ?, ?, datetime('now'))",
-            (event_id, stage, agent, json.dumps(result, ensure_ascii=False)[:8000], status),
+            (event_id, stage, agent, json.dumps(result, ensure_ascii=False)[:40000], status),
         )
         conn.commit()
 
@@ -283,6 +464,8 @@ def cmd_run(args):
     if routed["scene"] == "UNKNOWN":
         print(json.dumps(routed, ensure_ascii=False, indent=2))
         return
+    # 阈值自动读取：CLI 传入优先，缺省从 model_config 读（汛限/安全泄量）
+    thr = resolve_thresholds(args.flood_limit, args.safe_discharge)
     conn = _connect()
     from supervisor_state import cmd_new
     # 复用 supervisor_state 的事件创建逻辑
@@ -290,8 +473,9 @@ def cmd_run(args):
     na = _argparse.Namespace(scene=routed["scene"], risk=None, trigger=args.trigger)
     created = cmd_new(na)
     event_id = created["event_id"]
+    print(json.dumps({"thresholds": thr}, ensure_ascii=False, indent=2))
     execute_dag(event_id, routed["scene"], conn,
-                args.flood_limit, args.safe_discharge, args.dry_run, args.approve)
+                thr["flood_limit"], thr["safe_discharge"], args.dry_run, args.approve)
     conn.close()
 
 
@@ -302,8 +486,9 @@ def cmd_resume(args):
         print(json.dumps({"error": f"事件不存在: {args.event}"}, ensure_ascii=False))
         conn.close()
         return
+    thr = resolve_thresholds(args.flood_limit, args.safe_discharge)
     execute_dag(args.event, ev["scene"], conn,
-                args.flood_limit, args.safe_discharge, dry_run=False, approve=args.approve)
+                thr["flood_limit"], thr["safe_discharge"], dry_run=False, approve=args.approve)
     conn.close()
 
 
@@ -326,7 +511,7 @@ def cmd_stage(args):
         "INSERT OR REPLACE INTO stage_results (event_id, stage, agent, result_json, status, ts) "
         "VALUES (?, ?, ?, ?, ?, datetime('now'))",
         (args.event, args.stage, agent,
-         json.dumps(out, ensure_ascii=False)[:8000],
+         json.dumps(out, ensure_ascii=False)[:40000],
          "ok" if out.get("ok") else "error"),
     )
     conn.commit()

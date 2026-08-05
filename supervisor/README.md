@@ -67,10 +67,31 @@ step1 early-warning（高级别告警）→ step2 plan-gen（应急方案）→ 
 
 | 项 | 现状 | 计划 |
 |----|------|------|
-| step7 报告 | 模板占位 | 接 chatbi 生成台账/推送 |
-| 仲裁阈值 | CLI 传入（--flood-limit / --safe-discharge） | 自动读 reservoir profile |
+| ~~step7 报告~~ | ✅ **已实现**（v0.3.0）：从 State 汇总各阶段真实数据生成结构化研判报告 | 接 chatbi 生成台账/推送（外部 skill） |
+| ~~仲裁阈值~~ | ✅ **已实现**（v0.3.0）：自动读 `model_config`（flood_limit_main / safe_drainage_capacity），CLI 参数降级为可选覆盖 | 无 |
 | 场景B/D 仲裁 | 复用 plan-vs-sim 仲裁 | 细化诊断定级/应急处置专用仲裁规则 |
 | 多事件并行 | 单事件顺序执行 | 支持并发事件与优先级队列 |
+
+## v0.3.0 更新记录（2026-08-05）
+
+### 仲裁阈值自动读取
+- `load_reservoir_params()`：从 `model_config` 表按 `SRM_TENANT_ID` 自动读取
+  `flood_limit_main`（汛限）与 `safe_drainage_capacity`（下游安全泄量）
+- `resolve_thresholds()`：CLI 显式传入优先，缺省回退自动读取值
+- **验证**：不带 `--flood-limit/--safe-discharge` 运行场景A，
+  自动读到 `flood_limit=786.8 / safe_discharge=500.0`（桃曲坡 model_config）
+
+### step7 报告生成（真实数据）
+- `do_report()` 从 State `stage_results.result_json` 汇总各阶段真实结果，
+  生成结构化 Markdown 报告（水情/设备/推演/仲裁/执行链路五节）
+- **数据来源**：全部来自子 skill 真实输出，不二次查询、不编造数字
+- **修复的 3 个 bug**：
+  1. State 写入截断（`[:8000]`→`[:40000]`）：子脚本 stdout 转义后超限导致 JSON 损坏
+  2. stdout 截断（`[:4000]`→`[:20000]`）：保证 full_context 核心字段完整可解析
+  3. simulation 字段提取：`current_water_level` 是数组（非 `max_level` 字段），
+     改为从数组取最高水位/最大下泄
+- **验证**（事件 A-20260805-014）：水位 786.95m（超汛限）、降雨峰值 22mm/h、
+  设备 128 台、仿真最高水位 786.95m，七步全部 ok，HITL 检查点正常
 
 ## 桃曲坡数据时效方案（2026-08-05 落地）
 
