@@ -96,6 +96,17 @@ def apply_tenant_filter(
     # 获取 tenant_id 值：显式参数优先，否则从 env 解析（默认回退 18）
     tid = tenant_id if tenant_id is not None else current_tenant_id()
 
+    # 安全守卫：拼接前强制 int 转换，杜绝字符串/非整数注入
+    try:
+        tid = int(tid)
+    except (TypeError, ValueError):
+        raise ValueError(
+            f"tenant_id 必须为整数，收到 {tid!r}（类型 {type(tid).__name__}）。"
+            f"显式传入请用整数，环境变量 SRM_TENANT_ID 也需为整数。"
+        )
+    if tid < 0:
+        raise ValueError(f"tenant_id 不能为负数，收到 {tid}")
+
     # 判断 WHERE 子句位置
     sql_upper = sql.upper().strip()
 
@@ -261,6 +272,15 @@ def generate_where_clause(
     rule = TENANT_ID_FILTER_TABLES.get(base_table, {})
     if rule.get('filter', False):
         tid = tenant_id if tenant_id is not None else current_tenant_id()
+        # 安全守卫：拼接前强制 int 转换，杜绝字符串/非整数注入
+        try:
+            tid = int(tid)
+        except (TypeError, ValueError):
+            raise ValueError(
+                f"tenant_id 必须为整数，收到 {tid!r}（类型 {type(tid).__name__}）。"
+            )
+        if tid < 0:
+            raise ValueError(f"tenant_id 不能为负数，收到 {tid}")
         conditions.append(f"tenant_id = {tid}")
 
     # deleted 过滤

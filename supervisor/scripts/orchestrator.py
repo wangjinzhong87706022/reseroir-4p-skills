@@ -119,16 +119,48 @@ SPECIAL_STAGES = {
 }
 
 
-def run_stage_cmd(cmd, dry_run=False) -> dict:
+def run_stage_cmd(cmd, dry_run=False, timeout=60) -> dict:
     """执行子 skill 命令，返回 (ok, stdout_text)。超时 60s。
     stdout 截断到 60000 字符：保证 full_context 核心字段（水位/降雨/汛限，位于 JSON 前部）完整可解析，
-    且 simulation full_context 的完整数组（current_water_level/rainfall_forecast 等）不被截断破坏 JSON。"""
+    且 simulation full_context 的完整数组（current_water_level/rainfall_forecast 等）不被截断破坏 JSON。
+
+    使用 Popen + finally kill：超时后主动终止子进程，避免僵尸进程长期占用资源。"""
     if dry_run:
         return {"dry_run": True, "cmd": " ".join(str(c) for c in cmd)}
+    proc = None
     try:
-        r = subprocess.run(cmd, capture_output=True, text=True, timeout=60)
-        return {"ok": r.returncode == 0, "stdout": r.stdout[:60000], "stderr": r.stderr[:1000]}
+        proc = subprocess.Popen(
+            cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True,
+        )
+        try:
+            stdout, stderr = proc.communicate(timeout=timeout)
+        except subprocess.TimeoutExpired:
+            # 超时 → 先 SIGTERM，再兜底 SIGKILL，确保子进程被回收
+            proc.terminate()
+            try:
+                proc.communicate(timeout=5)
+            except subprocess.TimeoutExpired:
+                proc.kill()
+                proc.communicate(timeout=5)
+            return {
+                "ok": False,
+                "stdout": "",
+                "stderr": f"子脚本超时（>{timeout}s）被终止: {' '.join(map(str, cmd))}",
+                "timeout": True,
+            }
+        return {
+            "ok": proc.returncode == 0,
+            "stdout": stdout[:60000],
+            "stderr": stderr[:1000],
+        }
     except Exception as e:
+        # 兜底：异常退出也要确保子进程被 kill
+        if proc is not None and proc.poll() is None:
+            try:
+                proc.kill()
+                proc.communicate(timeout=5)
+            except Exception:
+                pass
         return {"ok": False, "stderr": str(e)}
 
 
@@ -345,10 +377,16 @@ def do_report(event_id, conn) -> dict:
         "C": {"fc": "step1", "insp": None, "sim": "step2", "plan": None, "arb": None},
         "D": {"fc": "step1", "insp": None, "sim": "step3", "plan": "step2", "arb": "step4"},
     }.get(scene, {"fc": "step1", "insp": "step3", "sim": "step4", "plan": "step5", "arb": "step6"})
-    fc = _safe_load(stage_map["fc"]) or {}
-    sim = _safe_load(stage_map["sim"]) or {}
-    plan = _safe_load(stage_map["plan"]) or {} if stage_map["plan"] else {}
-    arb = _safe_load(stage_map["arb"]) or {}
+    def _load_or_empty(stage_key):
+        """安全加载某阶段结果：非 dict（如 early-warning 列表）回退 {}，避免 .get 崩溃。"""
+        if not stage_key:
+            return {}
+        data = _safe_load(stage_key)
+        return data if isinstance(data, dict) else {}
+    fc = _load_or_empty(stage_map["fc"])
+    sim = _load_or_empty(stage_map["sim"])
+    plan = _load_or_empty(stage_map["plan"])
+    arb = _load_or_empty(stage_map["arb"])
 
     # 水位/入库（forecasting full_context 结构：current_water_level 可为 dict 或数组）
     wl_raw = fc.get("current_water_level")
@@ -527,6 +565,26 @@ def execute_dag(event_id, scene, conn, flood_limit, safe_discharge, dry_run, app
             result = out
             print(f"  [{stage}] {agent} → ok={out.get('ok')} "
                   f"stdout={str(out.get('stdout',''))[:150]}")
+            # 子脚本失败 → 中断 DAG，事件标记 error，待运维 replay
+            if status == "error":
+                conn.execute(
+                    "INSERT OR REPLACE INTO stage_results "
+                    "(event_id, stage, agent, result_json, status, ts) "
+                    "VALUES (?, ?, ?, ?, ?, datetime('now'))",
+                    (event_id, stage, agent,
+                     json.dumps(result, ensure_ascii=False)[:40000], status),
+                )
+                conn.execute(
+                    "UPDATE events SET status='error', updated_at=datetime('now') "
+                    "WHERE event_id=?", (event_id,))
+                conn.commit()
+                print(json.dumps({
+                    "event_id": event_id,
+                    "status": "error",
+                    "failed_stage": stage,
+                    "hint": f"修复后重跑: orchestrator.py resume --event {event_id}",
+                }, ensure_ascii=False, indent=2))
+                return
 
         # 写入 State（上限 40000，避免截断破坏合法 JSON——子脚本 stdout 转义后可能超 8000）
         conn.execute(

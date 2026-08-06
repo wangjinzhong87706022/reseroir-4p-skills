@@ -78,15 +78,13 @@ def arbitrate_plan_vs_simulation(
             res.passed = False
 
     # 规则1b: 仿真结果自身是否超汛限
-    if flood_limit is not None and sim_level is not None:
-        if sim_level > flood_limit:
-            res.issues.append(
-                f"仿真推演最高水位 {sim_level}m 超过汛限 {flood_limit}m，"
-                f"存在超限风险，需重点提示"
-            )
-            if res.passed:
-                res.passed = True  # 超限是风险提示，不必然否决，但标记 issue
-                res.suggestion = "建议启动更高一级响应或加大预泄"
+    # 超汛限是风险提示：记录 issue + suggestion，不否决（passed 不变）
+    if flood_limit is not None and sim_level is not None and sim_level > flood_limit:
+        res.issues.append(
+            f"仿真推演最高水位 {sim_level}m 超过汛限 {flood_limit}m，"
+            f"存在超限风险，需重点提示"
+        )
+        res.suggestion = "仿真超汛限，建议启动更高一级响应或加大预泄"
 
     # 汇总建议
     if res.decision == "accept":
@@ -202,9 +200,19 @@ def arbitrate_emergency(
     else:
         suggestion = "应急方案与仿真一致，待人工确认后执行（HITL）"
 
+    # 应急场景风险等级映射（从紧，对齐四档体系 低/中/高/极高）：
+    #   escalate（Ⅰ/Ⅱ级告警 或 仿真超汛限）        → 极高
+    #   reject（方案下泄超安全泄量）                → 高；若叠加告警（既有超泄又被否决）→ 升为极高
+    #   pending_approval（一致待确认）              → 中
+    if decision == "escalate":
+        risk_level = "极高"
+    elif decision == "reject":
+        risk_level = "极高" if alert_count > 0 else "高"
+    else:
+        risk_level = "中"
+
     return {
-        "risk_level": "极高" if decision == "escalate" else
-                      ("高" if decision == "reject" else "中"),
+        "risk_level": risk_level,
         "passed": passed,
         "decision": decision,
         "issues": issues,

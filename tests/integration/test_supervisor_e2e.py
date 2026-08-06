@@ -211,5 +211,76 @@ class TestSceneD(unittest.TestCase):
             self.assertFalse(r["passed"])
 
 
+class TestArbitrationReportFlow(unittest.TestCase):
+    """L2 回归保护：仲裁结果落入 stage_results 后，do_report 必须能读到裁决/建议。
+
+    覆盖 A/B/D 三场景的"仲裁 → 报告四节"数据流，防止 stage_map 映射错位或
+    _safe_load 对内存生成的 dict 解包失败导致的静默断裂。
+    """
+
+    def _arb_then_report(self, scene, seed_stages):
+        """种子各阶段 → 调 do_arbitration 落 State → 调 do_report 断言。"""
+        with _TempState():
+            eid = _seed_event(scene, "测试")
+            for stage, agent, result in seed_stages:
+                _seed_stage(eid, stage, agent, result)
+            import orchestrator
+            conn = orchestrator._connect()
+            arb = orchestrator.do_arbitration(
+                eid, conn, scene, flood_limit=786.8, safe_discharge=500)
+            # 仲裁结果手动落 State（模拟 execute_dag 的统一写入）
+            import json, argparse
+            arb_stage = {"A": "step6", "B": "step4", "D": "step4"}[scene]
+            na = argparse.Namespace(
+                event=eid, stage=arb_stage, agent="arbitrator",
+                result=json.dumps(arb, ensure_ascii=False), status="ok")
+            import supervisor_state
+            supervisor_state.cmd_set(na)
+            report = orchestrator.do_report(eid, conn)
+            conn.close()
+            return arb, report
+
+    def test_sceneA_arb_reaches_report(self):
+        seed = [
+            ("step4", "simulation",
+             {"current_water_level": [{"rz": 786.95, "otq": 100}]}),
+            ("step5", "plan-generation",
+             {"max_level": 786.95, "max_discharge": 100}),
+        ]
+        arb, report = self._arb_then_report("A", seed)
+        self.assertEqual(arb["decision"], "accept")
+        self.assertIn("report_md", report)
+        # 报告"四、仲裁结论"段应含裁决词
+        self.assertTrue(any("accept" in line or "accept" in report["report_md"]
+                            for line in report["report_md"].splitlines()),
+                        f"报告未含仲裁裁决: {report['report_md'][:300]}")
+
+    def test_sceneB_arb_reaches_report(self):
+        seed = [
+            ("step1", "diagnosis-verification",
+             {"water_level": {"age_hours": 0, "null_rate": 5}}),
+            ("step2", "inspection",
+             {"open_defects": [{"name": "渗漏", "handle_status": 0}]}),
+            ("step3", "simulation",
+             {"current_water_level": [{"rz": 786.0, "otq": 10}]}),
+        ]
+        arb, report = self._arb_then_report("B", seed)
+        self.assertEqual(arb["decision"], "review")
+        self.assertIn("report_md", report)
+
+    def test_sceneD_arb_reaches_report(self):
+        seed = [
+            ("step1", "early-warning",
+             [{"ew_name": "TEST_高水位预警", "level_r": "1"}]),
+            ("step2", "plan-generation",
+             {"max_discharge": 100, "max_level": 786.0}),
+            ("step3", "simulation",
+             {"current_water_level": [{"rz": 786.0, "otq": 10}]}),
+        ]
+        arb, report = self._arb_then_report("D", seed)
+        self.assertEqual(arb["decision"], "escalate")
+        self.assertIn("report_md", report)
+
+
 if __name__ == "__main__":
     unittest.main()

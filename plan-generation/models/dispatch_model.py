@@ -160,6 +160,15 @@ class DispatchModel:
                 current_cap = self.water_balance(capacities[i], inflow, outflow, dt_hours)
                 current_wl = self.interpolate_cap_to_wl(current_cap)
                 gate_openings[i] = outflow / max_outflow_at_wl if max_outflow_at_wl > 0 else 0
+            elif current_wl < min_wl:
+                # 低于死水位，削减下泄（保库，防止库容被放干危及取水/生态）
+                deficit_cap = self.interpolate_wl_to_cap(min_wl) - self.interpolate_wl_to_cap(current_wl)
+                cut_outflow = deficit_cap * 10000 / 3600 / dt_hours
+                outflow = max(0, outflow - cut_outflow)
+                outflows[i] = outflow
+                current_cap = self.water_balance(capacities[i], inflow, outflow, dt_hours)
+                current_wl = self.interpolate_cap_to_wl(current_cap)
+                gate_openings[i] = outflow / max_outflow_at_wl if max_outflow_at_wl > 0 else 0
 
         # 计算统计指标
         peak_inflow = max(inflow_process)

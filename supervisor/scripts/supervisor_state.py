@@ -95,7 +95,12 @@ def _ensure_schema(conn: sqlite3.Connection) -> None:
     # 兼容旧库：events 表已存在但缺 priority 列时补列
     cols = [r[1] for r in conn.execute("PRAGMA table_info(events)").fetchall()]
     if "priority" not in cols:
-        conn.execute("ALTER TABLE events ADD COLUMN priority TEXT NOT NULL DEFAULT '中'")
+        try:
+            conn.execute("ALTER TABLE events ADD COLUMN priority TEXT NOT NULL DEFAULT '中'")
+        except sqlite3.OperationalError as e:
+            # 并发防护（M7）：多进程首次同时连接时可能同时 ALTER，忽略"列已存在"错误
+            if "duplicate column name" not in str(e):
+                raise
     conn.commit()
 
 
@@ -126,18 +131,27 @@ def _next_event_seq(conn: sqlite3.Connection, scene: str, today: str) -> str:
 def cmd_new(args) -> dict:
     conn = _connect()
     today = datetime.now().strftime("%Y%m%d")
-    event_id = _next_event_seq(conn, args.scene, today)
     now = datetime.now().isoformat(timespec="seconds")
     priority = getattr(args, "priority", None) or "中"
-    conn.execute(
-        "INSERT INTO events (event_id, scene, status, risk_level, trigger, priority, created_at, updated_at) "
-        "VALUES (?, ?, 'running', ?, ?, ?, ?, ?)",
-        (event_id, args.scene, args.risk, args.trigger, priority, now, now),
-    )
-    conn.commit()
-    conn.close()
-    return {"event_id": event_id, "scene": args.scene, "status": "running",
-            "priority": priority}
+    try:
+        # 并发防护（M6）：多进程同时 new 时可能读到相同 max_seq，
+        # INSERT 主键冲突则回滚并重试生成下一个序号，最多 10 次
+        for _ in range(10):
+            event_id = _next_event_seq(conn, args.scene, today)
+            try:
+                conn.execute(
+                    "INSERT INTO events (event_id, scene, status, risk_level, trigger, priority, created_at, updated_at) "
+                    "VALUES (?, ?, 'running', ?, ?, ?, ?, ?)",
+                    (event_id, args.scene, args.risk, args.trigger, priority, now, now),
+                )
+                conn.commit()
+                return {"event_id": event_id, "scene": args.scene, "status": "running",
+                        "priority": priority}
+            except sqlite3.IntegrityError:
+                conn.rollback()  # 主键冲突 → 换下一个序号重试
+        raise RuntimeError(f"无法生成唯一 event_id（场景 {args.scene}，已重试 10 次）")
+    finally:
+        conn.close()
 
 
 def cmd_queue(args) -> dict:
