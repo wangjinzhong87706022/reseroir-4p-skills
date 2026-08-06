@@ -11,6 +11,7 @@ import argparse
 import json
 import sys
 import os
+from datetime import datetime
 
 # 让脚本既能 `python3 scripts/query_simulation_data.py` 又能被 import
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -42,17 +43,19 @@ def query_current_water_level(tenant_id=None):
 def query_flood_limit(tenant_id=None):
     """查询当前汛限水位"""
     tid = resolve_tenant(tenant_id)
-    # 优先从 att_res_flse_lim 表查询（按当前日期匹配汛期）
-    # 注：att_res_flse_lim 无 tenant_id 列（见 lib/filters.py），不按 tenant 过滤
+    # 优先从 att_res_flse_lim 表查询（按当前日期匹配汛期 + tenant_id 过滤）
+    # 注：DATE_FORMAT 的 %m/%d 需在 Python 端先格式化，避免与 pymysql 的 %s 占位符冲突
+    today_md = datetime.now().strftime("%m%d")
     sql = """
     SELECT flse_lim_stag, flood_season_name, flood_season_start, flood_season_end
     FROM att_res_flse_lim
-    WHERE flood_season_start <= DATE_FORMAT(NOW(), '%m%d')
-      AND flood_season_end >= DATE_FORMAT(NOW(), '%m%d')
+    WHERE tenant_id = %s
+      AND flood_season_start <= %s
+      AND flood_season_end >= %s
     ORDER BY flse_lim_stag DESC
     LIMIT 1
     """
-    results = execute_query_list(sql)
+    results = execute_query_list(sql, (tid, today_md, today_md))
     if results:
         return results
 

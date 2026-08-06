@@ -121,12 +121,13 @@ SPECIAL_STAGES = {
 
 def run_stage_cmd(cmd, dry_run=False) -> dict:
     """执行子 skill 命令，返回 (ok, stdout_text)。超时 60s。
-    stdout 截断到 20000 字符：保证 full_context 核心字段（水位/降雨/汛限，位于 JSON 前部）完整可解析。"""
+    stdout 截断到 60000 字符：保证 full_context 核心字段（水位/降雨/汛限，位于 JSON 前部）完整可解析，
+    且 simulation full_context 的完整数组（current_water_level/rainfall_forecast 等）不被截断破坏 JSON。"""
     if dry_run:
         return {"dry_run": True, "cmd": " ".join(str(c) for c in cmd)}
     try:
         r = subprocess.run(cmd, capture_output=True, text=True, timeout=60)
-        return {"ok": r.returncode == 0, "stdout": r.stdout[:20000], "stderr": r.stderr[:1000]}
+        return {"ok": r.returncode == 0, "stdout": r.stdout[:60000], "stderr": r.stderr[:1000]}
     except Exception as e:
         return {"ok": False, "stderr": str(e)}
 
@@ -159,6 +160,22 @@ def load_reservoir_params() -> dict:
                     out[key] = float(val)
                 except (TypeError, ValueError):
                     continue
+        # 汛限回退：model_config 无 flood_limit_main 时，从 att_res_flse_lim
+        # 按当前日期 + tenant_id 匹配汛期取值（修复三岔 tenant 18 缺 model_config 汛限字段的假设）
+        if "flood_limit_main" not in out:
+            from datetime import datetime as _dt
+            today_md = _dt.now().strftime("%m%d")
+            fl_rows = execute_query_list(
+                "SELECT flse_lim_stag FROM att_res_flse_lim "
+                "WHERE tenant_id=%s AND flood_season_start <= %s "
+                "AND flood_season_end >= %s ORDER BY flse_lim_stag DESC LIMIT 1",
+                (tenant, today_md, today_md),
+            )
+            if fl_rows:
+                try:
+                    out["flood_limit_main"] = float(fl_rows[0]["flse_lim_stag"])
+                except (TypeError, ValueError, KeyError):
+                    pass
     except Exception:
         pass  # 读取失败不阻断编排，阈值缺失时仲裁跳过对应检查
     return out
@@ -179,8 +196,7 @@ def resolve_thresholds(flood_limit, safe_discharge):
 def _unpack_stage_result(raw_result: str):
     """把 State 中某阶段的 result_json 解包为真实数据（dict 或 list）：
     兼容 {ok, stdout, stderr} 包装结构（stdout 为 JSON 字符串）。
-    当 stdout 混有子脚本人类可读日志（如 check_data_quality 的"❌ 高危告警过多..."）时，
-    从首个 `{` 或 `[` 起尝试 raw_decode 提取内嵌 JSON。
+    当 stdout 混有子脚本人类可读日志时，从首个 `{` 或 `[` 起尝试 raw_decode 提取内嵌 JSON。
     返回值可能为 dict / list / 空 dict（解析失败兜底）。"""
     if not raw_result:
         return {}
@@ -190,7 +206,7 @@ def _unpack_stage_result(raw_result: str):
         return {}
     if isinstance(data, dict) and isinstance(data.get("stdout"), str) and data["stdout"].strip():
         stdout = data["stdout"]
-        # 直接整体解析（纯 JSON stdout 的快路径）
+        # 直接整体解析（纯 JSON stdout 的快路径，含格式化换行缩进也能正确解析）
         try:
             inner = json.loads(stdout)
             if isinstance(inner, (dict, list)):
@@ -198,6 +214,8 @@ def _unpack_stage_result(raw_result: str):
         except json.JSONDecodeError:
             pass
         # 混合文本：从首个 `{` 或 `[` 起 raw_decode 提取内嵌 JSON（跳过人类可读前缀）
+        # raw_decode 只取首个完整对象，适合 stdout = "日志..." + JSON 的场景；
+        # 若 stdout 是格式化 JSON（整体合法），上方 json.loads 已返回，不走这里
         for opener in ("{", "["):
             idx = stdout.find(opener)
             while idx >= 0:
@@ -329,8 +347,13 @@ def do_report(event_id, conn) -> dict:
     inq = wl.get("inq")
     otq = wl.get("otq")
     wlv = wl.get("w")
+    # 汛限：simulation full_context 的 flood_limit 可为 dict({value/flse_lim_stag}) 或数组[{...}]
     flood_limit = fc.get("flood_limit") or {}
-    fl_val = flood_limit.get("value") if isinstance(flood_limit, dict) else None
+    if isinstance(flood_limit, list) and flood_limit:
+        flood_limit = flood_limit[0] if isinstance(flood_limit[0], dict) else {}
+    if not isinstance(flood_limit, dict):
+        flood_limit = {}
+    fl_val = flood_limit.get("value") or flood_limit.get("flse_lim_stag")
 
     # 降雨预报峰值（f_rnfl_h data 数组）
     rf = fc.get("rainfall_forecast") or {}
