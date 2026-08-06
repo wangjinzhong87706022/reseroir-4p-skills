@@ -15,6 +15,7 @@ SmartTwinRes Skills 水库身份（租户）解析
 """
 
 import os
+import sys
 from typing import Optional
 
 # ===========================================================================
@@ -23,6 +24,9 @@ from typing import Optional
 
 DEFAULT_TENANT_ID = 18
 DEFAULT_RESERVOIR_NAME = "sancha"
+
+# 默认值回退警告只打印一次，避免每次调用刷屏 stderr
+_tenant_warned = False
 
 
 # ===========================================================================
@@ -36,12 +40,27 @@ def current_tenant_id() -> int:
     读 SRM_TENANT_ID 环境变量，缺失回退 18（三岔）。
     非法值（非整数）回退默认值并保持健壮。
     """
+    global _tenant_warned
     raw = os.getenv("SRM_TENANT_ID")
     if raw is None or raw.strip() == "":
+        if not _tenant_warned:
+            print(
+                f"⚠️ [tenant] SRM_TENANT_ID 未设置，默认使用 tenant={DEFAULT_TENANT_ID}"
+                f"（{DEFAULT_RESERVOIR_NAME}），新水库部署请显式设置！",
+                file=sys.stderr,
+            )
+            _tenant_warned = True
         return DEFAULT_TENANT_ID
     try:
         return int(raw.strip())
     except (ValueError, TypeError):
+        if not _tenant_warned:
+            print(
+                f"⚠️ [tenant] SRM_TENANT_ID={raw!r} 不是合法整数，回退默认 "
+                f"tenant={DEFAULT_TENANT_ID}（{DEFAULT_RESERVOIR_NAME}）！",
+                file=sys.stderr,
+            )
+            _tenant_warned = True
         return DEFAULT_TENANT_ID
 
 

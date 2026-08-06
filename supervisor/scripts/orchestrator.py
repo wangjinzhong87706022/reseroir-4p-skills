@@ -31,8 +31,17 @@ import subprocess
 import sys
 from pathlib import Path
 
-# 让脚本能被 import
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+# 让脚本能被 import：去重插入脚本目录与仓库根，避免 reload/反复 import 造成 sys.path 膨胀。
+# 注意：不 import lib.paths——lib 包初始化会触发 lib.db 的模块级凭据检查（无 SRM_DB_* 时退出），
+# 而本脚本在测试（无凭据环境）中也会被 import。
+def _ensure_path(*paths):
+    for p in paths:
+        p = os.path.abspath(p)
+        if p not in sys.path:
+            sys.path.insert(0, p)
+
+_REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+_ensure_path(os.path.dirname(os.path.abspath(__file__)), _REPO_ROOT)
 from supervisor_state import _connect, _state_dir  # noqa: E402
 from scene_router import route  # noqa: E402
 from arbitrator import (arbitrate_plan_vs_simulation, arbitrate_dam_diagnosis,
@@ -262,6 +271,31 @@ def _unpack_stage_result(raw_result: str):
     return data
 
 
+def _extract_sim_peaks(sim: dict) -> tuple:
+    """从 simulation 结果提取 (max_level, max_discharge)。
+
+    契约（M4）：优先读脚本显式汇总键 max_level / max_discharge（query_full_context
+    已保证输出），兼容旧数据时回退到 current_water_level 数组求最大值；
+    再回退 highest_level / discharge 别名键。统一仲裁与报告两处的解析口径。
+    """
+    if not isinstance(sim, dict):
+        return None, None
+    max_level = sim.get("max_level") or sim.get("highest_level")
+    max_discharge = sim.get("max_discharge") or sim.get("discharge")
+    if max_level is None or max_discharge is None:
+        cwl = sim.get("current_water_level")
+        if isinstance(cwl, list) and cwl:
+            if max_level is None:
+                rzs = [float(x.get("rz")) for x in cwl if x.get("rz")]
+                if rzs:
+                    max_level = max(rzs)
+            if max_discharge is None:
+                otqs = [float(x.get("otq")) for x in cwl if x.get("otq")]
+                if otqs:
+                    max_discharge = max(otqs)
+    return max_level, max_discharge
+
+
 def do_arbitration(event_id, conn, scene, flood_limit, safe_discharge) -> dict:
     """按场景分派仲裁：
       - 场景A（暴雨研判）: plan-generation vs simulation 交叉校验
@@ -297,19 +331,10 @@ def do_arbitration(event_id, conn, scene, flood_limit, safe_discharge) -> dict:
     # 场景A/D：方案 vs 仿真交叉校验（D 的 HITL 由编排层强制）
     sim = _unpack_stage_result(stages.get("step4", {}).get("result_json"))
     plan = _unpack_stage_result(stages.get("step5", {}).get("result_json"))
-    # 从 full_context 结果中提取水位/泄量（simulation 为 current_water_level 数组）
+    # 从 simulation 结果提取水位/泄量（显式键优先，数组回退——契约见 _extract_sim_peaks）
     sim_vals = {"max_level": None, "max_discharge": None}
     if isinstance(sim, dict):
-        sim_cwl = sim.get("current_water_level")
-        if isinstance(sim_cwl, list) and sim_cwl:
-            sim_vals["max_level"] = max(
-                (float(x.get("rz") or 0) for x in sim_cwl if x.get("rz")), default=None)
-            sim_vals["max_discharge"] = max(
-                (float(x.get("otq") or 0) for x in sim_cwl if x.get("otq")), default=None)
-        sim_vals["max_level"] = sim_vals["max_level"] or sim.get("max_level") \
-            or sim.get("highest_level")
-        sim_vals["max_discharge"] = sim_vals["max_discharge"] or sim.get("max_discharge") \
-            or sim.get("discharge")
+        sim_vals["max_level"], sim_vals["max_discharge"] = _extract_sim_peaks(sim)
 
     plan_vals = {"max_level": None, "max_discharge": None}
     if isinstance(plan, dict):
@@ -455,16 +480,9 @@ def do_report(event_id, conn) -> dict:
 
     lines.append("## 三、推演与方案（step4/5）")
     lines.append("")
-    # simulation full_context 结构: current_water_level 是数组（含 rz/inq/otq），
-    # 取最高水位/最大下泄；flood_limit 数组取汛限。
-    sim_cwl = sim.get("current_water_level") if isinstance(sim, dict) else None
-    sim_level = None
-    sim_disch = None
-    if isinstance(sim_cwl, list) and sim_cwl:
-        sim_level = max((float(x.get("rz") or 0) for x in sim_cwl if x.get("rz")), default=None)
-        sim_disch = max((float(x.get("otq") or 0) for x in sim_cwl if x.get("otq")), default=None)
-    sim_level = sim_level or sim.get("max_level") or sim.get("highest_level")
-    sim_disch = sim_disch or sim.get("max_discharge") or sim.get("discharge")
+    # simulation full_context 契约：显式 max_level/max_discharge 键（M4），
+    # 兼容旧数据回退 current_water_level 数组求最大值——统一走 _extract_sim_peaks
+    sim_level, sim_disch = _extract_sim_peaks(sim)
     if sim_level is not None:
         lines.append(f"- 仿真推演最高水位 {sim_level}m / 最大下泄 {sim_disch or '—'} m³/s")
     else:
@@ -505,7 +523,7 @@ def do_report(event_id, conn) -> dict:
 
 def execute_dag(event_id, scene, conn, flood_limit, safe_discharge, dry_run, approve):
     """按 DAG 顺序执行所有未完成阶段"""
-    sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
+    _ensure_path(os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
     from references.dag_order import DAG_ORDER
 
     dag = DAG_ORDER.get(scene, [])

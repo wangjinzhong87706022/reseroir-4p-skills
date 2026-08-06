@@ -164,7 +164,9 @@ def _pick_in_season_flse_lim(tenant_id):
         s, e = r.get('flood_season_start'), r.get('flood_season_end')
         if not s or not e:
             continue
-        # 跨年汛期(如 1101→0331)暂不支持;三岔水库汛期均在同年内,直接区间比较。
+        # 跨年汛期(如 1101→0331)暂不支持。经 reservoir profile 确认（2026-08-06）：
+        # 桃曲坡 主汛 0701-0930 / 次汛 06、10 月，整体 0601-1031；三岔无汛期分段——
+        # 两库汛期均在同年内，直接区间比较即可；若未来接入跨年汛期水库需补跨年判断。
         if s <= today_mmdd <= e:
             in_season = r
             break

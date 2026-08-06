@@ -261,9 +261,25 @@ def query_recent_rainfall(hours=48):
 
 
 def query_full_context(hours=48):
-    """获取完整上下文数据"""
+    """获取完整上下文数据。
+
+    契约（M4）：除原始数据外，显式汇总 max_level / max_discharge 两个键，
+    供仲裁/报告消费端直接读取，避免消费端自行解析数组 + 脆弱回退链。
+    """
+    cwl = query_current_water_level()
+    max_level = None
+    max_discharge = None
+    if isinstance(cwl, list):
+        rzs = [float(x["rz"]) for x in cwl if x.get("rz") is not None]
+        otqs = [float(x["otq"]) for x in cwl if x.get("otq") is not None]
+        if rzs:
+            max_level = max(rzs)
+        if otqs:
+            max_discharge = max(otqs)
     return {
-        'current_water_level': query_current_water_level(),
+        'current_water_level': cwl,
+        'max_level': max_level,
+        'max_discharge': max_discharge,
         'flood_limit': query_flood_limit(),
         'config': query_config(),
         'water_level_curve': query_water_level_curve(),

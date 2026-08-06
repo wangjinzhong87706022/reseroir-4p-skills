@@ -130,7 +130,19 @@ def _serialize_row(row):
 # ---------------------------------------------------------------------------
 # Max rows hard limit
 # ---------------------------------------------------------------------------
-MAX_ROWS = 1000
+
+def _load_max_rows() -> int:
+    """全局行数上限：优先读 SRM_DB_MAX_ROWS 环境变量（运维可调），非法值回退 1000。"""
+    raw = os.getenv('SRM_DB_MAX_ROWS')
+    if not raw:
+        return 1000
+    try:
+        return max(1, int(raw.strip()))
+    except (TypeError, ValueError):
+        return 1000
+
+
+MAX_ROWS = _load_max_rows()
 
 
 # ---------------------------------------------------------------------------

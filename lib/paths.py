@@ -56,6 +56,30 @@ SIMULATION_AUTORESEARCH_DIR = AUTORESEARCH_DIR / "simulation"
 # 辅助函数
 # =============================================================================
 
+def ensure_path(*paths):
+    """
+    把一个或多个路径规范化后加入 sys.path（去重，已存在则不重复插入）。
+
+    解决长期运行（同进程反复 import / 测试 reload）下 sys.path 膨胀的问题：
+    多个模块对同一目录各 insert 一次，路径会重复累积。
+
+    Args:
+        *paths: 任意数量的路径（str / Path）
+
+    Returns:
+        规范化后的路径列表
+    """
+    import sys
+
+    added = []
+    for p in paths:
+        norm = str(Path(p).resolve())
+        if norm not in sys.path:
+            sys.path.insert(0, norm)
+        added.append(norm)
+    return added
+
+
 def get_skill_dir(skill_name: str) -> Path:
     """
     根据 Skill 名称获取对应的 Skill 目录
@@ -142,4 +166,5 @@ __all__ = [
     'get_skill_dir',
     'get_autoresearch_dir',
     'ensure_dirs',
+    'ensure_path',
 ]

@@ -24,7 +24,12 @@ for p in (_REPO, _SCRIPTS):
 
 
 class _TempState:
-    """为每个测试方法建独立 SQLite State（SRM_STATE_DIR 兜底）。"""
+    """为每个测试方法建独立 SQLite State（SRM_STATE_DIR 兜底）。
+
+    不依赖 importlib.reload：supervisor_state._state_dir() 每次调用实时读
+    SRM_STATE_DIR 环境变量，设置环境变量即可生效；orchestrator 顶部绑定的
+    _connect 是同一函数对象，同样实时读 env——无需重载模块（L6）。
+    """
 
     def __init__(self):
         self._tmp = tempfile.mkdtemp(prefix="svt-state-")
@@ -32,10 +37,9 @@ class _TempState:
 
     def __enter__(self):
         os.environ["SRM_STATE_DIR"] = self._tmp
-        # 触发建表
-        import importlib
+        # 显式触发建表（_connect 内部会 _ensure_schema）
         import supervisor_state
-        importlib.reload(supervisor_state)
+        supervisor_state._connect().close()
         return self
 
     def __exit__(self, *exc):

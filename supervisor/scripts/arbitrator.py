@@ -22,8 +22,16 @@ import sys
 from dataclasses import dataclass, field, asdict
 from typing import Optional
 
-# 让脚本能被 import（上级目录加入 path，读取 references）
-sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
+# 让脚本能被 import（上级目录加入 path，读取 references）。
+# 内联去重 helper：不 import lib.paths——lib 包初始化会触发 lib.db 凭据检查，
+# 而本脚本在测试（无凭据环境）中也会被 import
+def _ensure_path(*paths):
+    for p in paths:
+        p = os.path.abspath(p)
+        if p not in sys.path:
+            sys.path.insert(0, p)
+
+_ensure_path(os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
 
 
 @dataclass
