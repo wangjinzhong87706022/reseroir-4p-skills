@@ -16,7 +16,7 @@ from datetime import datetime, timedelta
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "scripts"))
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", ".."))
-from lib.db import execute_query, execute_write, get_connection, unpack  # noqa: E402
+from lib.db import execute_query, execute_query_list, execute_write, get_connection, unpack  # noqa: E402
 
 
 def _bulk_insert(sql, rows):
@@ -166,7 +166,7 @@ def generate_forecast(fc_hours=RNFL_FUTURE_HOURS):
 def roll_forward(stcd=RSVR_MASTER):
     """读 st_rsvr_r 断点(MAX(tm)非 MOCK),从断点+1h 续写到 NOW。
     数据已最新(断点 >= NOW-1h)则跳过(幂等)。"""
-    r = execute_query(
+    r = execute_query_list(
         "SELECT MAX(tm) as max_tm FROM st_rsvr_r "
         "WHERE deleted=0 AND stcd=%s AND tenant_id=%s AND creator <> 'MOCK'",
         (stcd, TENANT)

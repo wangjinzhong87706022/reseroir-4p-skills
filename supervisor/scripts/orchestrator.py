@@ -333,10 +333,22 @@ def do_report(event_id, conn) -> dict:
         return data
 
     # 从各阶段真实结果中提取关键数值
-    fc = _safe_load("step1") or {}
-    sim = _safe_load("step4") or {}
-    plan = _safe_load("step5") or {}
-    arb = _safe_load("step6") or {}
+    # 阶段映射按场景区分（各场景 DAG 的 simulation/仲裁所在 step 不同）：
+    #   A: step1 forecasting / step3 inspection / step4 simulation / step5 plan / step6 仲裁
+    #   B: step1 数据质量 / step2 inspection / step3 simulation / step4 仲裁
+    #   C: step1 forecasting / step2 simulation
+    #   D: step1 early-warning / step2 plan / step3 simulation / step4 仲裁
+    scene = ev["scene"]
+    stage_map = {
+        "A": {"fc": "step1", "insp": "step3", "sim": "step4", "plan": "step5", "arb": "step6"},
+        "B": {"fc": "step1", "insp": "step2", "sim": "step3", "plan": None, "arb": "step4"},
+        "C": {"fc": "step1", "insp": None, "sim": "step2", "plan": None, "arb": None},
+        "D": {"fc": "step1", "insp": None, "sim": "step3", "plan": "step2", "arb": "step4"},
+    }.get(scene, {"fc": "step1", "insp": "step3", "sim": "step4", "plan": "step5", "arb": "step6"})
+    fc = _safe_load(stage_map["fc"]) or {}
+    sim = _safe_load(stage_map["sim"]) or {}
+    plan = _safe_load(stage_map["plan"]) or {} if stage_map["plan"] else {}
+    arb = _safe_load(stage_map["arb"]) or {}
 
     # 水位/入库（forecasting full_context 结构：current_water_level 可为 dict 或数组）
     wl_raw = fc.get("current_water_level")
@@ -362,8 +374,8 @@ def do_report(event_id, conn) -> dict:
     if rf_data:
         rf_peak = max(rf_data, key=lambda x: float(x.get("RN", 0) or 0))
 
-    # 设备核查（step3 inspection）
-    insp = _safe_load("step3") or {}
+    # 设备核查（inspection，按场景映射：A=step3 / B=step2）
+    insp = _safe_load(stage_map["insp"]) or {} if stage_map["insp"] else {}
     insp_ov = insp.get("overview") or {}
     equip_total = insp_ov.get("equip_total")
     defect_open = insp_ov.get("defect_open_count")
