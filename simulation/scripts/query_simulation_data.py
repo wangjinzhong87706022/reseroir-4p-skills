@@ -12,14 +12,12 @@ import json
 import sys
 import os
 from datetime import datetime
+from pathlib import Path
 
-# 让脚本既能 `python3 scripts/query_simulation_data.py` 又能被 import
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '..'))
-
-# 从统一共享库导入 DB 查询功能
-# 注意: execute_query_list() 返回 list[dict],与原代码兼容
-#       execute_query() 返回 dict (含 data/count/truncated)
+# ── 标准导入片段（统一共享层定位）──────────────────────────
+_REPO_ROOT = Path(__file__).resolve().parents[2]  # scripts/x.py → 根
+if str(_REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(_REPO_ROOT))
 from lib.db import execute_query_list, DB_CONFIG  # noqa: E402
 from lib.db import execute_query, unpack  # noqa: E402 (用于需要元数据的场景)
 from lib.tenant import current_tenant_id, resolve_tenant  # noqa: E402 -- 水库身份(SRM_TENANT_ID,默认18三岔)

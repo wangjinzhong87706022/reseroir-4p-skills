@@ -18,6 +18,32 @@ prerequisites:
 
 # 水库调度预案智能生成 Skill v3.2
 
+## ⛔ 标准导入片段（生成查询代码时照抄，禁手写 pymysql.connect / 硬编码密码）
+
+> ⚠️ `__file__` 在 Hermes 暂存脚本里不可靠，**必须**用 `SRM_SKILLS_ROOT` 环境变量定位共享层。
+
+```python
+# 标准导入片段（照抄）
+import os, sys
+sys.path.insert(0, os.path.join(os.environ['SRM_SKILLS_ROOT'], 'lib'))
+from db import execute_query, execute_query_list, unpack
+from tenant import current_tenant_id
+```
+
+离线脚本（`scripts/` 下，`__file__` 可靠）：
+
+```python
+import sys
+from pathlib import Path
+_REPO_ROOT = Path(__file__).resolve().parents[2]  # scripts/x.py → 根
+if str(_REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(_REPO_ROOT / "lib"))
+from db import execute_query, execute_query_list, unpack
+from tenant import current_tenant_id
+```
+
+> 共享资源：`$SRM_SKILLS_ROOT/lib/db.py`、`$SRM_SKILLS_ROOT/shared/sql-safety-rules.md`、`$SRM_SKILLS_ROOT/shared/tenant-filtering-rules.md`。
+
 > **⚠️ 数据源优先级（必须遵守）**：当本 skill 与 water-situation / water-warning / rainfall 等 skill 同时加载时，当前水库的所有水情、汛限、配置、历史数据**必须从本 skill 的 `scripts/query_plan_data.py` 获取**（查询调度数据库，按 `SRM_TENANT_ID` 隔离）。**禁止**使用其他 skill 的数据源——它们查询的是区域河道站数据，不适用于本水库调度决策。
 
 > **🏛️ 水库身份感知（多水库必读）**：本 skill 通过环境变量 `SRM_RESERVOIR_NAME`（默认 `sancha`）适配不同水库。**凡涉及具体水位/汛限/特征水位/曲线/站码/下游参数前，先读 reservoir profile**：

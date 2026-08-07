@@ -9,6 +9,7 @@ SmartTwinRes-skills 统一路径配置
 项目可以放在任意位置，路径自动适配。
 """
 
+import os
 from pathlib import Path
 
 # =============================================================================
@@ -28,6 +29,8 @@ RESULTS_DIR = PROJECT_ROOT / "results"
 LOGS_DIR = PROJECT_ROOT / "logs"
 DOCS_DIR = PROJECT_ROOT / "docs"
 DATA_DIR = PROJECT_ROOT / "data"
+SHARED_DIR = PROJECT_ROOT / "shared"  # 跨 skill 共享知识库（sql-safety-rules.md 等）
+RESERVOIRS_DIR = PROJECT_ROOT / "reservoirs"  # 多水库 profile 根目录
 
 # =============================================================================
 # 兼容旧路径（建议迁移到新名称）
@@ -105,6 +108,25 @@ def get_skill_dir(skill_name: str) -> Path:
     return skill_dir
 
 
+def get_reservoir_dir(name: str = None) -> Path:
+    """
+    返回当前水库的 profile 目录。
+
+    身份来源（按优先级）：
+      1. 显式传入的 name 参数
+      2. 环境变量 SRM_RESERVOIR_NAME
+      3. 默认回退 'sancha'（三岔水库）
+
+    Args:
+        name: 水库名称（缺省读 SRM_RESERVOIR_NAME，再缺省 'sancha'）
+
+    Returns:
+        Path: reservoirs/<name>/ 绝对路径
+    """
+    name = name or os.getenv('SRM_RESERVOIR_NAME', 'sancha')
+    return RESERVOIRS_DIR / name
+
+
 def get_autoresearch_dir(skill_name: str) -> Path:
     """
     根据 Skill 名称获取对应的 Autoresearch 结果目录
@@ -157,6 +179,8 @@ __all__ = [
     'LOGS_DIR',
     'DOCS_DIR',
     'DATA_DIR',
+    'SHARED_DIR',
+    'RESERVOIRS_DIR',
     'FORECASTING_DIR',
     'EARLY_WARNING_DIR',
     'PLAN_GENERATION_DIR',
@@ -164,6 +188,7 @@ __all__ = [
     'DIAGNOSIS_VERIFICATION_DIR',
     'AUTORESEARCH_DIR',
     'get_skill_dir',
+    'get_reservoir_dir',
     'get_autoresearch_dir',
     'ensure_dirs',
     'ensure_path',

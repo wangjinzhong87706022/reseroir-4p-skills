@@ -11,13 +11,12 @@ import argparse
 import json
 import sys
 import os
+from pathlib import Path
 
-# 让脚本既能 `python3 scripts/query_early_warning.py` 又能被 import
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '..'))
-
-# 从统一共享库导入 DB 查询功能
-# 注意: execute_query_list() 返回 list[dict],与原代码兼容
+# ── 标准导入片段（统一共享层定位）──────────────────────────
+_REPO_ROOT = Path(__file__).resolve().parents[2]  # scripts/x.py → 根
+if str(_REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(_REPO_ROOT))
 from lib.db import execute_query_list, _require_env  # noqa: E402
 
 

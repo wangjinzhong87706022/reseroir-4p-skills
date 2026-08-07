@@ -37,10 +37,13 @@ import json
 import os
 import sys
 from datetime import datetime
+from pathlib import Path
 
-# 让脚本既能 `python3 scripts/query_forecast_data.py` 又能被 import
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from query_utils import execute_query, execute_query_list, unpack  # noqa: E402
+# ── 标准导入片段（统一共享层定位）──────────────────────────
+_REPO_ROOT = Path(__file__).resolve().parents[2]  # scripts/x.py → 根
+if str(_REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(_REPO_ROOT))
+from lib.db import execute_query, execute_query_list, unpack  # noqa: E402
 from lib.tenant import current_tenant_id  # noqa: E402 -- 水库身份(SRM_TENANT_ID,默认18三岔)
 
 

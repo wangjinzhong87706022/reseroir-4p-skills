@@ -18,6 +18,32 @@ prerequisites:
 
 # 智能预警系统 Skill v5.2（速查卡）
 
+## ⛔ 标准导入片段（生成查询代码时照抄，禁手写 pymysql.connect / 硬编码密码）
+
+> ⚠️ `__file__` 在 Hermes 暂存脚本里不可靠，**必须**用 `SRM_SKILLS_ROOT` 环境变量定位共享层。
+
+```python
+# 标准导入片段（照抄）
+import os, sys
+sys.path.insert(0, os.path.join(os.environ['SRM_SKILLS_ROOT'], 'lib'))
+from db import execute_query, execute_query_list, unpack
+from tenant import current_tenant_id
+```
+
+离线脚本（`scripts/` 下，`__file__` 可靠）：
+
+```python
+import sys
+from pathlib import Path
+_REPO_ROOT = Path(__file__).resolve().parents[2]  # scripts/x.py → 根
+if str(_REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(_REPO_ROOT / "lib"))
+from db import execute_query, execute_query_list, unpack
+from tenant import current_tenant_id
+```
+
+> 共享资源：`$SRM_SKILLS_ROOT/lib/db.py`、`$SRM_SKILLS_ROOT/shared/sql-safety-rules.md`、`$SRM_SKILLS_ROOT/shared/tenant-filtering-rules.md`。
+
 > **🏛️ 水库身份感知（多水库必读）**：本 skill 通过 `SRM_RESERVOIR_NAME`（默认 sancha）适配多水库。预警阈值（汛限/特征水位/降雨量级/响应级别）**必须以当前 reservoir profile 为准**：`reservoirs/${SRM_RESERVOIR_NAME:-sancha}/characteristic-levels.md`。不同水库水位基准不同（三岔 ~460m、桃曲坡 ~788m），禁止跨水库套用阈值。
 
 ## 数据库

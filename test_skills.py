@@ -494,6 +494,9 @@ def main():
     args = parser.parse_args()
 
     # 创建测试目录
+    if not RESULTS_DIR.exists():
+        RESULTS_DIR.mkdir(parents=True, exist_ok=True)
+    TEST_RESULTS_DIR = RESULTS_DIR
     TEST_RESULTS_DIR.mkdir(exist_ok=True)
 
     # 列出测试用例

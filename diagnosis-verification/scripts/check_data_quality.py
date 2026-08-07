@@ -17,12 +17,12 @@ import json
 import os
 import sys
 from datetime import datetime
+from pathlib import Path
 
-# 让脚本既能 `python3 scripts/check_data_quality.py` 又能被 import
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '..'))
-
-# 从统一共享库导入 DB 查询功能
+# ── 标准导入片段（统一共享层定位）──────────────────────────
+_REPO_ROOT = Path(__file__).resolve().parents[2]  # scripts/x.py → 根
+if str(_REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(_REPO_ROOT))
 from lib.db import execute_query_list, _require_env  # noqa: E402
 
 
