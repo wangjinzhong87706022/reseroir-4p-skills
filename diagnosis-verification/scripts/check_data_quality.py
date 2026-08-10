@@ -24,6 +24,9 @@ _REPO_ROOT = Path(__file__).resolve().parents[2]  # scripts/x.py → 根
 if str(_REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(_REPO_ROOT))
 from lib.db import execute_query_list, _require_env  # noqa: E402
+from lib.tenant import current_tenant_id  # noqa: E402 -- 水库身份(SRM_TENANT_ID,默认18三岔)
+
+TENANT = current_tenant_id()
 
 
 def check_water_level():
@@ -40,10 +43,10 @@ def check_water_level():
         TIMESTAMPDIFF(HOUR, MAX(tm), NOW()) as 距现在小时,
         SUM(CASE WHEN deleted=0 THEN 1 ELSE 0 END) as 有效数据
     FROM st_rsvr_r
-    WHERE deleted=0
+    WHERE deleted=0 AND tenant_id = %s
     """
 
-    result = execute_query_list(sql)[0]
+    result = execute_query_list(sql, (TENANT,))[0]
 
     print(f"\n总行数：{result['总行数']}")
     print(f"rz 为空：{result['rz为空']} ({result['rz为空']/result['总行数']*100:.1f}%)")
@@ -75,12 +78,12 @@ def check_water_level():
     sql2 = """
     SELECT stcd, COUNT(*) as 数据量, MAX(tm) as 最新时间
     FROM st_rsvr_r
-    WHERE deleted=0
+    WHERE deleted=0 AND tenant_id = %s
     GROUP BY stcd
     ORDER BY 数据量 DESC
     LIMIT 10
     """
-    stations = execute_query_list(sql2)
+    stations = execute_query_list(sql2, (TENANT,))
     print(f"\n按测站统计（前 10）：")
     for s in stations:
         print(f"  {s['stcd']}: {s['数据量']} 条, 最新 {s['最新时间']}")

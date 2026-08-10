@@ -86,17 +86,17 @@ def query_weather_warning(since_date=None, status='1'):
 def query_flood_limit(tenant_id=None):
     """查询当前汛限水位"""
     tid = resolve_tenant(tenant_id)
-    # 优先从 att_res_flse_lim 表查询（按当前日期匹配汛期）
-    # 注：att_res_flse_lim 无 tenant_id 列（见 lib/filters.py），不按 tenant 过滤
+    # 优先从 att_res_flse_lim 表查询（按当前日期匹配汛期 + tenant_id 过滤）
     sql = """
     SELECT flse_lim_stag, flood_season_name, flood_season_start, flood_season_end
     FROM att_res_flse_lim
-    WHERE flood_season_start <= DATE_FORMAT(NOW(), '%m%d')
+    WHERE tenant_id = %s
+      AND flood_season_start <= DATE_FORMAT(NOW(), '%m%d')
       AND flood_season_end >= DATE_FORMAT(NOW(), '%m%d')
     ORDER BY flse_lim_stag DESC
     LIMIT 1
     """
-    results = execute_query_list(sql)
+    results = execute_query_list(sql, (tid,))
     if results:
         return results
 
@@ -121,10 +121,12 @@ def query_flood_limit(tenant_id=None):
 
 
 def query_historical_plans(limit=20, start_date=None, end_date=None,
-                           min_level=None, max_level=None, keyword=None):
+                           min_level=None, max_level=None, keyword=None,
+                           tenant_id=None):
     """查询历史预案（支持多维度筛选）"""
-    conditions = ["type = 2"]
-    params = []
+    tid = resolve_tenant(tenant_id)
+    conditions = ["type = 2", "tenant_id = %s"]
+    params = [tid]
 
     if start_date:
         conditions.append("create_time >= %s")
@@ -187,10 +189,11 @@ def query_historical_floods(limit=20, start_date=None, end_date=None,
 
 
 def query_similar_plans(water_level=None, rainfall=None,
-                        time_range_days=365, limit=5):
+                        time_range_days=365, limit=5, tenant_id=None):
     """查询相似条件的历史预案（按水位接近度排序）"""
-    conditions = ["type = 2"]
-    params = []
+    tid = resolve_tenant(tenant_id)
+    conditions = ["type = 2", "tenant_id = %s"]
+    params = [tid]
 
     # 时间范围过滤
     conditions.append("create_time >= DATE_SUB(NOW(), INTERVAL %s DAY)")
@@ -223,10 +226,11 @@ def query_similar_plans(water_level=None, rainfall=None,
     return execute_query(sql, params)
 
 
-def query_recent_rainfall(hours=24, station_id=None):
+def query_recent_rainfall(hours=24, station_id=None, tenant_id=None):
     """查询最近降雨实况"""
-    conditions = ["deleted = 0", "tm >= DATE_SUB(NOW(), INTERVAL %s HOUR)"]
-    params = [hours]
+    tid = resolve_tenant(tenant_id)
+    conditions = ["deleted = 0", "tenant_id = %s", "tm >= DATE_SUB(NOW(), INTERVAL %s HOUR)"]
+    params = [tid, hours]
 
     if station_id:
         conditions.append("stcd = %s")
@@ -241,10 +245,11 @@ def query_recent_rainfall(hours=24, station_id=None):
     return execute_query(sql, params)
 
 
-def query_scenarios(target=None, def_only=False):
+def query_scenarios(target=None, def_only=False, tenant_id=None):
     """查询调度场景模板"""
-    conditions = ["deleted = 0"]
-    params = []
+    tid = resolve_tenant(tenant_id)
+    conditions = ["deleted = 0", "tenant_id = %s"]
+    params = [tid]
 
     if target:
         conditions.append("scheduling_target = %s")
@@ -335,19 +340,52 @@ def query_config(tenant_id=None):
 # ---------------------------------------------------------------------------
 
 def query_full_context(hours=48):
-    """获取完整上下文数据"""
+    """获取完整上下文数据。
+
+    契约（与 simulation M4 对齐）：除原始数据外，显式汇总 max_level /
+    max_discharge 两个顶层键，供 supervisor 仲裁直接读取，避免仲裁端
+    脆弱回退链（P0-3：原缺这两键导致 Rule 1/2 恒短路，decision 恒 accept）。
+    """
+    cwl = unpack(query_current_water_level())
+    scenarios = unpack(query_scenarios())
+    # 峰值提取：优先 scenarios 的 max_level/max_discharge，回退 current_water_level
+    max_level = None
+    max_discharge = None
+    for s in scenarios:
+        if not isinstance(s, dict):
+            continue
+        lv = s.get("max_level") or s.get("highest_level")
+        ds = s.get("max_discharge") or s.get("discharge")
+        if lv is not None:
+            lv = float(lv)
+            max_level = lv if max_level is None else max(max_level, lv)
+        if ds is not None:
+            ds = float(ds)
+            max_discharge = ds if max_discharge is None else max(max_discharge, ds)
+    # 回退：从 current_water_level 数组取峰值
+    if max_level is None and isinstance(cwl, list):
+        rzs = [float(x["rz"]) for x in cwl if x.get("rz") is not None]
+        if rzs:
+            max_level = max(rzs)
+    if max_discharge is None and isinstance(cwl, list):
+        otqs = [float(x["otq"]) for x in cwl if x.get("otq") is not None]
+        if otqs:
+            max_discharge = max(otqs)
     return {
-        'current_water_level': unpack(query_current_water_level()),
+        'current_water_level': cwl,
         'rainfall_forecast': unpack(query_rainfall_forecast(hours)),
         'weather_warning': unpack(query_weather_warning()),
         'flood_limit': query_flood_limit(),       # plain list from execute_query_list
         'config': query_config(),                  # plain dict
         'historical_plans': unpack(query_historical_plans(10)),
         'historical_floods': unpack(query_historical_floods(10)),
-        'scenarios': unpack(query_scenarios()),
+        'scenarios': scenarios,
         'recent_rainfall': unpack(query_recent_rainfall(24)),
         'water_level_curve': unpack(query_water_level_curve()),
         'discharge_curve': unpack(query_discharge_curve()),
+        # ↓↓↓ P0-3 新增：仲裁消费的显式峰值键（与 simulation M4 契约对齐）
+        'max_level': max_level,
+        'max_discharge': max_discharge,
     }
 
 

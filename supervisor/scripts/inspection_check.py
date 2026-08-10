@@ -40,13 +40,15 @@ TENANT = current_tenant_id()
 def overview() -> dict:
     """设备全貌摘要：总数/类型分布/异常/缺陷/离线/闸门"""
     equip_total = execute_query_list(
-        "SELECT COUNT(*) AS cnt FROM eq_equip_base WHERE deleted=0"
+        "SELECT COUNT(*) AS cnt FROM eq_equip_base WHERE deleted=0 AND tenant_id=%s",
+        (TENANT,),
     )[0]["cnt"]
 
     # 类型分布（type_flag: 1闸门 7水位计 8雨量计 20渗压计 等）
     type_rows = execute_query_list(
         "SELECT type_flag, COUNT(*) AS cnt FROM eq_equip_base "
-        "WHERE deleted=0 GROUP BY type_flag ORDER BY cnt DESC"
+        "WHERE deleted=0 AND tenant_id=%s GROUP BY type_flag ORDER BY cnt DESC",
+        (TENANT,),
     )
 
     # 异常记录（tenant 18/20；tenant=1 为测试数据）

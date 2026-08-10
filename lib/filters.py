@@ -13,7 +13,12 @@ SRM_TENANT_ID > 默认 18）。下方 docstring 示例输出中的 tenant_id = 1
 
 from typing import List, Optional, Tuple
 
-from .tenant import current_tenant_id
+# 兼容双导入模式：包导入（from lib.filters import ...）走相对导入，
+# 裸导入（sys.path 含 .../lib 后 from filters import ...）走绝对导入。
+try:
+    from .tenant import current_tenant_id
+except ImportError:
+    from tenant import current_tenant_id
 
 # ===========================================================================
 # 表过滤规则配置
@@ -32,7 +37,7 @@ TENANT_ID_FILTER_TABLES = {
     'f_rnfl_h': {'filter': False},
     'weather_warn': {'filter': False},
     'weather_info': {'filter': False},
-    'att_res_flse_lim': {'filter': False},
+    'att_res_flse_lim': {'filter': True},  # live DB 确认有 tenant_id 列（P0-2 修正）
 }
 
 # deleted 过滤规则

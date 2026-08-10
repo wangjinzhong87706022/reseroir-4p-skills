@@ -138,16 +138,17 @@ def query_historical_floods(limit=10, tenant_id=None):
     return execute_query_list(sql, (tid, limit))
 
 
-def query_flood_detail(flood_id):
+def query_flood_detail(flood_id, tenant_id=None):
     """查询洪水详情"""
+    tid = resolve_tenant(tenant_id)
     sql = """
     SELECT id, name, start_time, end_time, adjusted_water_level,
            target_water_level, status, rainfall_data, remake,
            rsvr_remake, river_remake, pptn_remake
     FROM srm_flood_history_base
-    WHERE id = %s AND deleted = 0
+    WHERE id = %s AND deleted = 0 AND tenant_id = %s
     """
-    return execute_query_list(sql, (flood_id,))
+    return execute_query_list(sql, (flood_id, tid))
 
 
 def query_flood_result(flood_id):
@@ -194,16 +195,18 @@ def query_flood_statistics(flood_id):
     return execute_query_list(sql, (flood_id,))
 
 
-def query_similar_floods(rainfall, tolerance=0.2, limit=10):
+def query_similar_floods(rainfall, tolerance=0.2, limit=10, tenant_id=None):
     """查询相似降雨条件的历史洪水"""
+    tid = resolve_tenant(tenant_id)
     sql = """
     SELECT id, name, start_time, end_time, adjusted_water_level,
            target_water_level, status, rainfall_data, remake
     FROM srm_flood_history_base
     WHERE deleted = 0 AND status = 2 AND rainfall_data IS NOT NULL
+      AND tenant_id = %s
     ORDER BY create_time DESC
     """
-    all_floods = execute_query_list(sql)
+    all_floods = execute_query_list(sql, (tid,))
     # 在 Python 中按降雨量容差过滤
     similar = []
     for flood in all_floods:
@@ -235,27 +238,29 @@ def query_similar_floods(rainfall, tolerance=0.2, limit=10):
     return similar
 
 
-def query_scenarios():
+def query_scenarios(tenant_id=None):
     """查询调度场景模板"""
+    tid = resolve_tenant(tenant_id)
     sql = """
     SELECT id, name, scheduling_target, scheduling_model, extend, def_flg
     FROM srm_scheduling_scenario
-    WHERE deleted = 0
+    WHERE deleted = 0 AND tenant_id = %s
     ORDER BY def_flg DESC, create_time DESC
     """
-    return execute_query_list(sql)
+    return execute_query_list(sql, (tid,))
 
 
-def query_recent_rainfall(hours=48):
+def query_recent_rainfall(hours=48, tenant_id=None):
     """查询最近降雨实况"""
+    tid = resolve_tenant(tenant_id)
     sql = """
     SELECT tm, p, dr
     FROM st_pptn_r
-    WHERE deleted = 0
+    WHERE deleted = 0 AND tenant_id = %s
       AND tm >= DATE_SUB(NOW(), INTERVAL %s HOUR)
     ORDER BY tm DESC
     """
-    return execute_query_list(sql, (hours,))
+    return execute_query_list(sql, (tid, hours))
 
 
 def query_full_context(hours=48):

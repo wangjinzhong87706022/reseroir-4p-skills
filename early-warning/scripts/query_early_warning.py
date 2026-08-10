@@ -18,6 +18,7 @@ _REPO_ROOT = Path(__file__).resolve().parents[2]  # scripts/x.py → 根
 if str(_REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(_REPO_ROOT))
 from lib.db import execute_query_list, _require_env  # noqa: E402
+from lib.tenant import current_tenant_id  # noqa: E402 -- 水库身份(SRM_TENANT_ID,默认18三岔)
 
 
 def query_unconfirmed(days=7):
@@ -156,25 +157,27 @@ def query_rule_detail(rule_name):
 
 def query_water_level(station_code):
     """查询当前水位"""
+    tid = current_tenant_id()
     sql = """
     SELECT rz as water_level, tm as time
     FROM st_rsvr_r
-    WHERE eq_code = %s
+    WHERE eq_code = %s AND tenant_id = %s
     ORDER BY tm DESC
     LIMIT 1
     """
-    return execute_query_list(sql, (station_code,))
+    return execute_query_list(sql, (station_code, tid))
 
 def query_rainfall(station_code):
     """查询当前降雨"""
+    tid = current_tenant_id()
     sql = """
     SELECT p as rainfall, tm as time
     FROM st_pptn_r
-    WHERE eq_code = %s
+    WHERE eq_code = %s AND tenant_id = %s
     ORDER BY tm DESC
     LIMIT 1
     """
-    return execute_query_list(sql, (station_code,))
+    return execute_query_list(sql, (station_code, tid))
 
 def query_alarm_storm():
     """查询告警风暴状态"""
