@@ -177,7 +177,7 @@ python3 scripts/query_plan_analysis.py --type full_analysis --plan-id 717
 - 水位数据：`st_rsvr_r` 主测站从 `model_config` 的 `st_rsvr_r_master` 键获取
 - 配置数据：优先过滤 `tenant_id = 18`（三岔水库所在租户）
 - 雨量数据：`st_pptn_r` 主测站从 `model_config` 的 `st_pptn_r_master` 键获取
-- 历史预案/洪水：已按租户隔离，无需额外过滤
+- 历史预案/洪水：已由脚本按 tenant_id 过滤，灵活路径自定义 SQL **必须**补 `tenant_id=%s`
 
 ## 数据库
 

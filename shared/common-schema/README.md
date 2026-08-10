@@ -4,6 +4,8 @@
 
 ## 已收录表
 
+> ⚠️ **规划中**：以下表为本目录计划收录的跨 skill 共享表结构。实际 schema 文件尚未补齐（P2-6），补齐前各 skill 的 `references/table-schema.md` 仍为各自真相源。
+
 | 表名 | 说明 | 引用 skill |
 |------|------|-----------|
 | `st_stbprp_b` | 测站基本信息（stcd/stnm/位址/类型） | forecasting / plan-generation / simulation / early-warning / diagnosis-verification |

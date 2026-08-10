@@ -13,7 +13,7 @@ metadata:
     default: sancha
     env: SRM_RESERVOIR_NAME
 prerequisites:
-  env_vars: [POWERELF_DB_HOST, POWERELF_DB_PORT, POWERELF_DB_NAME, POWERELF_DB_USER, POWERELF_DB_PASSWORD, SRM_TENANT_ID, SRM_RESERVOIR_NAME]
+  env_vars: [SRM_DB_HOST, SRM_DB_PORT, SRM_DB_NAME, SRM_DB_USER, SRM_DB_PASSWORD, SRM_TENANT_ID, SRM_RESERVOIR_NAME]
 ---
 
 # 智能预警系统 Skill v5.2（速查卡）
@@ -124,13 +124,13 @@ python3 scripts/query_early_warning.py --type weather_warning
 
 ```sql
 -- 告警详情
-SELECT id, ew_name, st_code, level_r, value, gather_time FROM ew_info_message WHERE id = #{id};
+SELECT id, ew_name, st_code, level_r, value, gather_time FROM ew_info_message WHERE id = %s;
 
 -- 规则阈值
-SELECT name, extend FROM ew_info_rules WHERE name LIKE '%#{关键词}%';
+SELECT name, extend FROM ew_info_rules WHERE name LIKE '%%%s%%';
 
 -- 设备当前值
-SELECT rz, tm FROM st_rsvr_r WHERE eq_code = '#{eqCode}' ORDER BY tm DESC LIMIT 1;
+SELECT rz, tm FROM st_rsvr_r WHERE eq_code = %s ORDER BY tm DESC LIMIT 1;
 ```
 
 ## 查询优化
@@ -141,32 +141,27 @@ SELECT rz, tm FROM st_rsvr_r WHERE eq_code = '#{eqCode}' ORDER BY tm DESC LIMIT 
 2. **使用时间范围限制**: 所有查询都应包含时间范围，避免全表扫描
 3. **使用LIMIT分页**: 查询告警列表时使用LIMIT限制返回数量
 4. **避免SELECT ***: 只查询需要的字段
-5. **db.py 连接复用**: 使用 `/opt/git/hermes-agent/skills/powerelf/lib/db.py` 的 `query_multi` 批量执行多条 SQL，复用连接，避免多次 Python 进程启动开销
+5. **db.py 连接复用**: 使用 `lib/db.py` 的 `execute_query_list` 批量执行多条 SQL，复用连接，避免多次 Python 进程启动开销
 
 ### db.py 性能最佳实践（强烈推荐）
 
-> 使用 `db.py` 而非直接 `import pymysql`，可避免 CLI 的 Access denied 问题，且内置连接缓存。
+> 使用 `lib/db.py` 而非直接 `import pymysql`，可避免 CLI 的 Access denied 问题，且内置连接缓存。
 
 ```python
-import sys
-sys.path.insert(0, '/opt/git/hermes-agent/skills/powerelf/lib')
-from db import query, query_multi, close_all
+import os, sys
+sys.path.insert(0, os.path.join(os.environ['SRM_SKILLS_ROOT'], 'lib'))
+from db import execute_query, execute_query_list, unpack
 
 # ✅ 好：一次 execute_code 跑完所有查询，复用连接
-results = query_multi([
-    "SELECT COUNT(*) FROM ew_info_message WHERE message_confirm = 0 AND deleted = 0",
-    "SELECT COUNT(*) FROM ew_info_rules WHERE status = '1' AND deleted = 0",
-    "SELECT level_r, COUNT(*) FROM ew_info_message WHERE message_confirm = 0 AND deleted = 0 GROUP BY level_r",
-])
-close_all()  # 脚本结束时清理
+results = execute_query_list("SELECT COUNT(*) FROM ew_info_message WHERE message_confirm = 0 AND deleted = 0")
 
 # ❌ 坏：多次 execute_code 调用，每次都重新建立 Python 进程（~0.2s/次）
 ```
 
 **规则**:
 1. 合并所有查询到**一次** `execute_code` 调用（避免 Python 启动开销）
-2. 用 `query_multi()` 批量执行多条 SQL（复用连接）
-3. 脚本末尾调用 `close_all()` 释放缓存连接
+2. 用 `execute_query_list()` 批量执行多条 SQL（复用连接）
+3. 脚本结束自动释放连接（lib/db.py 连接池管理）
 
 ### 预置查询（推荐使用）
 

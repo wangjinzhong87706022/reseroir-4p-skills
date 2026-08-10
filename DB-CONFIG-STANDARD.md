@@ -2,7 +2,9 @@
 
 **版本**: 1.0
 **生效日期**: 2026-07-09
-**适用范围**: SmartTwinRes 家族所有 Skill（forecasting / plan-generation / simulation / early-warning）
+**适用范围**: SmartTwinRes 家族所有 Skill（forecasting / plan-generation / simulation / early-warning / diagnosis-verification / supervisor）
+
+> **唯一真相源**：本文档与 `shared/db-connection.md` 内容重叠，以 `shared/db-connection.md` 为准（P2-9）。本文件保留作为根目录入口。
 
 ---
 
@@ -56,10 +58,12 @@ DB_CONFIG = {
 
 | Skill | 文件路径 | 适配日期 | 状态 |
 |-------|---------|---------|------|
-| **forecasting** | `scripts/query_utils.py` | 2026-07-09 | ✅ 已适配 |
-| **plan-generation** | `scripts/query_utils.py` | 2026-07-09 | ✅ 已适配 |
+| **forecasting** | `scripts/query_forecast_data.py` | 2026-07-09 | ✅ 已适配 |
+| **plan-generation** | `scripts/query_plan_data.py` | 2026-07-09 | ✅ 已适配 |
 | **simulation** | `scripts/query_simulation_data.py` | 2026-07-09 | ✅ 已适配 |
 | **early-warning** | `scripts/query_early_warning.py` | 2026-07-09 | ✅ 已适配（修复硬编码密码） |
+| **diagnosis-verification** | `scripts/check_data_quality.py` | 2026-08-10 | ✅ 已适配（补 tenant 过滤） |
+| **supervisor** | `scripts/inspection_check.py` | 2026-08-10 | ✅ 已适配（补 tenant 过滤） |
 
 ---
 

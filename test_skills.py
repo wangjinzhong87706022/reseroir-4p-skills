@@ -81,6 +81,27 @@ SKILLS = [
         skill_dir=get_skill_dir("simulation"),
         enabled=True  # builtin skill
     ),
+    SkillDefinition(
+        id="early-warning",
+        name="智能预警",
+        description="告警分析、风险定级、预警规则",
+        skill_dir=get_skill_dir("early-warning"),
+        enabled=True
+    ),
+    SkillDefinition(
+        id="diagnosis-verification",
+        name="诊断核验",
+        description="数据质量检查、8Phase 诊断、6 层核验",
+        skill_dir=get_skill_dir("diagnosis-verification"),
+        enabled=True
+    ),
+    SkillDefinition(
+        id="supervisor",
+        name="四预编排",
+        description="场景路由、七步编排、仲裁闭环",
+        skill_dir=get_skill_dir("supervisor"),
+        enabled=True
+    ),
 ]
 
 # =============================================================================

@@ -18,7 +18,7 @@ from pathlib import Path
 _REPO_ROOT = Path(__file__).resolve().parents[2]  # scripts/x.py → 根
 if str(_REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(_REPO_ROOT))
-from lib.db import execute_query_list, DB_CONFIG  # noqa: E402
+from lib.db import execute_query_list  # noqa: E402
 from lib.db import execute_query, unpack  # noqa: E402 (用于需要元数据的场景)
 from lib.tenant import current_tenant_id, resolve_tenant  # noqa: E402 -- 水库身份(SRM_TENANT_ID,默认18三岔)
 

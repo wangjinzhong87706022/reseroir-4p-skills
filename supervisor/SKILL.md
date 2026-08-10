@@ -147,6 +147,6 @@ Supervisor 本身**无水库特定逻辑**——子 skill 已全部接入 reserv
 
 ## 七、按需加载
 
-- 场景 DAG 定义: `references/dag-scenarios.md`
-- 仲裁细则: `references/arbitration.md`
+- 场景 DAG 定义: `references/dag_order.py`（`SCENE_RULES` / `dag` 字段）
+- 仲裁细则: `scripts/arbitrator.py`（`arbitrate_plan_vs_simulation` / `arbitrate_dam_diagnosis` / `arbitrate_emergency`）
 - 部署与验证: `README.md`

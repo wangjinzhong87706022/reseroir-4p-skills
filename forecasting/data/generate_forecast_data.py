@@ -26,7 +26,8 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'scripts'))
-from query_utils import execute_query, execute_query_list, unpack  # noqa: E402
+# P2-12: 改直接 from lib.db import，不再依赖本地 query_utils.py re-export
+from lib.db import execute_query, execute_query_list, unpack  # noqa: E402
 
 NOW = datetime.now().replace(minute=0, second=0, microsecond=0)
 MOCK_TENANT = 18  # 三岔;mock 行用 alias='MOCK' 或 taskid LIKE 'MOCK%'
@@ -849,11 +850,11 @@ def _render_sql(sql, params):
 # 连接 + 执行调度(T1 引入;T3-T6 故障注入器复用 _get_conn)
 # ===========================================================================
 def _get_conn(args):
-    """直连模式:返回一条 live pymysql 连接(从 query_utils.get_connection())。
+    """直连模式:返回一条 live pymysql 连接(从 lib.db.get_connection())。
     args 仅用于将来扩展(读 args.via_mysql_cli 等);当前恒走 direct。
     T3-T6 的故障注入器直接复用本函数取连接。
     """
-    from query_utils import get_connection
+    from lib.db import get_connection
     return get_connection()
 
 
