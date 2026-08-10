@@ -164,7 +164,9 @@ class FloodRoutingModel:
 
         total_inflow = sum(inflow) * dt_hours * 3600 / 10000  # 万m³
         total_outflow = sum(outflow) * dt_hours * 3600 / 10000  # 万m³
-        storage_change = total_inflow - total_outflow  # 万m³
+        # P2-2: 超限溢流水量（万m³），补进 storage_change 使守恒自洽
+        total_extra_outflow = sum(extra_outflow)  # 万m³（extra_outflow 已是库容单位）
+        storage_change = total_inflow - total_outflow - total_extra_outflow  # 万m³
 
         peak_shaving = peak_inflow - peak_outflow
         peak_shaving_rate = (peak_shaving / peak_inflow * 100) if peak_inflow > 0 else 0
@@ -191,6 +193,7 @@ class FloodRoutingModel:
                 'peak_shaving_rate': round(peak_shaving_rate, 2),
                 'total_inflow': round(total_inflow, 2),
                 'total_outflow': round(total_outflow, 2),
+                'total_extra_outflow': round(total_extra_outflow, 2),  # P2-2: 超限溢流水量
                 'storage_change': round(storage_change, 2),
                 'initial_capacity': round(self.wl_to_cap(water_levels[0]), 2),
                 'final_capacity': round(capacities[-1], 2),
@@ -213,8 +216,7 @@ DEFAULT_DC_CURVE = [
     (451.0, 0), (453.0, 20), (455.0, 80), (456.0, 83),
     (457.0, 85), (458.0, 87), (459.0, 89), (460.0, 91),
     # P1-7 修复：原 (462.0,99),(462.5,94),(463.0,100) 非单调（94<99），
-    # 违反堰流 Q∝H^1.5。462.5 点修正为 96（99→96→100 仍非严格单调，
-    # 但线性插值容差内可接受；严格单调需删 462.5 点）。
+    # 违反堰流 Q∝H^1.5。462.5 点修正为 99（与 dispatch_model.py 同款修复对齐）。
     (461.0, 93), (462.0, 99), (462.5, 99), (463.0, 100),
     (464.0, 120), (465.0, 150), (466.0, 200), (467.0, 300),
     (468.0, 500),

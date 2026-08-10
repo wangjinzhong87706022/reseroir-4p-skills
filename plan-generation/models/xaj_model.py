@@ -277,8 +277,6 @@ class XAJModel:
 import threading
 
 _xaj_local = threading.local()
-_xaj_global = XAJModel(watershed_area_km2=161.25)  # 三岔默认，仅单线程回退
-_model_lock = threading.Lock()
 
 
 def _get_model(watershed_area):
@@ -357,10 +355,12 @@ def forecast():
 
 @app.route('/api/xaj/reset', methods=['POST'])
 def reset():
-    """重置模型状态"""
-    global xaj_model
-    xaj_model = XAJModel(watershed_area_km2=xaj_model.area_km2)
-    return jsonify({"status": "reset", "message": "模型状态已重置"})
+    """重置当前线程的模型状态（P2-3: 清 _xaj_local 线程本地属性，删原 global xaj_model 引用）"""
+    if hasattr(_xaj_local, 'model'):
+        watershed_area = _xaj_local.model.area_km2
+        _xaj_local.model = XAJModel(watershed_area_km2=watershed_area)
+        return jsonify({"status": "reset", "message": f"模型状态已重置（流域面积 {watershed_area} km²）"})
+    return jsonify({"status": "noop", "message": "当前线程无活跃模型实例，无需重置"})
 
 
 if __name__ == '__main__':

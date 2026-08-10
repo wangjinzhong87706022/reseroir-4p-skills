@@ -53,7 +53,15 @@ TAOQUPO_PROFILE = {
     'wl_score_base': 780,
 }
 _RESERVOIR_NAME = os.getenv('SRM_RESERVOIR_NAME', 'sancha').lower()
-PROFILE = TAOQUPO_PROFILE if _RESERVOIR_NAME == 'taoqupo' else SANCHA_PROFILE
+# P2 修复：未设/拼错 SRM_RESERVOIR_NAME 时 fail-loud，不静默落三岔
+_PROFILE_MAP = {'sancha': SANCHA_PROFILE, 'taoqupo': TAOQUPO_PROFILE}
+if _RESERVOIR_NAME not in _PROFILE_MAP:
+    import sys
+    sys.exit(
+        f"[simulation_service] SRM_RESERVOIR_NAME={_RESERVOIR_NAME!r} 未识别，"
+        f"可选: {list(_PROFILE_MAP.keys())}。禁止静默回退三岔（多水库防串库）。"
+    )
+PROFILE = _PROFILE_MAP[_RESERVOIR_NAME]
 
 # ---------------------------------------------------------------------------
 # Configuration
