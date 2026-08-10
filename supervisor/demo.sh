@@ -39,7 +39,7 @@ run_scene() {
     echo "▶ 场景 $scene：$trigger"
     echo "=========================================================="
     # --approve 跳过 HITL 检查点，自动续跑到报告生成
-    if timeout 180 python3 "$ORCH" run --trigger "$trigger" --approve \
+    if timeout 480 python3 "$ORCH" run --trigger "$trigger" --approve \
             > "$out" 2>&1; then
         # 提取关键里程碑：场景/优先级/仲裁结论/最终状态
         python3 - "$out" <<'PY'

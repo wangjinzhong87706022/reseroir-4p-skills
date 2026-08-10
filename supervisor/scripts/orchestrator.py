@@ -66,7 +66,7 @@ STAGE_CMDS = {
                    "--type", "full_context"]),
         "step2": ("diagnosis-verification",
                   ["python3", str(REPO_ROOT / "diagnosis-verification/scripts/check_data_quality.py"),
-                   "--type", "all"]),
+                   "--type", "all", "--json"]),
         "step3": ("inspection",
                   ["python3", str(REPO_ROOT / "supervisor/scripts/inspection_check.py"),
                    "--type", "all"]),
@@ -304,7 +304,8 @@ def do_arbitration(event_id, conn, scene, flood_limit, safe_discharge) -> dict:
     """
     stages = {
         s["stage"]: dict(s) for s in conn.execute(
-            "SELECT stage, result_json FROM stage_results WHERE event_id=?",
+            "SELECT stage, result_json FROM stage_results "
+            "WHERE event_id=? AND status='ok'",
             (event_id,),
         ).fetchall()
     }

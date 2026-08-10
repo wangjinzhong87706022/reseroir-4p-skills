@@ -8,7 +8,7 @@ PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 
 # 核心目录
 export SMARTTWINRES_ROOT="$PROJECT_ROOT"
-export SKILLS_DIR="$PROJECT_ROOT/skills"
+export SKILLS_DIR="$PROJECT_ROOT"
 export RESULTS_DIR="$PROJECT_ROOT/results"
 export LOGS_DIR="$PROJECT_ROOT/logs"
 

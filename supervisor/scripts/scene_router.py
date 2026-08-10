@@ -72,12 +72,23 @@ def route(trigger: str) -> dict:
     # 例外：应急强词（D）优先级更高（人身/大坝安全优先）
     DAILY_STRONG = ["每日", "例行", "日报", "定时", "周报", "日常"]
     EMERGENCY_STRONG = ["险情", "溃坝", "管涌", "闸门故障", "抢险", "人员转移", "漫坝"]
+    # B 场景强词：大坝安全信号，命中时即使有日常修饰词也应归 B 而非 C（P1-2）
+    DAM_STRONG = ["渗压", "渗流", "位移", "裂缝", "扬压力", "沉降", "变形超限"]
 
     if any(k in trigger for k in EMERGENCY_STRONG):
         rule = next(r for r in SCENE_RULES if r.scene == "D")
         hits = [k for k in EMERGENCY_STRONG if k in trigger]
         return {"scene": "D", "name": rule.name, "dag": rule.dag,
                 "reason": f"应急强信号: {', '.join(hits[:5])}", "matched_keywords": hits}
+
+    # P1-2 修复：DAILY_STRONG 命中时，若同时命中 DAM_STRONG 则归 B（大坝诊断），
+    # 避免"每日监测渗压数据异常"被截到 C 而压制大坝安全信号。
+    dam_hits = [k for k in DAM_STRONG if k in trigger]
+    if dam_hits:
+        rule = next(r for r in SCENE_RULES if r.scene == "B")
+        return {"scene": "B", "name": rule.name, "dag": rule.dag,
+                "reason": f"大坝安全强信号: {', '.join(dam_hits[:5])}",
+                "matched_keywords": dam_hits}
 
     if any(k in trigger for k in DAILY_STRONG):
         rule = next(r for r in SCENE_RULES if r.scene == "C")

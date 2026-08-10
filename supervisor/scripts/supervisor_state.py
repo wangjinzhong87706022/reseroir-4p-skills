@@ -508,7 +508,7 @@ def main():
     p_status = sub.add_parser("status", help="更新事件状态")
     p_status.add_argument("--event", required=True)
     p_status.add_argument("--status", required=True,
-                          choices=["running", "awaiting_approval", "done", "aborted"])
+                          choices=["running", "awaiting_approval", "done", "aborted", "error"])
     p_status.add_argument("--risk", default=None, help="风险等级 高/中/低")
     p_status.set_defaults(func=cmd_status)
 

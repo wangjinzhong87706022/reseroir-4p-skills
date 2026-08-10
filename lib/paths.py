@@ -12,6 +12,13 @@ SmartTwinRes-skills 统一路径配置
 import os
 from pathlib import Path
 
+# 从 tenant 模块导入默认水库名常量，保持单一真相源（漏项 A 修复）
+# 用 try/except 兼容双导入模式（包导入 vs 裸导入）
+try:
+    from .tenant import DEFAULT_RESERVOIR_NAME
+except ImportError:
+    from tenant import DEFAULT_RESERVOIR_NAME
+
 # =============================================================================
 # 项目根目录（基于当前文件位置自动计算）
 # =============================================================================
@@ -123,7 +130,7 @@ def get_reservoir_dir(name: str = None) -> Path:
     Returns:
         Path: reservoirs/<name>/ 绝对路径
     """
-    name = name or os.getenv('SRM_RESERVOIR_NAME', 'sancha')
+    name = name or os.getenv('SRM_RESERVOIR_NAME', DEFAULT_RESERVOIR_NAME)
     return RESERVOIRS_DIR / name
 
 
