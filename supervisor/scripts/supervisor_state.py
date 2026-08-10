@@ -396,6 +396,7 @@ def cmd_health(args) -> dict:
     ensure_path(_SCRIPTS)
     ensure_path(_os.path.join(_SCRIPTS, "..", ".."))
     from lib.db import execute_query_list  # noqa: E402
+    from lib.tenant import current_tenant_id  # noqa: E402 -- 水库身份（SRM_TENANT_ID，默认18三岔）
 
     # 水位时效（st_rsvr_r master stcd）
     stcd = _os.getenv("SRM_RSVR_MASTER", "TQP")  # 桃曲坡默认；三岔可覆盖
@@ -406,10 +407,12 @@ def cmd_health(args) -> dict:
     )[0]
     wl_age = float(wl["age_h"]) if wl["age_h"] is not None else None
 
-    # 未来预报覆盖（f_rnfl_h 未来预报行数）
+    # 未来预报覆盖（f_rnfl_h 未来预报行数，按当前水库 tenant 过滤）
+    _tid = current_tenant_id()
     rf = execute_query_list(
         "SELECT COUNT(*) as cnt, MAX(ymdh) as max_ymdh "
-        "FROM f_rnfl_h WHERE deleted=0 AND ymdh > NOW()"
+        "FROM f_rnfl_h WHERE deleted=0 AND ymdh > NOW() AND tenant_id=%s",
+        (_tid,)
     )[0]
     rf_cnt = int(rf["cnt"]) if rf["cnt"] is not None else 0
 

@@ -37,15 +37,23 @@ def query_current_water_level(tenant_id=None):
     return execute_query(sql, (tid,))
 
 
-def query_rainfall_forecast(hours=48, source=None):
-    """查询降雨预报（取最新发布的一批数据）"""
+def query_rainfall_forecast(hours=48, source=None, tenant_id=None):
+    """查询降雨预报（取最新发布的一批数据）。
+
+    f_rnfl_h 经 live DESCRIBE 确认有 tenant_id 列（bigint NOT NULL DEFAULT 1，
+    现网约 90% 行落在默认 tenant_id=1 桶）。主查询与 fymdh 子查询均按当前
+    水库 tenant 过滤，避免读到他库预报数据。
+    """
+    tid = resolve_tenant(tenant_id)
     conditions = [
         "deleted = 0",
+        "tenant_id = %s",
         "ymdh >= NOW()",
         "ymdh <= DATE_ADD(NOW(), INTERVAL %s HOUR)",
-        "fymdh = (SELECT MAX(fymdh) FROM f_rnfl_h WHERE ymdh >= NOW())",
+        "fymdh = (SELECT MAX(fymdh) FROM f_rnfl_h WHERE ymdh >= NOW() AND tenant_id = %s)",
     ]
-    params = [hours]
+    # 占位符顺序: tid(主表) → hours → tid(fymdh 子查询) → source
+    params = [tid, hours, tid]
 
     if source:
         conditions.append("unitname = %s")

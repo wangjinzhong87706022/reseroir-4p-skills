@@ -33,8 +33,8 @@ TENANT_ID_FILTER_TABLES = {
     'srm_flood_history_base': {'filter': True},
     'model_result_files': {'filter': True},
     'ew_info_message': {'filter': False},  # 告警跨租户,不强制
-    # 以下表无 tenant_id 列
-    'f_rnfl_h': {'filter': False},
+    'f_rnfl_h': {'filter': True},  # live DESCRIBE 确认有 tenant_id（bigint NOT NULL DEFAULT 1）
+    # 以下表经 DESCRIBE 确认无 tenant_id 列（广播表，不加过滤）
     'weather_warn': {'filter': False},
     'weather_info': {'filter': False},
     'att_res_flse_lim': {'filter': True},  # live DB 确认有 tenant_id 列（P0-2 修正）
@@ -88,7 +88,7 @@ def apply_tenant_filter(
 
         >>> sql = "SELECT * FROM f_rnfl_h WHERE deleted = 0"
         >>> apply_tenant_filter(sql, 'f_rnfl_h')
-        "SELECT * FROM f_rnfl_h WHERE deleted = 0"  # 无 tenant_id 列,不加过滤
+        "SELECT * FROM f_rnfl_h WHERE deleted = 0 AND tenant_id = 18"
     """
     # 提取表名 (去除别名)
     base_table = table_name.split()[0].strip()

@@ -26,6 +26,7 @@ _REPO_ROOT = Path(__file__).resolve().parents[2]  # scripts/x.py → 根
 if str(_REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(_REPO_ROOT))
 from lib.db import execute_query_list, get_connection  # charset/超时/池化由 lib/db.py 统一
+from lib.tenant import current_tenant_id  # 水库身份（SRM_TENANT_ID，默认18三岔）
 
 # ============================================================
 # 配置
@@ -110,6 +111,8 @@ def check_database(scenario):
     """执行场景对应的数据库检查"""
     check_type = scenario['database_check']['type']
 
+    tid = current_tenant_id()
+    params = ()
     if check_type == 'water_level':
         sql = """
         SELECT
@@ -117,8 +120,9 @@ def check_database(scenario):
             SUM(CASE WHEN rz IS NULL THEN 1 ELSE 0 END) as null_count,
             MAX(tm) as latest_time,
             TIMESTAMPDIFF(HOUR, MAX(tm), NOW()) as hours_ago
-        FROM st_rsvr_r WHERE deleted=0
+        FROM st_rsvr_r WHERE deleted=0 AND tenant_id=%s
         """
+        params = (tid,)
     elif check_type == 'rainfall_forecast':
         sql = """
         SELECT
@@ -126,8 +130,9 @@ def check_database(scenario):
             MAX(fymdh) as latest_batch,
             TIMESTAMPDIFF(HOUR, MAX(fymdh), NOW()) as hours_ago,
             SUM(CASE WHEN ymdh > NOW() THEN 1 ELSE 0 END) as future_count
-        FROM f_rnfl_h WHERE deleted=0
+        FROM f_rnfl_h WHERE deleted=0 AND tenant_id=%s
         """
+        params = (tid,)
     elif check_type == 'alerts':
         sql = """
         SELECT
@@ -136,6 +141,7 @@ def check_database(scenario):
             SUM(CASE WHEN level_r='2' THEN 1 ELSE 0 END) as orange
         FROM ew_info_message WHERE message_confirm=0 AND deleted=0
         """
+        # ew_info_message 跨租户广播，不加 tenant 过滤（见 lib/filters.py）
     else:
         return None
 
@@ -143,7 +149,7 @@ def check_database(scenario):
     try:
         conn = get_connection()
         with conn.cursor() as cursor:
-            cursor.execute(sql)
+            cursor.execute(sql, params)
             result = cursor.fetchone()
         conn.close()
         return result

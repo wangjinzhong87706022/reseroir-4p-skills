@@ -106,10 +106,10 @@ def check_rainfall_forecast():
         MAX(fymdh) as 最新批次时间,
         TIMESTAMPDIFF(HOUR, MAX(fymdh), NOW()) as 批次距现在小时
     FROM f_rnfl_h
-    WHERE deleted=0
+    WHERE deleted=0 AND tenant_id = %s
     """
 
-    result = execute_query_list(sql)[0]
+    result = execute_query_list(sql, (TENANT,))[0]
 
     print(f"\n总行数：{result['总行数']}")
     print(f"最新预报时间：{result['最新预报时间']}")
