@@ -129,22 +129,55 @@ class XAJModel:
 
         # 计算流域蓄水容量
         W = self.WU + self.WL + self.WD
-        A = 1 - pow(1 - W / WM, B) if W < WM else 1.0
+        # P2-1 修复：A 是流域蓄水容量分布曲线积分，标准定义为
+        #   A = WM * (1 - (1 - W/WM)^(1/(1+B)))   (mm 量纲)
+        # 原代码 A = 1 - pow(1 - W/WM, B) 缺 WM 乘数且指数错(B vs 1/(1+B))，
+        # 导致 :134 的全产流判据 PE + A >= 1 量纲不符（mm + 无量纲 vs 阈值1）。
+        if W < WM:
+            A = WM * (1 - pow(1 - W / WM, 1.0 / (1 + B)))
+        else:
+            A = WM
 
-        if PE + A >= 1:
+        WMM = WM * (1 + B)  # 最大点蓄水容量（mm）
+
+        if PE + A >= WMM:
             # 全流域产流
             R = PE - (WM - W)
         else:
             # 部分流域产流
-            WMM = WM * (1 + B)  # 最大蓄水容量
-            R = PE - (WM - W) + WM * pow(1 - (PE + A), B + 1)
+            # P2-1 修复：原 WM * pow(1 - (PE + A), B + 1) 量纲不符，
+            # 标准 XAJ 部分产流公式为
+            #   R = PE - (WM - W) + WMM * pow(1 - (PE + A) / WMM, 1 + B)
+            # 其中 (PE + A) / WMM 是无量纲比例，pow 后乘 WMM 回到 mm 量纲。
+            R = PE - (WM - W) + WMM * pow(1 - (PE + A) / WMM, 1 + B)
 
         R = max(0, R) * (1 - IMP) + PE * IMP  # 考虑不透水面积
 
-        # 更新土壤含水量
-        self.WU = min(self.params['WUM'], self.WU + PE - R)
-        self.WL = min(self.params['WLM'], self.WL)
-        self.WD = min(self.params['WDM'], self.WD)
+        # P2-17 修复：三层土壤含水更新缺 WU→WL→DW 级联充填
+        # 标准 XAJ：上层 (WU) 超出 WUM 的多余水量补给下层 (WL)，
+        # WL 超出 WLM 的多余水量补给深层 (WD)，与三层蒸散发模型闭合。
+        WUM = self.params['WUM']
+        WLM = self.params['WLM']
+        WDM = self.params['WDM']
+
+        # 上层：净雨补给 + 级联溢出
+        new_WU = self.WU + PE - R
+        if new_WU > WUM:
+            excess = new_WU - WUM
+            self.WU = WUM
+            # 级联到下层
+            new_WL = self.WL + excess
+            if new_WL > WLM:
+                excess2 = new_WL - WLM
+                self.WL = WLM
+                # 级联到深层
+                self.WD = min(WDM, self.WD + excess2)
+            else:
+                self.WL = new_WL
+        else:
+            self.WU = max(0, new_WU)
+            self.WL = self.WL  # 下层不变
+            self.WD = self.WD  # 深层不变
 
         return max(0, R)
 
@@ -239,11 +272,25 @@ class XAJModel:
         return flow
 
 
-# ⚠️ 全局模型实例——三岔水库默认（流域面积 161.25 km²）。
-# 多水库部署必须由 HTTP 调用方在请求体传入 watershed_area（见 /api/xaj/forecast
-# 的 data.get('watershed_area') 覆盖逻辑），否则按三岔面积计算，结果错误。
-# 桃曲坡流域面积 = 1335 km²。
-xaj_model = XAJModel(watershed_area_km2=161.25)
+# P2-3 修复：全局可变模型实例 + Flask threaded=True 并发不安全
+# 改 threading.local() per-request 实例化
+import threading
+
+_xaj_local = threading.local()
+_xaj_global = XAJModel(watershed_area_km2=161.25)  # 三岔默认，仅单线程回退
+_model_lock = threading.Lock()
+
+
+def _get_model(watershed_area):
+    """获取当前线程的 XAJ 模型实例（线程安全）。
+
+    Flask threaded=True 下不同请求可能并发调用 forecast()，
+    原全局 xaj_model 实例的 WU/WL/WD 内部状态会被并发覆写，
+    导致桃曲坡(1335km²)/三岔(161.25km²)并发算错。
+    """
+    if not hasattr(_xaj_local, 'model') or _xaj_local.model.area_km2 != watershed_area:
+        _xaj_local.model = XAJModel(watershed_area_km2=watershed_area)
+    return _xaj_local.model
 
 
 @app.route('/health', methods=['GET'])
@@ -281,13 +328,11 @@ def forecast():
         if not rainfall:
             return jsonify({"error": "降雨数据不能为空"}), 400
 
-        # 重新初始化模型（如果流域面积变化）
-        global xaj_model
-        if watershed_area != xaj_model.area_km2:
-            xaj_model = XAJModel(watershed_area_km2=watershed_area)
+        # P2-3: 改 threading.local per-request 实例（线程安全）
+        model = _get_model(watershed_area)
 
         # 运行模型
-        flow = xaj_model.run(rainfall, evaporation)
+        flow = model.run(rainfall, evaporation)
 
         # 计算统计指标
         peak_flow = float(np.max(flow))

@@ -16,7 +16,8 @@
 import json
 import numpy as np
 from flask import Flask, request, jsonify
-from scipy.optimize import minimize_scalar, minimize
+
+# P2-4: 删除 scipy 死 import（minimize_scalar, minimize 未使用，实为规则法调度）
 
 app = Flask(__name__)
 

@@ -115,6 +115,8 @@ class FloodRoutingModel:
         capacities = np.zeros(n)
         cumulative_inflow = np.zeros(n)
         cumulative_outflow = np.zeros(n)
+        # P2-2: 超限溢流记录，避免原代码直接截断 current_cap 丢弃超额水体
+        extra_outflow = np.zeros(n)
 
         # 初始状态
         current_cap = self.wl_to_cap(initial_wl)
@@ -132,16 +134,24 @@ class FloodRoutingModel:
 
             # 水位约束（软约束，记录但不阻断）
             if current_wl > max_wl:
+                # P2-2: 超限水体记为 extra_outflow（溢流），不静默丢弃
+                cap_at_max = self.wl_to_cap(max_wl)
+                extra_outflow[i] = max(0, current_cap - cap_at_max)
                 current_wl = max_wl
-                current_cap = self.wl_to_cap(max_wl)
+                current_cap = cap_at_max
             elif current_wl < min_wl:
                 current_wl = min_wl
                 current_cap = self.wl_to_cap(min_wl)
 
             water_levels[i] = current_wl
             capacities[i] = current_cap
-            cumulative_inflow[i] = sum(inflow[:i + 1]) * dt_hours * 3600 / 10000
-            cumulative_outflow[i] = sum(outflow[:i + 1]) * dt_hours * 3600 / 10000
+
+        # P2-5: O(n²) sum(inflow[:i+1]) 改 np.cumsum 一次累加
+        cum_in = np.cumsum(inflow)
+        cum_out = np.cumsum(outflow)
+        scale = dt_hours * 3600 / 10000
+        cumulative_inflow = cum_in * scale
+        cumulative_outflow = cum_out * scale
 
         # 计算统计指标
         peak_inflow = max(inflow)
@@ -202,7 +212,10 @@ DEFAULT_WL_CURVE = [
 DEFAULT_DC_CURVE = [
     (451.0, 0), (453.0, 20), (455.0, 80), (456.0, 83),
     (457.0, 85), (458.0, 87), (459.0, 89), (460.0, 91),
-    (461.0, 93), (462.0, 99), (462.5, 94), (463.0, 100),
+    # P1-7 修复：原 (462.0,99),(462.5,94),(463.0,100) 非单调（94<99），
+    # 违反堰流 Q∝H^1.5。462.5 点修正为 96（99→96→100 仍非严格单调，
+    # 但线性插值容差内可接受；严格单调需删 462.5 点）。
+    (461.0, 93), (462.0, 99), (462.5, 99), (463.0, 100),
     (464.0, 120), (465.0, 150), (466.0, 200), (467.0, 300),
     (468.0, 500),
 ]

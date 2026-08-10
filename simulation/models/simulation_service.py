@@ -35,6 +35,27 @@ from query_simulation_data import (
 app = Flask(__name__)
 
 # ---------------------------------------------------------------------------
+# P1-8 修复：reservoir profile 常量统一（原 30+ 处硬编码三岔常量）
+# 部署桃曲坡时改 SANCHA_PROFILE → TAOQUPO_PROFILE，或读 env SRM_RESERVOIR_NAME
+# ---------------------------------------------------------------------------
+SANCHA_PROFILE = {
+    'initial_water_level': 459.18,
+    'flood_limit_level': 462.88,
+    'safe_drainage_capacity': 95.1,
+    'max_drainage_capacity': 192,
+    'wl_score_base': 455,  # wl_score = max(0, 100 - (wl - PROFILE['wl_score_base']) * 10)
+}
+TAOQUPO_PROFILE = {
+    'initial_water_level': 785.0,
+    'flood_limit_level': 786.8,
+    'safe_drainage_capacity': 95.1,
+    'max_drainage_capacity': 192,
+    'wl_score_base': 780,
+}
+_RESERVOIR_NAME = os.getenv('SRM_RESERVOIR_NAME', 'sancha').lower()
+PROFILE = TAOQUPO_PROFILE if _RESERVOIR_NAME == 'taoqupo' else SANCHA_PROFILE
+
+# ---------------------------------------------------------------------------
 # Configuration
 # ---------------------------------------------------------------------------
 XAJ_URL = "http://localhost:18081"
@@ -182,7 +203,7 @@ def build_rainfall(total_rainfall, duration_hours, pattern="uniform"):
 # ---------------------------------------------------------------------------
 
 def run_multi_scheme(inflow, initial_wl, flood_limit_level, schemes,
-                     safe_drainage_capacity=95.1, max_drainage_capacity=192):
+                     safe_drainage_capacity=PROFILE['safe_drainage_capacity'], max_drainage_capacity=PROFILE['max_drainage_capacity']):
     """
     Run multiple dispatch + routing scenarios and compare.
 
@@ -319,7 +340,7 @@ def _build_comparison(scheme_results, safe_drainage_capacity, flood_limit_level=
         stats = _get_stats(s)
         wl = stats.get('max_water_level', 9999)
         shaving = stats.get('peak_shaving_rate', 0)
-        wl_score = max(0, 100 - (wl - 455) * 10)
+        wl_score = max(0, 100 - (wl - PROFILE['wl_score_base']) * 10)
         s['_score'] = (shaving / max(max_shaving, 1) * 60) + (wl_score * 0.4) if max_shaving > 0 else 0
 
     recommended = max(ok_schemes, key=lambda s: s.get('_score', 0))
@@ -457,7 +478,7 @@ def run_virtual_scenario(total_rainfall, duration_hours, pattern, initial_wl,
 # ---------------------------------------------------------------------------
 
 def run_sensitivity(base_scenario, param_name, param_values, flood_limit_level,
-                    safe_drainage_capacity=95.1, max_drainage_capacity=192):
+                    safe_drainage_capacity=PROFILE['safe_drainage_capacity'], max_drainage_capacity=PROFILE['max_drainage_capacity']):
     """
     Run sensitivity analysis: vary one parameter and observe results.
 
@@ -477,7 +498,7 @@ def run_sensitivity(base_scenario, param_name, param_values, flood_limit_level,
         total_rainfall = scenario.get('total_rainfall', 460)
         duration_hours = scenario.get('duration_hours', 48)
         pattern = scenario.get('pattern', 'uniform')
-        initial_wl = scenario.get('initial_water_level', 459.18)
+        initial_wl = scenario.get('initial_water_level', PROFILE['initial_water_level'])
         scheduling_target = scenario.get('scheduling_target', '0')
         scheduling_model = scenario.get('scheduling_model', '0')
 
@@ -575,7 +596,7 @@ def _get_param_unit(param_name):
 # ---------------------------------------------------------------------------
 
 def run_batch_run(scenarios, flood_limit_level,
-                  safe_drainage_capacity=95.1, max_drainage_capacity=192):
+                  safe_drainage_capacity=PROFILE['safe_drainage_capacity'], max_drainage_capacity=PROFILE['max_drainage_capacity']):
     """
     Run multiple virtual scenarios in batch.
 
@@ -589,7 +610,7 @@ def run_batch_run(scenarios, flood_limit_level,
         total_rainfall = scenario.get('total_rainfall', 100)
         duration_hours = scenario.get('duration_hours', 48)
         pattern = scenario.get('pattern', 'uniform')
-        initial_wl = scenario.get('initial_water_level', 459.18)
+        initial_wl = scenario.get('initial_water_level', PROFILE['initial_water_level'])
         scheduling_target = scenario.get('scheduling_target', '0')
         scheduling_model = scenario.get('scheduling_model', '0')
 
@@ -746,10 +767,10 @@ def api_multi_scheme():
     if not inflow:
         return jsonify({"error": "入库流量数据不能为空"}), 400
 
-    initial_wl = data.get('initial_water_level', 459.18)
-    flood_limit = data.get('flood_limit_level', 462.88)
-    safe_cap = data.get('safe_drainage_capacity', 95.1)
-    max_cap = data.get('max_drainage_capacity', 192)
+    initial_wl = data.get('initial_water_level', PROFILE['initial_water_level'])
+    flood_limit = data.get('flood_limit_level', PROFILE['flood_limit_level'])
+    safe_cap = data.get('safe_drainage_capacity', PROFILE['safe_drainage_capacity'])
+    max_cap = data.get('max_drainage_capacity', PROFILE['max_drainage_capacity'])
 
     # Schemes: use provided or generate defaults
     schemes = data.get('schemes')
@@ -868,12 +889,12 @@ def api_virtual_scenario():
         total_rainfall = data.get('total_rainfall', 100)
         duration_hours = data.get('duration_hours', 48)
         pattern = data.get('pattern', 'uniform')
-        initial_wl = data.get('initial_water_level', 459.18)
-        flood_limit = data.get('flood_limit_level', data.get('max_water_level', 462.88))
+        initial_wl = data.get('initial_water_level', PROFILE['initial_water_level'])
+        flood_limit = data.get('flood_limit_level', data.get('max_water_level', PROFILE['flood_limit_level']))
         scheduling_target = data.get('scheduling_target', '0')
         scheduling_model = data.get('scheduling_model', '0')
-        safe_cap = data.get('safe_drainage_capacity', 95.1)
-        max_cap = data.get('max_drainage_capacity', 192)
+        safe_cap = data.get('safe_drainage_capacity', PROFILE['safe_drainage_capacity'])
+        max_cap = data.get('max_drainage_capacity', PROFILE['max_drainage_capacity'])
 
         # Validate rainfall range
         if total_rainfall <= 0 or total_rainfall > 500:
@@ -941,9 +962,9 @@ def api_sensitivity():
         base_scenario = data.get('base_scenario', {})
         param_name = data.get('param_name', 'total_rainfall')
         param_values = data.get('param_values', [])
-        flood_limit = data.get('flood_limit_level', 462.88)
-        safe_cap = data.get('safe_drainage_capacity', 95.1)
-        max_cap = data.get('max_drainage_capacity', 192)
+        flood_limit = data.get('flood_limit_level', PROFILE['flood_limit_level'])
+        safe_cap = data.get('safe_drainage_capacity', PROFILE['safe_drainage_capacity'])
+        max_cap = data.get('max_drainage_capacity', PROFILE['max_drainage_capacity'])
 
         if not param_values:
             return jsonify({"error": "param_values 不能为空"}), 400
@@ -1000,9 +1021,9 @@ def api_batch_run():
             return jsonify(cached)
 
         scenarios = data.get('scenarios', [])
-        flood_limit = data.get('flood_limit_level', 462.88)
-        safe_cap = data.get('safe_drainage_capacity', 95.1)
-        max_cap = data.get('max_drainage_capacity', 192)
+        flood_limit = data.get('flood_limit_level', PROFILE['flood_limit_level'])
+        safe_cap = data.get('safe_drainage_capacity', PROFILE['safe_drainage_capacity'])
+        max_cap = data.get('max_drainage_capacity', PROFILE['max_drainage_capacity'])
 
         if not scenarios:
             return jsonify({"error": "scenarios 不能为空"}), 400
