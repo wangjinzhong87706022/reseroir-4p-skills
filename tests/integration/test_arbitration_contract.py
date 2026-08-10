@@ -102,19 +102,40 @@ class TestArbitrationContract(unittest.TestCase):
         self.assertEqual(result.decision, "adjust")
         self.assertFalse(result.passed)
 
-    @patch('query_plan_data.query_current_water_level')
-    @patch('query_plan_data.query_scenarios')
-    @patch('query_plan_data.query_flood_limit')
-    def test_full_context_has_peak_keys(self, mock_fl, mock_sc, mock_cwl):
+    @patch('query_plan_data.execute_query_list')
+    @patch('query_plan_data.execute_query')
+    def test_full_context_has_peak_keys(self, mock_eq, mock_eql):
         """query_full_context() 输出含 max_level/max_discharge 顶层键。
 
         这是 P0-3 的契约验收——原输出缺这两键，导致仲裁 Rule 1/2 恒短路。
+        P2 修复：整体 patch execute_query/execute_query_list，避免漏 mock 的
+        子查询（query_rainfall_forecast 等）实连 DB → Access denied。
         """
         from query_plan_data import query_full_context
-        # mock 返回结构化数据
-        mock_cwl.return_value = {'data': [{'rz': 785.5, 'otq': 90.0, 'tm': '2026-08-10'}], 'count': 1, 'truncated': False}
-        mock_sc.return_value = {'data': [{'max_level': 786.0, 'max_discharge': 95.0}], 'count': 1, 'truncated': False}
-        mock_fl.return_value = [{'flse_lim_stag': 786.8}]
+        # 整体 mock：所有子查询走 mock，不连 DB
+        # scenarios 提供峰值，current_water_level 提供当前水位
+        def _side_eql(sql, params=None, max_rows=None):
+            sql_l = sql.lower()
+            if 'scheduling_scenario' in sql_l:
+                return [{'max_level': 786.0, 'max_discharge': 95.0}]
+            if 'st_rsvr_r' in sql_l and 'order by tm desc' in sql_l:
+                return [{'rz': 785.5, 'otq': 90.0, 'tm': '2026-08-10'}]
+            if 'att_res_flse_lim' in sql_l:
+                return [{'flse_lim_stag': 786.8, 'flood_season_name': '汛期'}]
+            if 'model_config' in sql_l:
+                # 返回 query_config 期望的所有键（config_key/value 双列）
+                return [
+                    {'config_key': 'safe_drainage_capacity', 'value': '95.1'},
+                    {'config_key': 'max_drainage_capacity', 'value': '192'},
+                ]
+            return []
+
+        def _side_eq(sql, params=None, max_rows=None):
+            data = _side_eql(sql, params, max_rows)
+            return {'data': data, 'count': len(data), 'truncated': False}
+
+        mock_eq.side_effect = _side_eq
+        mock_eql.side_effect = _side_eql
         ctx = query_full_context()
         self.assertIn('max_level', ctx, "query_full_context 必须输出 max_level（P0-3）")
         self.assertIn('max_discharge', ctx, "query_full_context 必须输出 max_discharge（P0-3）")
