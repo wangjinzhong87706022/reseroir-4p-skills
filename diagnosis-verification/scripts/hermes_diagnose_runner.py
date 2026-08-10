@@ -19,6 +19,13 @@ import os
 import sys
 import time
 from datetime import datetime
+from pathlib import Path
+
+# ── 标准导入片段（统一共享层定位）──────────────────────────
+_REPO_ROOT = Path(__file__).resolve().parents[2]  # scripts/x.py → 根
+if str(_REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(_REPO_ROOT))
+from lib.db import execute_query_list, get_connection  # charset/超时/池化由 lib/db.py 统一
 
 # ============================================================
 # 配置
@@ -26,13 +33,6 @@ from datetime import datetime
 HERMES_CMD = os.getenv('HERMES_CMD', 'hermes')
 SKILL_DIR = os.path.dirname(os.path.abspath(__file__))
 RESULTS_DIR = os.path.join(SKILL_DIR, '..', 'hermes-results')
-DB_CONFIG = {
-    'host': os.getenv('SRM_DB_HOST', '127.0.0.1'),
-    'port': int(os.getenv('SRM_DB_PORT', 3306)),
-    'user': os.getenv('SRM_DB_USER', 'root'),
-    'password': os.getenv('SRM_DB_PASSWORD', '123456aA.'),
-    'database': os.getenv('SRM_DB_NAME', 'powerelf_srm_yml'),
-}
 
 # ============================================================
 # 测试场景（基于 REAL-WORLD-PROBLEMS.md 真实数据）
@@ -141,9 +141,8 @@ def check_database(scenario):
 
     # 执行查询
     try:
-        import pymysql
-        conn = pymysql.connect(**DB_CONFIG)
-        with conn.cursor(pymysql.cursors.DictCursor) as cursor:
+        conn = get_connection()
+        with conn.cursor() as cursor:
             cursor.execute(sql)
             result = cursor.fetchone()
         conn.close()

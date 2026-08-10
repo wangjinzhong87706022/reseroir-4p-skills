@@ -15,6 +15,7 @@ SmartTwinRes Skills 统一数据库连接库
 
 import os
 import sys
+import threading
 from datetime import date, datetime, timedelta
 from decimal import Decimal
 
@@ -33,7 +34,7 @@ def _require_env(name):
     if not val:
         sys.exit(
             f"[DB] 环境变量 {name} 未设置。请配置 SRM_DB_* 环境变量后重试"
-            f"（见 docs/db-credential-config.md）。"
+            f"（见 shared/db-connection.md）。"
         )
     return val
 
@@ -57,26 +58,28 @@ DB_CONFIG = {
 # Connection pool (graceful fallback if dbutils not installed)
 # ---------------------------------------------------------------------------
 _pool = None
+_pool_lock = threading.Lock()
 
 
 def _get_pool():
-    """Return (or lazily create) the connection pool."""
+    """Return (or lazily create) the connection pool (thread-safe)."""
     global _pool
     if _pool is not None:
         return _pool
-
-    try:
-        from dbutils.pooled_db import PooledDB
-        _pool = PooledDB(
-            creator=pymysql,
-            maxconnections=5,
-            **DB_CONFIG,
-            cursorclass=pymysql.cursors.DictCursor,
-        )
-        return _pool
-    except ImportError:
-        # dbutils not available -- fall back to single-connection mode
-        _pool = 'single'
+    with _pool_lock:  # 双重检查锁定，防并发首调创建多个 PooledDB
+        if _pool is not None:
+            return _pool
+        try:
+            from dbutils.pooled_db import PooledDB
+            _pool = PooledDB(
+                creator=pymysql,
+                maxconnections=5,
+                **DB_CONFIG,
+                cursorclass=pymysql.cursors.DictCursor,
+            )
+        except ImportError:
+            # dbutils not available -- fall back to single-connection mode
+            _pool = 'single'
         return _pool
 
 
