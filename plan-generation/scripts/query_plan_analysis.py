@@ -46,12 +46,12 @@ def query_plan_actual_water(plan_id):
     SELECT rz, inq, otq, tm
     FROM st_rsvr_r
     WHERE deleted = 0 AND rz IS NOT NULL AND tenant_id = %s
-      AND tm >= (SELECT start_time FROM model_result_files WHERE id = %s)
-      AND tm <= (SELECT end_time FROM model_result_files WHERE id = %s)
+      AND tm >= (SELECT start_time FROM model_result_files WHERE id = %s AND tenant_id = %s)
+      AND tm <= (SELECT end_time FROM model_result_files WHERE id = %s AND tenant_id = %s)
     ORDER BY tm
     LIMIT 1000
     """
-    return execute_query(sql, (TENANT, plan_id, plan_id))
+    return execute_query(sql, (TENANT, plan_id, TENANT, plan_id, TENANT))
 
 def query_plan_full(plan_id):
     """预案解读完整数据"""

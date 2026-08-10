@@ -165,10 +165,11 @@ def query_historical_plans(limit=20, start_date=None, end_date=None,
 
 
 def query_historical_floods(limit=20, start_date=None, end_date=None,
-                            status=None, keyword=None):
+                            status=None, keyword=None, tenant_id=None):
     """查询历史洪水（支持多维度筛选）"""
-    conditions = ["deleted = 0"]
-    params = []
+    tid = resolve_tenant(tenant_id)
+    conditions = ["deleted = 0", "tenant_id = %s"]
+    params = [tid]
 
     if start_date:
         conditions.append("create_time >= %s")
