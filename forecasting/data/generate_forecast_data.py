@@ -28,9 +28,13 @@ from datetime import datetime, timedelta
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'scripts'))
 # P2-12: 改直接 from lib.db import，不再依赖本地 query_utils.py re-export
 from lib.db import execute_query, execute_query_list, unpack  # noqa: E402
+# P2-18: tenant_id 经 tenant.resolve_tenant() 解析，不再硬编码 18
+from lib.tenant import resolve_tenant  # noqa: E402
 
 NOW = datetime.now().replace(minute=0, second=0, microsecond=0)
-MOCK_TENANT = 18  # 三岔;mock 行用 alias='MOCK' 或 taskid LIKE 'MOCK%'
+# P2-18: 数据生成器需固定 tenant 写入 mock 行，改为经 resolve_tenant() 解析
+# （显式参数 > SRM_TENANT_ID env > 默认 18 三岔）
+MOCK_TENANT = resolve_tenant()
 
 # ---------------------------------------------------------------------------
 # 物理常量(三岔水库实测/设计值,来自 baseline_seed.sql)

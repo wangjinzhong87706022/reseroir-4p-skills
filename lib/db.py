@@ -24,7 +24,7 @@ import pymysql.cursors
 
 __all__ = [
     'DB_CONFIG', 'get_connection', 'execute_query', 'execute_query_list',
-    'unpack', '_require_env', 'MAX_ROWS'
+    'unpack', 'require_env', 'MAX_ROWS'
 ]
 
 
@@ -37,6 +37,10 @@ def _require_env(name):
             f"（见 shared/db-connection.md）。"
         )
     return val
+
+
+# P3-3: 公开别名（无下划线），供 __all__ 导出
+require_env = _require_env
 
 
 # ---------------------------------------------------------------------------
@@ -152,23 +156,18 @@ MAX_ROWS = _load_max_rows()
 # Core query functions
 # ---------------------------------------------------------------------------
 
-def execute_query(sql, params=None, max_rows=MAX_ROWS):
+def execute_query(sql, params=None, max_rows=None):
     """
     Execute a query and return a result dict with metadata.
 
     Args:
         sql: SQL query string with %s placeholders
         params: Query parameters (tuple or dict)
-        max_rows: Maximum rows to return (capped at MAX_ROWS)
-
-    Returns:
-        {
-            'data': list[dict],   # serialised rows
-            'count': int,         # number of rows returned
-            'truncated': bool,    # True if max_rows limit was hit
-        }
+        max_rows: Maximum rows to return (capped at MAX_ROWS; None → MAX_ROWS)
     """
-    cap = min(max_rows, MAX_ROWS)
+    # P3-2: 延迟读 MAX_ROWS，避免 import 时绑定导致 SRM_DB_MAX_ROWS 不生效
+    effective_max = MAX_ROWS if max_rows is None else min(max_rows, MAX_ROWS)
+    cap = effective_max
     conn = get_connection()
     try:
         with conn.cursor() as cursor:

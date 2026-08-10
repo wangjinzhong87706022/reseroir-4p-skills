@@ -97,14 +97,11 @@ EVAL_CRITERIA = [
 # 数据库查询
 # ============================================================
 def db_query(sql):
-    """执行数据库查询"""
-    import pymysql
-    conn = pymysql.connect(
-        host=DB_HOST, port=DB_PORT, user=DB_USER,
-        password=DB_PASS, database=DB_NAME, charset='utf8mb4'
-    )
+    """执行数据库查询（P3-4: 改走 lib.db.get_connection，删 pymysql 直连）"""
+    from lib.db import get_connection
+    conn = get_connection()
     try:
-        cursor = conn.cursor(pymysql.cursors.DictCursor)
+        cursor = conn.cursor()
         cursor.execute(sql)
         results = cursor.fetchall()
         for row in results:

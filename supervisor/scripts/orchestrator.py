@@ -181,7 +181,7 @@ def load_reservoir_params() -> dict:
     CLI 显式传入的 --flood-limit / --safe-discharge 优先；未传入时用本函数返回值。
     读取失败（表/行缺失、非数值）时返回空 dict，由调用方决定是否用 CLI 值或跳过。
     """
-    sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", ".."))
+    _ensure_path(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", ".."))
     from lib.tenant import current_tenant_id
     from lib.db import execute_query_list
 

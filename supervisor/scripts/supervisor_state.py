@@ -228,7 +228,9 @@ def cmd_resume(args) -> dict:
     # 已完成的 stage 集合
     done_stages = {s["stage"] for s in stages if s["status"] in ("ok", "skipped")}
     # 按 DAG 顺序找第一个未完成的 stage
-    sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
+    # P3-8: 改走 lib.paths.ensure_path 去重 helper
+    from lib.paths import ensure_path
+    ensure_path(os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
     from references.dag_order import DAG_ORDER  # 延迟导入，避免循环依赖
     dag = DAG_ORDER.get(ev["scene"], [])
     pending = [s for s in dag if s not in done_stages]
@@ -389,9 +391,10 @@ def cmd_health(args) -> dict:
     阈值：水位 age <= 6h（cron 每 50 分钟续写）；未来预报 >= 168h（7 天覆盖）。"""
     import sys as _sys, os as _os
     _SCRIPTS = _os.path.dirname(_os.path.abspath(__file__))
-    if _SCRIPTS not in _sys.path:
-        _sys.path.insert(0, _SCRIPTS)
-    _sys.path.insert(0, _os.path.join(_SCRIPTS, "..", ".."))
+    # P3-8: 改走 lib.paths.ensure_path 去重 helper，避免裸 sys.path.insert
+    from lib.paths import ensure_path
+    ensure_path(_SCRIPTS)
+    ensure_path(_os.path.join(_SCRIPTS, "..", ".."))
     from lib.db import execute_query_list  # noqa: E402
 
     # 水位时效（st_rsvr_r master stcd）

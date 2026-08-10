@@ -15,11 +15,11 @@ from pathlib import Path
 
 _LIB_MARKER = "db.py"
 
-# 兜底候选根（仅当 SRM_SKILLS_ROOT 未设时遍历）
+# P3-1 修复：去掉硬编码 /home/scada、/opt/git 绝对路径（违反铁律 3）。
+# 兜底候选根改为基于 __file__ 的相对推导 + Path.home() 兜底。
 _KNOWN_ROOTS = (
-    "/home/scada/SmartTwinRes-skills",        # 当前部署位置
-    "/opt/git/SmartTwinRes-skills",           # 可能的部署位置
-    str(Path.home() / "SmartTwinRes-skills"),
+    str(Path(__file__).resolve().parents[1]),    # bootstrap.py → 仓库根
+    str(Path.home() / "SmartTwinRes-skills"),    # 用户主目录兜底
 )
 
 
