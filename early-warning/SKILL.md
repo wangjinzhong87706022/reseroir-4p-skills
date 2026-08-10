@@ -49,7 +49,7 @@ from tenant import current_tenant_id
 ## 数据库
 
 ```bash
-mysql -h 127.0.0.1 -P 3306 -u root -p123456aA. powerelf_srm_yml
+mysql -h 127.0.0.1 -P 3306 -u root -p"$SRM_DB_PASSWORD" "$SRM_DB_NAME"
 ```
 
 **核心表**: ew_info_message(2021条), ew_info_rules(25条), st_rsvr_r(19万), st_pptn_r(26万)
@@ -352,7 +352,7 @@ ew_info_rules.st_code
 
 ### 数据库连接
 
-- mysql CLI 连接 `127.0.0.1` 用 `root/123456aA.` 会报 Access denied
+- mysql CLI 连接需用 `-p"$SRM_DB_PASSWORD"`（禁止明文口令），否则 Access denied
 - 但 `db.py` 模块用同一密码**正常连接**——排查时必须用 db.py，不要用 mysql CLI
 
 ### 其他已知数据缺口

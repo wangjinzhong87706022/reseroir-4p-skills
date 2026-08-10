@@ -8,12 +8,12 @@
 | **端口** | 3306 | MySQL 默认端口 |
 | **数据库** | powerelf_srm_yml | 水库业务数据库 |
 | **用户** | root | 只读用户 |
-| **密码** | 123456aA. | 数据库密码 |
+| **密码** | ${SRM_DB_PASSWORD} | 数据库密码（必须通过环境变量设置，禁止明文） |
 
 ## 连接命令
 
 ```bash
-mysql -h 127.0.0.1 -P 3306 -u root -p123456aA. powerelf_srm_yml
+mysql -h 127.0.0.1 -P 3306 -u root -p"$SRM_DB_PASSWORD" "$SRM_DB_NAME"
 ```
 
 ## 环境变量设置
@@ -23,7 +23,7 @@ export SRM_DB_HOST=127.0.0.1
 export SRM_DB_PORT=3306
 export SRM_DB_NAME=powerelf_srm_yml
 export SRM_DB_USER=root
-export SRM_DB_PASSWORD=123456aA.
+export SRM_DB_PASSWORD=***  # 禁止明文口令，从凭据存储读取
 ```
 
 ## 核心数据表

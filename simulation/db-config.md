@@ -17,7 +17,7 @@ export SRM_DB_HOST=192.168.100.103
 export SRM_DB_PORT=3306
 export SRM_DB_NAME=powerelf_srm_yml
 export SRM_DB_USER=root
-export SRM_DB_PASSWORD=123456aA.
+export SRM_DB_PASSWORD=***  # 禁止明文口令，从凭据存储读取
 ```
 
 ## 核心数据表

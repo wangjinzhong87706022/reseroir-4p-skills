@@ -7,7 +7,7 @@ SmartTwinRes Skills 统一数据库连接库
   - SRM_DB_* (SmartTwinRes 家族,主命名空间)
   - POWERELF_DB_* (powerelf 家族,fallback)
 
-标准文档: docs/db-credential-config.md
+标准文档: shared/db-connection.md
 
 版本: 1.0
 维护: SmartTwinRes Team
@@ -44,19 +44,32 @@ require_env = _require_env
 
 
 # ---------------------------------------------------------------------------
-# DB config from environment
+# DB config lazy build (P2: 延迟到首连解析，import 无 sys.exit)
 # 命名空间优先级: SRM_DB_* → POWERELF_DB_* → 默认值
 # ---------------------------------------------------------------------------
-DB_CONFIG = {
-    'host': os.getenv('SRM_DB_HOST') or os.getenv('POWERELF_DB_HOST', '127.0.0.1'),
-    'port': int(os.getenv('SRM_DB_PORT') or os.getenv('POWERELF_DB_PORT', '3306')),
-    'user': os.getenv('SRM_DB_USER') or os.getenv('POWERELF_DB_USER') or _require_env('SRM_DB_USER'),
-    'password': os.getenv('SRM_DB_PASSWORD') or os.getenv('POWERELF_DB_PASSWORD') or _require_env('SRM_DB_PASSWORD'),
-    'database': os.getenv('SRM_DB_NAME') or os.getenv('POWERELF_DB_NAME', 'powerelf_srm_yml'),
-    'charset': 'utf8mb4',
-    'connect_timeout': 10,  # 连接超时: 10 秒
-    'read_timeout': 30,     # 读取超时: 30 秒
-}
+DB_CONFIG = None  # 模块加载时不解析凭据，首连时由 _ensure_db_config() 构造
+
+
+def _ensure_db_config():
+    """首连时构造 DB_CONFIG（凭据延迟解析，生产仍 fail-loud）。
+
+    import 期不触发 _require_env→sys.exit，使无 DB 环境的单测可 import；
+    生产首连仍缺凭据即 sys.exit，保持 fail-loud 安全。
+    """
+    global DB_CONFIG
+    if DB_CONFIG is not None:
+        return DB_CONFIG
+    DB_CONFIG = {
+        'host': os.getenv('SRM_DB_HOST') or os.getenv('POWERELF_DB_HOST', '127.0.0.1'),
+        'port': int(os.getenv('SRM_DB_PORT') or os.getenv('POWERELF_DB_PORT', '3306')),
+        'user': os.getenv('SRM_DB_USER') or os.getenv('POWERELF_DB_USER') or _require_env('SRM_DB_USER'),
+        'password': os.getenv('SRM_DB_PASSWORD') or os.getenv('POWERELF_DB_PASSWORD') or _require_env('SRM_DB_PASSWORD'),
+        'database': os.getenv('SRM_DB_NAME') or os.getenv('POWERELF_DB_NAME', 'powerelf_srm_yml'),
+        'charset': 'utf8mb4',
+        'connect_timeout': 10,  # 连接超时: 10 秒
+        'read_timeout': 30,     # 读取超时: 30 秒
+    }
+    return DB_CONFIG
 
 # ---------------------------------------------------------------------------
 # Connection pool (graceful fallback if dbutils not installed)
@@ -73,12 +86,13 @@ def _get_pool():
     with _pool_lock:  # 双重检查锁定，防并发首调创建多个 PooledDB
         if _pool is not None:
             return _pool
+        config = _ensure_db_config()  # P2: 凭据延迟解析，首连时 fail-loud
         try:
             from dbutils.pooled_db import PooledDB
             _pool = PooledDB(
                 creator=pymysql,
                 maxconnections=5,
-                **DB_CONFIG,
+                **config,
                 cursorclass=pymysql.cursors.DictCursor,
             )
         except ImportError:
@@ -90,9 +104,10 @@ def _get_pool():
 def get_connection():
     """Get a database connection (from pool or freshly created)."""
     pool = _get_pool()
+    config = _ensure_db_config()
     if pool == 'single':
         return pymysql.connect(
-            **DB_CONFIG,
+            **config,
             cursorclass=pymysql.cursors.DictCursor,
         )
     return pool.connection()
@@ -186,7 +201,7 @@ def execute_query(sql, params=None, max_rows=None):
         conn.close()
 
 
-def execute_query_list(sql, params=None, max_rows=MAX_ROWS):
+def execute_query_list(sql, params=None, max_rows=None):
     """
     Execute a query and return a plain list[dict].
 

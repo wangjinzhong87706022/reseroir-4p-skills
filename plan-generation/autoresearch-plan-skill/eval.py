@@ -10,12 +10,12 @@ import sys
 import os
 from datetime import datetime
 
-# 数据库连接
-DB_HOST = "127.0.0.1"
-DB_PORT = 3306
-DB_USER = "root"
-DB_PASS = "123456aA."
-DB_NAME = "powerelf_srm_yml"
+# 数据库连接（P0-4: 凭据从环境变量读取，禁止硬编码）
+DB_HOST = os.getenv("SRM_DB_HOST", "127.0.0.1")
+DB_PORT = int(os.getenv("SRM_DB_PORT", "3306"))
+DB_USER = os.getenv("SRM_DB_USER", "root")
+DB_PASS = os.getenv("SRM_DB_PASSWORD", "")
+DB_NAME = os.getenv("SRM_DB_NAME", "powerelf_srm_yml")
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 SKILL_DIR = os.path.dirname(SCRIPT_DIR)
