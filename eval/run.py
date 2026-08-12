@@ -81,7 +81,11 @@ def main(argv=None, transport_fn=None, query_fn=None, llm_on=False, report_dir=N
     if transport_fn is None:
         transport_fn = transport.run_hermes
     if query_fn is None and any(c.truth_source == "live_db" for c in selected):
-        query_fn = truth.make_db_query_fn({})  # 建一次连接复用
+        try:
+            query_fn = truth.make_db_query_fn({})
+        except Exception as e:
+            print(f"警告: DB 连接失败，live_db 题将判 ERROR: {e}")
+            # query_fn 保持 None → _dispatch 逐题返回 ERROR，run 继续且照写报告
     llm_on = llm_on or args.llm
 
     results = []

@@ -53,5 +53,29 @@ class TestRunner(unittest.TestCase):
             # 即便有用例异常，报告文件照常写出
             self.assertTrue(any(p.suffix == ".json" for p in pathlib.Path(d).glob("eval-*.json")))
 
+    def test_db_connect_failure_does_not_crash(self):
+        import tempfile
+        from eval.lib import truth
+        with tempfile.TemporaryDirectory() as d:
+            # 一个 live_db 题 + 一个 inline 题
+            (pathlib.Path(d) / "forecasting.yaml").write_text(
+                "cases:\n"
+                "  - {id: L1, skill: forecasting, category: c, description: d, question: q,\n"
+                "     env: {SRM_TENANT_ID: 18}, source: t, truth_source: live_db,\n"
+                "     truth_query: 'SELECT rz FROM st_rsvr_r LIMIT 1', tolerance: 1.0}\n"
+                "  - {id: I1, skill: forecasting, category: c, description: d, question: q,\n"
+                "     env: {SRM_TENANT_ID: 18}, source: t, truth_source: inline,\n"
+                "     expected_keywords: [水位]}\n", encoding="utf-8")
+            def fake_transport(question, skill_id, env, timeout, skill_dir=None, _runner=None):
+                return {"output": "水位 462 m", "stderr": "", "exit_code": 0, "timed_out": False}
+            orig = truth.make_db_query_fn
+            truth.make_db_query_fn = lambda env: (_ for _ in ()).throw(RuntimeError("DB down"))
+            try:
+                rc = runmod.main(["--cases-dir", d, "--report-dir", d], transport_fn=fake_transport)
+            finally:
+                truth.make_db_query_fn = orig
+            self.assertEqual(rc, 1)  # live_db 题 ERROR + inline 题 PASS → 非 all-PASS → 1；未崩溃
+            self.assertTrue(any(p.suffix == ".json" for p in pathlib.Path(d).glob("eval-*.json")))
+
 if __name__ == "__main__":
     unittest.main()
