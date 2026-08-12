@@ -1,0 +1,305 @@
+# forecasting 评估集（cull 自 forecasting/tests/test-questions.md + test-questions-v2.md + test_skills.py F1-F6）
+# 三岔水库 sancha (tenant 18)，水位基线 ~459.18m，汛限 462.5m，死水位 451m，校核洪水位 462.88m。
+# 多源：f_rnfl_h (和风)、st_pptn_re_forecast (分区)、st_pptn_r (实测)、NMC 中央台。
+# live_db 的 truth_query 全部沿用 plan-generation/autoresearch-plan-skill/eval.py::get_ground_truth 的生产 SQL（不靠 schema 文档）。
+forbidden_keywords: []
+cases:
+  # === smoke：来自 test_skills.py::FORECASTING_TESTS（F1-F6 已验证） ===
+  - id: F1
+    skill: forecasting
+    category: 水位查询
+    description: 查询当前水位（smoke）
+    question: "查询三岔水库当前水位（只返回数值）"
+    env: {SRM_TENANT_ID: 18, SRM_RESERVOIR_NAME: sancha}
+    timeout: 60
+    tags: [smoke]
+    source: test_skills.py::FORECASTING_TESTS::F1
+    truth_source: inline
+    expected_keywords: ["水位", "m"]
+    expected_range: {min: 450.0, max: 465.0}
+  - id: F2
+    skill: forecasting
+    category: 降雨预报解读
+    description: 未来 24h 逐时降雨预报（smoke）
+    question: "未来 24 小时三岔水库流域的逐时降雨预报情况如何？峰值雨强出现在什么时候？"
+    env: {SRM_TENANT_ID: 18, SRM_RESERVOIR_NAME: sancha}
+    timeout: 120
+    tags: [smoke]
+    source: test_skills.py::FORECASTING_TESTS::F2
+    truth_source: inline
+    expected_keywords: ["mm", "降雨", "预报"]
+  - id: F3
+    skill: forecasting
+    category: 汛限查询
+    description: 查询汛限水位（smoke）
+    question: "当前三岔水库的汛限水位是多少？"
+    env: {SRM_TENANT_ID: 18, SRM_RESERVOIR_NAME: sancha}
+    timeout: 60
+    tags: [smoke]
+    source: test_skills.py::FORECASTING_TESTS::F3
+    truth_source: inline
+    expected_keywords: ["汛限", "水位"]
+    expected_range: {min: 462.0, max: 463.0}
+  - id: F4
+    skill: forecasting
+    category: 气象预警
+    description: 查询气象预警（smoke）
+    question: "当前有哪些活跃气象预警？"
+    env: {SRM_TENANT_ID: 18, SRM_RESERVOIR_NAME: sancha}
+    timeout: 120
+    tags: [smoke]
+    source: test_skills.py::FORECASTING_TESTS::F4
+    truth_source: inline
+    expected_keywords: ["预警"]
+  - id: F5
+    skill: forecasting
+    category: 数据时效性
+    description: 预报数据时效检查（smoke）
+    question: "当前降雨预报数据的时效性如何？是否陈旧？"
+    env: {SRM_TENANT_ID: 18, SRM_RESERVOIR_NAME: sancha}
+    timeout: 120
+    tags: [smoke]
+    source: test_skills.py::FORECASTING_TESTS::F5
+    truth_source: inline
+    expected_keywords: ["时效"]
+  - id: F6
+    skill: forecasting
+    category: 综合水情
+    description: 综合水情和未来 24h 降雨（smoke）
+    question: "综合分析三岔水库当前水情和未来 24 小时降雨情况"
+    env: {SRM_TENANT_ID: 18, SRM_RESERVOIR_NAME: sancha}
+    timeout: 120
+    tags: [smoke]
+    source: test_skills.py::FORECASTING_TESTS::F6
+    truth_source: inline
+    expected_keywords: ["水位", "降雨", "汛限"]
+  # === live_db 校验：当前水位对真实库对齐 ===
+  - id: F7
+    skill: forecasting
+    category: 水位查询
+    description: 当前水位 live_db 真值校验
+    question: "三岔水库当前水位是多少米？"
+    env: {SRM_TENANT_ID: 18, SRM_RESERVOIR_NAME: sancha}
+    timeout: 60
+    tags: [smoke, live_db]
+    source: plan-generation/autoresearch-plan-skill/eval.py::get_ground_truth::current_water_level
+    truth_source: live_db
+    truth_query: "SELECT rz FROM st_rsvr_r WHERE rz IS NOT NULL AND deleted = 0 ORDER BY tm DESC LIMIT 1"
+    tolerance: 1.0
+    expected_keywords: ["水位"]
+  # === 一、预报解读类（正常/边界/异常） ===
+  - id: F8
+    skill: forecasting
+    category: 降雨预报解读
+    description: 最大小时雨强与峰值时刻（正常）
+    question: "预报的最大小时雨强（mm/h）是多少？出现在未来第几小时？"
+    env: {SRM_TENANT_ID: 18, SRM_RESERVOIR_NAME: sancha}
+    timeout: 120
+    source: forecasting/tests/test-questions.md::Q3
+    truth_source: inline
+    expected_keywords: ["mm", "雨强"]
+  - id: F9
+    skill: forecasting
+    category: 降雨预报解读
+    description: 48h 累计降雨与暴雨级别（边界）
+    question: "未来 48 小时累计预报降雨量是多少？是否达到暴雨/大暴雨/红色预警级别？"
+    env: {SRM_TENANT_ID: 18, SRM_RESERVOIR_NAME: sancha}
+    timeout: 120
+    source: forecasting/tests/test-questions.md::Q2
+    truth_source: inline
+    expected_keywords: ["累计", "mm"]
+  - id: F10
+    skill: forecasting
+    category: 降雨预报解读
+    description: 陈旧预报识别（异常，>6h）
+    question: "当前降雨预报是什么时候发布的？距今多久？是否仍可信？"
+    env: {SRM_TENANT_ID: 18, SRM_RESERVOIR_NAME: sancha}
+    timeout: 120
+    source: forecasting/tests/test-questions.md::Q5
+    truth_source: inline
+    expected_keywords: ["发布"]
+  # === 二、水库影响类（正常/边界/异常） ===
+  - id: F11
+    skill: forecasting
+    category: 水库影响
+    description: 入库/出库流量与蓄泄判断（正常）
+    question: "当前入库流量与出库流量分别是多少？水库是在蓄水还是泄水？"
+    env: {SRM_TENANT_ID: 18, SRM_RESERVOIR_NAME: sancha}
+    timeout: 120
+    source: forecasting/tests/test-questions.md::Q9
+    truth_source: inline
+    expected_keywords: ["入库", "出库"]
+  - id: F12
+    skill: forecasting
+    category: 水库影响
+    description: 水位距汛限余量（正常，live_db）
+    question: "当前水位距汛限水位还有多少余量？"
+    env: {SRM_TENANT_ID: 18, SRM_RESERVOIR_NAME: sancha}
+    timeout: 120
+    source: forecasting/tests/test-questions.md::Q7
+    truth_source: live_db
+    truth_query: "SELECT rz FROM st_rsvr_r WHERE rz IS NOT NULL AND deleted = 0 ORDER BY tm DESC LIMIT 1"
+    tolerance: 1.0
+    expected_keywords: ["汛限", "余量"]
+  - id: F13
+    skill: forecasting
+    category: 水库影响
+    description: 死水位逼近与干旱应对（异常）
+    question: "过去 7 天几乎无降雨、水位逼近死水位 451m，应如何调度保供水？"
+    env: {SRM_TENANT_ID: 18, SRM_RESERVOIR_NAME: sancha}
+    timeout: 180
+    source: forecasting/tests/test-questions.md::Q37
+    truth_source: rubric
+    expected_keywords: ["死水位", "供水"]
+    rubric:
+      - 识别低水位风险（接近死水位 451m）
+      - 给出兴利保供建议（减少下泄/节水）
+      - 不编造与工况无关的操作
+  # === 三、多源融合类（正常/异常） ===
+  - id: F14
+    skill: forecasting
+    category: 多源融合
+    description: 四源降雨预报对比（正常）
+    question: "和风、分区预报、实测降雨、NMC 中央台对未来同一时段的预报/实测是否一致？"
+    env: {SRM_TENANT_ID: 18, SRM_RESERVOIR_NAME: sancha}
+    timeout: 180
+    source: forecasting/tests/test-questions.md::Q11
+    truth_source: inline
+    expected_keywords: ["和风", "预报"]
+  - id: F15
+    skill: forecasting
+    category: 多源融合
+    description: 四源分歧 >20mm 决策（异常）
+    question: "和风预报 24h 120mm，分区预报仅 60mm，分歧 60mm。应如何采信与融合？"
+    env: {SRM_TENANT_ID: 18, SRM_RESERVOIR_NAME: sancha}
+    timeout: 180
+    source: forecasting/tests/test-questions.md::Q38
+    truth_source: rubric
+    expected_keywords: ["融合", "分歧"]
+    rubric:
+      - 提出明确融合策略（均值/最大/按精度加权）
+      - 给出保守与激进方案对比
+      - 不简单断言某源一定正确
+  # === 四、趋势预测类（正常/边界/异常） ===
+  - id: F16
+    skill: forecasting
+    category: 趋势预测
+    description: 未来 12h 水位趋势（正常）
+    question: "按当前入库/出库与降雨预报，未来 12 小时水位会涨还是落？幅度多大？"
+    env: {SRM_TENANT_ID: 18, SRM_RESERVOIR_NAME: sancha}
+    timeout: 180
+    source: forecasting/tests/test-questions.md::Q16
+    truth_source: inline
+    expected_keywords: ["水位", "趋势"]
+  - id: F17
+    skill: forecasting
+    category: 趋势预测
+    description: 水位达峰时刻（正常）
+    question: "预报的水位/流量峰值出现在未来第几小时？"
+    env: {SRM_TENANT_ID: 18, SRM_RESERVOIR_NAME: sancha}
+    timeout: 180
+    source: forecasting/tests/test-questions.md::Q18
+    truth_source: inline
+    expected_keywords: ["峰值"]
+  - id: F18
+    skill: forecasting
+    category: 趋势预测
+    description: 趋势预警阈值（边界，超校核洪水位）
+    question: "若预报水位将超过校核洪水位 462.88m，应在什么时刻触发预警？"
+    env: {SRM_TENANT_ID: 18, SRM_RESERVOIR_NAME: sancha}
+    timeout: 180
+    source: forecasting/tests/test-questions.md::Q19
+    truth_source: inline
+    expected_keywords: ["校核", "预警"]
+  # === 五、预报精度 gated（异常-设计） ===
+  - id: F19
+    skill: forecasting
+    category: 预报精度
+    description: 各源历史精度 MAPE（gated 正常）
+    question: "和风、NMC、模型各预报源的历史平均精度（MAPE）是多少？"
+    env: {SRM_TENANT_ID: 18, SRM_RESERVOIR_NAME: sancha}
+    timeout: 120
+    source: forecasting/tests/test-questions.md::Q21
+    truth_source: inline
+    expected_keywords: ["精度"]
+  - id: F20
+    skill: forecasting
+    category: 预报精度
+    description: 精度数据不足 gated 响应（gated 异常）
+    question: "如果预报精度数据不足以统计（记录 <10 条），系统应如何响应？"
+    env: {SRM_TENANT_ID: 18, SRM_RESERVOIR_NAME: sancha}
+    timeout: 120
+    source: forecasting/tests/test-questions.md::Q22
+    truth_source: rubric
+    expected_keywords: ["不足"]
+    rubric:
+      - 返回 gated/insufficient 状态而非编造数字
+      - 给出阈值与现有样本数对比
+      - 明确建议补采或降权使用
+  # === 六、历史相似洪水类 ===
+  - id: F21
+    skill: forecasting
+    category: 历史相似洪水
+    description: 相似洪水匹配（正常）
+    question: "当前预报未来 24h 降雨 100mm、起调水位约 459m，历史上有没有降雨量级与起调水位相似的洪水？"
+    env: {SRM_TENANT_ID: 18, SRM_RESERVOIR_NAME: sancha}
+    timeout: 180
+    source: forecasting/tests/test-questions.md::Q26
+    truth_source: inline
+    expected_keywords: ["历史", "相似"]
+  - id: F22
+    skill: forecasting
+    category: 历史相似洪水
+    description: 历史洪水总数 live_db（正常）
+    question: "系统中有多少条历史洪水记录？哪些已完成计算？"
+    env: {SRM_TENANT_ID: 18, SRM_RESERVOIR_NAME: sancha}
+    timeout: 120
+    tags: [live_db]
+    source: forecasting/tests/test-questions.md::Q29
+    truth_source: live_db
+    truth_query: "SELECT COUNT(*) AS cnt FROM srm_flood_history_base WHERE deleted = 0"
+    tolerance: 50.0
+    expected_keywords: ["历史", "洪水"]
+  # === 七、综合极端场景 ===
+  - id: F23
+    skill: forecasting
+    category: 综合极端
+    description: 红色预警级别暴雨应对（异常，130mm/24h）
+    question: "当前预报未来 24h 降雨 130mm（>100mm 红色预警级别），当前水位 459m，水库应如何响应？"
+    env: {SRM_TENANT_ID: 18, SRM_RESERVOIR_NAME: sancha}
+    timeout: 180
+    source: forecasting/tests/test-questions.md::Q36
+    truth_source: rubric
+    expected_keywords: ["汛限", "调度"]
+    rubric:
+      - 标注红色预警级别（≥100mm/24h）
+      - 评估水位是否逼近汛限 462.5m
+      - 给出提前预泄/加密监测等具体建议
+  - id: F24
+    skill: forecasting
+    category: 综合极端
+    description: 水位超汛限紧急调度（异常，rz ≥ 462.5）
+    question: "当前水位已达 462.8m，超过汛限 462.5m 且逼近校核洪水位 462.88m。应如何紧急调度？"
+    env: {SRM_TENANT_ID: 18, SRM_RESERVOIR_NAME: sancha}
+    timeout: 180
+    source: forecasting/tests/test-questions.md::Q40
+    truth_source: rubric
+    expected_keywords: ["超汛限", "应急"]
+    rubric:
+      - 识别超汛限状态（rz > 462.5m）
+      - 紧急模式下建议最大泄流（受安全泄量 95.1 m³/s 约束）
+      - 给出下泄方案与下游风险提示
+  - id: F25
+    skill: forecasting
+    category: 综合极端
+    description: 预报完全失效降级（异常，无未来行）
+    question: "当预报数据完全缺失（f_rnfl_h 无未来行）时，系统应如何降级响应？"
+    env: {SRM_TENANT_ID: 18, SRM_RESERVOIR_NAME: sancha}
+    timeout: 120
+    source: forecasting/tests/test-questions.md::Q43
+    truth_source: rubric
+    expected_keywords: ["缺失", "降级"]
+    rubric:
+      - 检测 f_rnfl_h 无未来时段行
+      - 给出降级策略（实测+历史相似+保守方案）
+      - 明确提示"无降雨预报，结果仅供参考"

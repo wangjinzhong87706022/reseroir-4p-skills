@@ -1,0 +1,463 @@
+# early-warning 评估集（cull 自 early-warning/autoresearch-v3/test-inputs.md 103 题）
+# 按 test-data-scenarios.md 的 15 场景矩阵各留代表；EW 默认在三岔 sancha (tenant 18)。
+# ew_info_message 表结构来自 test-inputs.md 已验证 100% 通过的 SQL（ew_name/st_code/level_r/
+#   gather_time/message_confirm/ew_type/deleted/create_time 列）。
+# 水位 live_db 仅用 plan-generation/autoresearch-plan-skill/eval.py::get_ground_truth 验证过的 SQL：
+#   SELECT rz FROM st_rsvr_r WHERE rz IS NOT NULL AND deleted = 0 ORDER BY tm DESC LIMIT 1
+forbidden_keywords: []
+cases:
+  # === 一、知识问答（Q1-Q12） ===
+  - id: EW1
+    skill: early-warning
+    category: 知识问答
+    description: 未确认告警数量统计（正常）
+    question: "请统计最近7天内，所有未确认的告警数量是多少？"
+    env: {SRM_TENANT_ID: 18, SRM_RESERVOIR_NAME: sancha}
+    timeout: 60
+    source: early-warning/autoresearch-v3/test-inputs.md::Q1
+    truth_source: inline
+    expected_keywords: ["未确认", "告警"]
+  - id: EW2
+    skill: early-warning
+    category: 知识问答
+    description: 最近 3 天告警查询（正常）
+    question: "请查询最近3天内产生的所有告警，显示告警名称、测站编码、告警级别和采集时间，按时间倒序排列。"
+    env: {SRM_TENANT_ID: 18, SRM_RESERVOIR_NAME: sancha}
+    timeout: 60
+    source: early-warning/autoresearch-v3/test-inputs.md::Q3
+    truth_source: inline
+    expected_keywords: ["告警", "时间"]
+  - id: EW3
+    skill: early-warning
+    category: 知识问答
+    description: 红色告警查询（正常）
+    question: "请查询所有红色（I级）告警，按采集时间倒序排列。"
+    env: {SRM_TENANT_ID: 18, SRM_RESERVOIR_NAME: sancha}
+    timeout: 60
+    source: early-warning/autoresearch-v3/test-inputs.md::Q5
+    truth_source: inline
+    expected_keywords: ["红色", "告警"]
+  - id: EW4
+    skill: early-warning
+    category: 知识问答
+    description: 设备离线告警查询（正常，场景6）
+    question: "请查询所有设备离线告警，显示告警名称、测站、级别和持续时长。"
+    env: {SRM_TENANT_ID: 18, SRM_RESERVOIR_NAME: sancha}
+    timeout: 60
+    source: early-warning/autoresearch-v3/test-inputs.md::Q11
+    truth_source: inline
+    expected_keywords: ["离线", "设备"]
+  # === 二、根因分析（Q13-Q21） ===
+  - id: EW5
+    skill: early-warning
+    category: 根因分析
+    description: 水位变化趋势根因（正常）
+    question: "最近水位变化趋势怎么样？为什么这段时间水位持续上涨？"
+    env: {SRM_TENANT_ID: 18, SRM_RESERVOIR_NAME: sancha}
+    timeout: 120
+    source: early-warning/autoresearch-v3/test-inputs.md::Q14
+    truth_source: rubric
+    expected_keywords: ["水位", "趋势"]
+    rubric:
+      - 基于 st_rsvr_r 历史水位数据分析趋势
+      - 给出上涨/下降/平稳的明确判断
+      - 关联降雨或调度因素解释根因
+  - id: EW6
+    skill: early-warning
+    category: 根因分析
+    description: 渗流异常根因分析（正常，场景10/11）
+    question: "渗流数据最近有没有异常？可能是什么原因导致的？"
+    env: {SRM_TENANT_ID: 18, SRM_RESERVOIR_NAME: sancha}
+    timeout: 180
+    source: early-warning/autoresearch-v3/test-inputs.md::Q16
+    truth_source: rubric
+    expected_keywords: ["渗流", "异常"]
+    rubric:
+      - 联合渗压+渗流数据交叉判断
+      - 给出潜在根因（管涌/裂缝/设备故障之一）
+      - 不编造无依据的结论
+  - id: EW7
+    skill: early-warning
+    category: 根因分析
+    description: 多源综合诊断（正常，三域联动）
+    question: "对当前所有告警做一次综合诊断，最需要关注的是哪几个？"
+    env: {SRM_TENANT_ID: 18, SRM_RESERVOIR_NAME: sancha}
+    timeout: 180
+    source: early-warning/autoresearch-v3/test-inputs.md::Q20
+    truth_source: rubric
+    expected_keywords: ["诊断", "关注"]
+    rubric:
+      - 综合水位+降雨+渗流三域数据
+      - 按风险权重排出优先级
+      - 给出可执行的处置建议
+  # === 三、关联分析（Q22-Q28） ===
+  - id: EW8
+    skill: early-warning
+    category: 关联分析
+    description: 水位降雨关联分析（正常，场景8/9）
+    question: "水位上涨和降雨是什么关系？最近降雨对水位的影响有多大？"
+    env: {SRM_TENANT_ID: 18, SRM_RESERVOIR_NAME: sancha}
+    timeout: 180
+    source: early-warning/autoresearch-v3/test-inputs.md::Q22
+    truth_source: rubric
+    expected_keywords: ["水位", "降雨"]
+    rubric:
+      - 联合 st_rsvr_r + st_pptn_r 数据分析
+      - 给出降雨→水位响应的时滞判断
+      - 不脱离数据空谈
+  - id: EW9
+    skill: early-warning
+    category: 关联分析
+    description: 三域关联分析（正常，场景2 高风险）
+    question: "水位、降雨、渗流三者有什么关联？是否存在复合风险？"
+    env: {SRM_TENANT_ID: 18, SRM_RESERVOIR_NAME: sancha}
+    timeout: 180
+    source: early-warning/autoresearch-v3/test-inputs.md::Q28
+    truth_source: rubric
+    expected_keywords: ["关联", "复合"]
+    rubric:
+      - 同时分析水位/降雨/渗流三域
+      - 判断是否存在复合风险（>单域风险之和）
+      - 给出大坝安全综合结论
+  # === 四、预测预警（Q29-Q35） ===
+  - id: EW10
+    skill: early-warning
+    category: 预测预警
+    description: 水位趋势预测（正常，场景8）
+    question: "按最近水位数据预测，未来6小时水位会涨到多少？"
+    env: {SRM_TENANT_ID: 18, SRM_RESERVOIR_NAME: sancha}
+    timeout: 180
+    source: early-warning/autoresearch-v3/test-inputs.md::Q29
+    truth_source: rubric
+    expected_keywords: ["预测", "水位"]
+    rubric:
+      - 基于 st_rsvr_r 近 6 小时数据外推
+      - 给出预测值与置信度
+      - 不编造无依据的精确值
+  - id: EW11
+    skill: early-warning
+    category: 预测预警
+    description: 告警升级判断（边界，场景5）
+    question: "当前告警会不会升级？升级条件是什么？"
+    env: {SRM_TENANT_ID: 18, SRM_RESERVOIR_NAME: sancha}
+    timeout: 120
+    source: early-warning/autoresearch-v3/test-inputs.md::Q33
+    truth_source: rubric
+    expected_keywords: ["升级", "阈值"]
+    rubric:
+      - 明确升级条件（当前值 vs 一级阈值）
+      - 给出是否会升级的判断
+      - 不在条件不满足时仍断言升级
+  # === 五、报告生成（Q36-Q42） ===
+  - id: EW12
+    skill: early-warning
+    category: 报告生成
+    description: 告警分析报告生成（正常）
+    question: "请生成今天的告警分析报告，包括数量统计、级别分布、重点告警和建议。"
+    env: {SRM_TENANT_ID: 18, SRM_RESERVOIR_NAME: sancha}
+    timeout: 240
+    source: early-warning/autoresearch-v3/test-inputs.md::Q37
+    truth_source: rubric
+    expected_keywords: ["报告", "告警"]
+    rubric:
+      - 报告含数量/级别分布/重点告警/建议四要素
+      - 数据与 ew_info_message 实际一致
+      - 结构清晰可读
+  # === 六、应急响应（Q43-Q49） ===
+  - id: EW13
+    skill: early-warning
+    category: 应急响应
+    description: 应急响应建议（正常）
+    question: "针对当前告警情况，应该启动什么级别的应急响应？"
+    env: {SRM_TENANT_ID: 18, SRM_RESERVOIR_NAME: sancha}
+    timeout: 180
+    source: early-warning/autoresearch-v3/test-inputs.md::Q44
+    truth_source: rubric
+    expected_keywords: ["应急", "响应"]
+    rubric:
+      - 按告警级别给出响应级别判断（I/II/III/IV）
+      - 给出具体响应措施
+      - 不在低风险时贸然建议高级别响应
+  # === 七、参数优化（Q50-Q55） ===
+  - id: EW14
+    skill: early-warning
+    category: 参数优化
+    description: 阈值合理性分析（正常）
+    question: "当前告警阈值设置合理吗？有没有需要优化的地方？"
+    env: {SRM_TENANT_ID: 18, SRM_RESERVOIR_NAME: sancha}
+    timeout: 180
+    source: early-warning/autoresearch-v3/test-inputs.md::Q50
+    truth_source: rubric
+    expected_keywords: ["阈值", "优化"]
+    rubric:
+      - 对比历史数据评估阈值合理性
+      - 给出具体优化建议（上调/下调/分级）
+      - 不简单回答"合理/不合理"
+  # === 八、模式识别（Q56-Q61） ===
+  - id: EW15
+    skill: early-warning
+    category: 模式识别
+    description: 告警时空模式识别（正常）
+    question: "最近告警有没有什么规律？时间上、空间上有什么模式？"
+    env: {SRM_TENANT_ID: 18, SRM_RESERVOIR_NAME: sancha}
+    timeout: 180
+    source: early-warning/autoresearch-v3/test-inputs.md::Q58
+    truth_source: rubric
+    expected_keywords: ["规律", "模式"]
+    rubric:
+      - 从时间维度（小时/日）和空间维度（测站）识别模式
+      - 给出规律性结论
+      - 不在样本不足时强行识别模式
+  # === 九、智能综合分析（Q62-Q69） ===
+  - id: EW16
+    skill: early-warning
+    category: 智能综合分析
+    description: 整体风险评估（正常，场景1/2）
+    question: "当前告警情况如何？整体风险大不大？"
+    env: {SRM_TENANT_ID: 18, SRM_RESERVOIR_NAME: sancha}
+    timeout: 180
+    source: early-warning/autoresearch-v3/test-inputs.md::Q62
+    truth_source: rubric
+    expected_keywords: ["风险", "告警"]
+    rubric:
+      - 输出告警数量+级别分布
+      - 给出明确风险等级（高/中/低）
+      - 列出主要风险点
+  - id: EW17
+    skill: early-warning
+    category: 智能综合分析
+    description: 大坝安全综合评估（正常，三域场景2/8-11）
+    question: "大坝现在安全吗？水位、降雨、渗流情况怎么样？"
+    env: {SRM_TENANT_ID: 18, SRM_RESERVOIR_NAME: sancha}
+    timeout: 240
+    source: early-warning/autoresearch-v3/test-inputs.md::Q64
+    truth_source: rubric
+    expected_keywords: ["大坝", "安全"]
+    rubric:
+      - 分析水位/降雨/渗流三个维度
+      - 判断是否存在复合风险
+      - 给出大坝安全结论
+  - id: EW18
+    skill: early-warning
+    category: 智能综合分析
+    description: 水位未来趋势研判（正常，场景8）
+    question: "水位会继续上涨吗？未来24小时会怎样？"
+    env: {SRM_TENANT_ID: 18, SRM_RESERVOIR_NAME: sancha}
+    timeout: 180
+    source: early-warning/autoresearch-v3/test-inputs.md::Q66
+    truth_source: rubric
+    expected_keywords: ["水位", "趋势"]
+    rubric:
+      - 基于历史数据预测趋势
+      - 考虑气象因素
+      - 输出预测置信度
+  - id: EW19
+    skill: early-warning
+    category: 智能综合分析
+    description: 测站风险排名（正常）
+    question: "哪些测站告警最多？最危险的是哪个？"
+    env: {SRM_TENANT_ID: 18, SRM_RESERVOIR_NAME: sancha}
+    timeout: 120
+    source: early-warning/autoresearch-v3/test-inputs.md::Q68
+    truth_source: inline
+    expected_keywords: ["测站", "危险"]
+  # === 十、告警聚合分析（Q70-Q73） ===
+  - id: EW20
+    skill: early-warning
+    category: 告警聚合分析
+    description: 测站告警分布聚合（正常）
+    question: "各测站的告警分布情况怎么样？哪个测站问题最多？"
+    env: {SRM_TENANT_ID: 18, SRM_RESERVOIR_NAME: sancha}
+    timeout: 120
+    source: early-warning/autoresearch-v3/test-inputs.md::Q70
+    truth_source: inline
+    expected_keywords: ["测站", "分布"]
+  - id: EW21
+    skill: early-warning
+    category: 告警聚合分析
+    description: 告警风暴检测（异常，场景3 60 条）
+    question: "最近是不是发生了告警风暴？怎么应对？"
+    env: {SRM_TENANT_ID: 18, SRM_RESERVOIR_NAME: sancha}
+    timeout: 180
+    source: early-warning/autoresearch-v3/test-inputs.md::Q73
+    truth_source: rubric
+    expected_keywords: ["告警风暴", "聚合"]
+    rubric:
+      - 检测短时告警激增（如 1h 内 ≥N 条）
+      - 给出聚合/抑制建议
+      - 不在正常波动时误报风暴
+  # === 十一、跨域关联分析（Q74-Q77） ===
+  - id: EW22
+    skill: early-warning
+    category: 跨域关联分析
+    description: 水位降雨跨域关联（正常，场景8/9）
+    question: "水位和降雨有关联吗？最近降雨对水库水位有什么影响？"
+    env: {SRM_TENANT_ID: 18, SRM_RESERVOIR_NAME: sancha}
+    timeout: 180
+    source: early-warning/autoresearch-v3/test-inputs.md::Q74
+    truth_source: rubric
+    expected_keywords: ["水位", "降雨"]
+    rubric:
+      - 联合 st_rsvr_r + st_pptn_r 数据
+      - 给出关联强度与时滞
+      - 不脱离数据空谈
+  - id: EW23
+    skill: early-warning
+    category: 跨域关联分析
+    description: 大坝综合风险跨域（正常，场景2/8-11）
+    question: "综合水位、降雨、渗流数据，大坝整体风险有多大？"
+    env: {SRM_TENANT_ID: 18, SRM_RESERVOIR_NAME: sancha}
+    timeout: 240
+    source: early-warning/autoresearch-v3/test-inputs.md::Q75
+    truth_source: rubric
+    expected_keywords: ["风险", "综合"]
+    rubric:
+      - 跨水位/降雨/渗流三域联合评估
+      - 输出复合风险等级
+      - 标注主要风险源
+  # === 十二、风险评估（Q78-Q81） ===
+  - id: EW24
+    skill: early-warning
+    category: 风险评估
+    description: 整体风险评分（正常）
+    question: "现在整体风险有多大？风险评分是多少？"
+    env: {SRM_TENANT_ID: 18, SRM_RESERVOIR_NAME: sancha}
+    timeout: 120
+    source: early-warning/autoresearch-v3/test-inputs.md::Q78
+    truth_source: rubric
+    expected_keywords: ["风险", "评分"]
+    rubric:
+      - 给出量化或分级风险评分
+      - 列出主要风险因素
+      - 评分依据可追溯
+  - id: EW25
+    skill: early-warning
+    category: 风险评估
+    description: 风险升级判断（正常，场景5）
+    question: "风险会不会升级？升级的触发条件是什么？"
+    env: {SRM_TENANT_ID: 18, SRM_RESERVOIR_NAME: sancha}
+    timeout: 120
+    source: early-warning/autoresearch-v3/test-inputs.md::Q80
+    truth_source: rubric
+    expected_keywords: ["升级", "风险"]
+    rubric:
+      - 明确升级触发条件（阈值/告警数）
+      - 给出是否会升级的判断
+      - 不在条件不满足时仍断言升级
+  # === 十三、趋势预测（Q82-Q84） ===
+  - id: EW26
+    skill: early-warning
+    category: 趋势预测
+    description: 水位上涨持续性预测（正常）
+    question: "水位还会继续上涨吗？预计什么时候能降下来？"
+    env: {SRM_TENANT_ID: 18, SRM_RESERVOIR_NAME: sancha}
+    timeout: 180
+    source: early-warning/autoresearch-v3/test-inputs.md::Q82
+    truth_source: rubric
+    expected_keywords: ["水位", "上涨"]
+    rubric:
+      - 基于历史数据预测趋势
+      - 输出趋势方向与转折点预估
+      - 给出预测置信度
+  # === 十四、预案触发（Q85-Q87） ===
+  - id: EW27
+    skill: early-warning
+    category: 预案触发
+    description: 启动预案必要性判断（正常）
+    question: "现在需要启动应急预案吗？"
+    env: {SRM_TENANT_ID: 18, SRM_RESERVOIR_NAME: sancha}
+    timeout: 120
+    source: early-warning/autoresearch-v3/test-inputs.md::Q85
+    truth_source: rubric
+    expected_keywords: ["预案", "启动"]
+    rubric:
+      - 判断风险等级
+      - 检查触发条件是否满足
+      - 给出明确"启动/不启动"建议
+  # === 十五、异常场景（Q88-Q93） ===
+  - id: EW28
+    skill: early-warning
+    category: 异常场景
+    description: 无告警空状态处理（异常）
+    question: "现在情况怎么样？有没有告警？"
+    env: {SRM_TENANT_ID: 18, SRM_RESERVOIR_NAME: sancha}
+    timeout: 60
+    source: early-warning/autoresearch-v3/test-inputs.md::Q88
+    truth_source: rubric
+    expected_keywords: ["告警", "正常"]
+    rubric:
+      - 正确检测无活跃告警的空状态
+      - 返回友好提示而非报错
+      - 不编造不存在的告警
+  - id: EW29
+    skill: early-warning
+    category: 异常场景
+    description: 不存在测站处理（异常，场景13）
+    question: "测站999K9999的告警情况怎么样？"
+    env: {SRM_TENANT_ID: 18, SRM_RESERVOIR_NAME: sancha}
+    timeout: 60
+    source: early-warning/autoresearch-v3/test-inputs.md::Q89
+    truth_source: rubric
+    expected_keywords: ["未找到", "测站"]
+    rubric:
+      - 正确处理不存在的测站
+      - 返回"未找到该测站"提示
+      - 不产生崩溃
+  - id: EW30
+    skill: early-warning
+    category: 异常场景
+    description: 数据缺失降级（异常，场景14）
+    question: "测站999K999901的水位趋势怎么样？"
+    env: {SRM_TENANT_ID: 18, SRM_RESERVOIR_NAME: sancha}
+    timeout: 60
+    source: early-warning/autoresearch-v3/test-inputs.md::Q90
+    truth_source: rubric
+    expected_keywords: ["缺失", "数据"]
+    rubric:
+      - 检测水位数据缺失
+      - 标记"数据不完整"并降低预测置信度
+      - 不编造无数据支撑的预测
+  # === 十六、边界场景（Q94-Q98） ===
+  - id: EW31
+    skill: early-warning
+    category: 边界场景
+    description: 仅蓝色告警风险评估（边界，场景7）
+    question: "只有几个蓝色告警，需要担心吗？"
+    env: {SRM_TENANT_ID: 18, SRM_RESERVOIR_NAME: sancha}
+    timeout: 60
+    source: early-warning/autoresearch-v3/test-inputs.md::Q94
+    truth_source: rubric
+    expected_keywords: ["蓝色", "风险"]
+    rubric:
+      - 正确评估低级别告警风险
+      - 给出监控建议而非触发预案
+      - 不夸大低风险
+  - id: EW32
+    skill: early-warning
+    category: 边界场景
+    description: 单条红色告警风险评估（边界，场景7）
+    question: "只有一条红色告警，但是很严重，风险大吗？"
+    env: {SRM_TENANT_ID: 18, SRM_RESERVOIR_NAME: sancha}
+    timeout: 60
+    source: early-warning/autoresearch-v3/test-inputs.md::Q95
+    truth_source: rubric
+    expected_keywords: ["红色", "风险"]
+    rubric:
+      - 考虑告警级别权重，评估中等风险
+      - 给出关注建议
+      - 不因数量少而忽略高级别告警
+  # === 十七、气象预警（Q102-Q103） ===
+  - id: EW33
+    skill: early-warning
+    category: 气象预警
+    description: 暴雨气象预警对水库影响（正常，场景12）
+    question: "气象台有暴雨预警吗？对水库有影响吗？"
+    env: {SRM_TENANT_ID: 18, SRM_RESERVOIR_NAME: sancha}
+    timeout: 120
+    source: early-warning/autoresearch-v3/test-inputs.md::Q102
+    truth_source: rubric
+    expected_keywords: ["暴雨", "预警"]
+    rubric:
+      - 查询 weather_warn 活跃预警
+      - 分析对水库水位/调度的影响
+      - 给出建议

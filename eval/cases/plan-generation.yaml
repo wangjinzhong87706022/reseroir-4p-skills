@@ -1,0 +1,343 @@
+# plan-generation 评估集（cull 自 plan-generation/tests/test-questions.md + test-questions-v2.md +
+#   autoresearch-plan-skill/eval.py::TEST_INPUTS T1-T5）
+# 三岔水库 sancha (tenant 18)；水位 ~459.18m，汛限 462.5m，校核洪水位 462.88m，死水位 451m，
+# 最大下泄能力 191/192 m³/s，下游安全泄量 95.1 m³/s。
+# live_db 的 truth_query 沿用 eval.py::get_ground_truth 的生产 SQL（按 reservoir 表/列实际确认）。
+forbidden_keywords: []
+cases:
+  # === 一、eval.py::TEST_INPUTS 5 道（baseline 已 100%） ===
+  - id: PG1
+    skill: plan-generation
+    category: 预案生成
+    description: 暴雨防洪预案生成（eval.py baseline）
+    question: "今天是 2026年6月5日 08:00，当前水位 459.18m，气象预报未来 48 小时有暴雨（预计降雨 80-120mm），请生成一套防洪优先的调度预案。"
+    env: {SRM_TENANT_ID: 18, SRM_RESERVOIR_NAME: sancha}
+    timeout: 180
+    tags: [smoke]
+    source: plan-generation/autoresearch-plan-skill/eval.py::TEST_INPUTS::T1
+    truth_source: rubric
+    expected_keywords: ["防洪", "预案"]
+    rubric:
+      - 形势判断+方案推荐+风险提示三段齐全
+      - schedulingTarget=0（防洪安全）、schedulingModel=0（控制最高水位）
+      - maxWaterLevel 不超 model_config 的 max_water_level（462.88m）
+      - 引用 dispatch-rules.md / 知识库规则
+  - id: PG2
+    skill: plan-generation
+    category: 形势研判
+    description: 防汛形势评估（eval.py baseline）
+    question: "今天是 2026年6月5日 08:00，当前水位 459.18m，未来 48 小时预报降雨 80mm，气象台发布暴雨黄色预警。请评估当前防汛形势，是否需要启动预案？"
+    env: {SRM_TENANT_ID: 18, SRM_RESERVOIR_NAME: sancha}
+    timeout: 180
+    tags: [smoke]
+    source: plan-generation/autoresearch-plan-skill/eval.py::TEST_INPUTS::T2
+    truth_source: rubric
+    expected_keywords: ["防汛", "形势"]
+    rubric:
+      - 给出当前水位与汛限的距离（余量约 3.3m）
+      - 明确"是否需要启动预案"的判断
+      - 引用 emergency-response.md / dispatch-rules.md
+  - id: PG3
+    skill: plan-generation
+    category: 预案解读
+    description: 预案 717 调度效果解读（eval.py baseline）
+    question: "预案 id=717（2026年5月20日防洪安全方案）已执行完成，请解读该预案的调度效果：起调水位 459.81m，最高允许水位 462.88m，调度时长 24 小时。这个方案效果怎么样？"
+    env: {SRM_TENANT_ID: 18, SRM_RESERVOIR_NAME: sancha}
+    timeout: 180
+    tags: [smoke]
+    source: plan-generation/autoresearch-plan-skill/eval.py::TEST_INPUTS::T3
+    truth_source: rubric
+    expected_keywords: ["预案", "效果"]
+    rubric:
+      - 给出起调/最高水位与实际控制结果对比
+      - 评估安全余量（约 3.07m）
+      - 引用 dispatch-rules.md
+  - id: PG4
+    skill: plan-generation
+    category: 应急响应
+    description: 水位超汛限应急调度（eval.py baseline）
+    question: "今天凌晨 03:00，水位突然涨到 463.0m，超过汛限水位 462.5m。现在是凌晨 03:30，应该如何应急调度？"
+    env: {SRM_TENANT_ID: 18, SRM_RESERVOIR_NAME: sancha}
+    timeout: 180
+    tags: [smoke]
+    source: plan-generation/autoresearch-plan-skill/eval.py::TEST_INPUTS::T4
+    truth_source: rubric
+    expected_keywords: ["应急", "超汛限"]
+    rubric:
+      - 识别水位 463.0m > 汛限 462.5m 的紧急状态
+      - 建议立即加大泄洪并通知防汛指挥部
+      - 引用 emergency-response.md
+  - id: PG5
+    skill: plan-generation
+    category: 综合场景
+    description: 汛期首场洪水方案（eval.py baseline）
+    question: "今天是 2026 年 5 月 1 日，进入汛期第一天，当前水位 461.0m，气象预报未来 3 天有中到大雨（50-80mm）。作为汛期首场洪水，应该如何制定调度方案？"
+    env: {SRM_TENANT_ID: 18, SRM_RESERVOIR_NAME: sancha}
+    timeout: 180
+    tags: [smoke]
+    source: plan-generation/autoresearch-plan-skill/eval.py::TEST_INPUTS::T5
+    truth_source: rubric
+    expected_keywords: ["汛期", "方案"]
+    rubric:
+      - 建议提前预泄、预留防洪库容
+      - 调度时长覆盖整个降雨过程（≥72h）
+      - 引用 dispatch-rules.md 与 emergency-response.md
+  # === 二、基础查询类（v1 Q1-Q5） ===
+  - id: PG6
+    skill: plan-generation
+    category: 水位查询
+    description: 当前水位查询（live_db）
+    question: "三岔水库当前水位是多少？"
+    env: {SRM_TENANT_ID: 18, SRM_RESERVOIR_NAME: sancha}
+    timeout: 60
+    source: plan-generation/tests/test-questions.md::Q1
+    truth_source: live_db
+    truth_query: "SELECT rz FROM st_rsvr_r WHERE rz IS NOT NULL AND deleted = 0 ORDER BY tm DESC LIMIT 1"
+    tolerance: 1.0
+    expected_keywords: ["水位"]
+  - id: PG7
+    skill: plan-generation
+    category: 汛限查询
+    description: 汛限水位查询（live_db）
+    question: "三岔水库当前的汛限水位是多少？"
+    env: {SRM_TENANT_ID: 18, SRM_RESERVOIR_NAME: sancha}
+    timeout: 60
+    source: plan-generation/tests/test-questions.md::Q2
+    truth_source: live_db
+    truth_query: "SELECT flse_lim_stag FROM att_res_flse_lim WHERE flood_season_start <= DATE_FORMAT(NOW(), '%m%d') AND flood_season_end >= DATE_FORMAT(NOW(), '%m%d') LIMIT 1"
+    tolerance: 0.5
+    expected_keywords: ["汛限", "水位"]
+  - id: PG8
+    skill: plan-generation
+    category: 配置查询
+    description: 最高/最低允许水位配置（正常）
+    question: "系统配置的最高允许水位和最低允许水位分别是多少？"
+    env: {SRM_TENANT_ID: 18, SRM_RESERVOIR_NAME: sancha}
+    timeout: 60
+    source: plan-generation/tests/test-questions.md::Q3
+    truth_source: inline
+    expected_keywords: ["配置", "水位"]
+    expected_range: {min: 445.0, max: 465.0}
+  - id: PG9
+    skill: plan-generation
+    category: 降雨预报
+    description: 未来 24h 降雨预报查询（正常）
+    question: "未来 24 小时的降雨预报情况如何？"
+    env: {SRM_TENANT_ID: 18, SRM_RESERVOIR_NAME: sancha}
+    timeout: 120
+    source: plan-generation/tests/test-questions.md::Q4
+    truth_source: inline
+    expected_keywords: ["降雨", "预报"]
+  - id: PG10
+    skill: plan-generation
+    category: 气象预警
+    description: 活跃气象预警查询（正常）
+    question: "当前有哪些活跃的气象预警？"
+    env: {SRM_TENANT_ID: 18, SRM_RESERVOIR_NAME: sancha}
+    timeout: 120
+    source: plan-generation/tests/test-questions.md::Q5
+    truth_source: inline
+    expected_keywords: ["预警"]
+  # === 三、数据分析类（v1 Q6-Q12，精选） ===
+  - id: PG11
+    skill: plan-generation
+    category: 数据分析
+    description: 水位距汛限距离（正常）
+    question: "当前水位距离汛限水位还有多少米？是否安全？"
+    env: {SRM_TENANT_ID: 18, SRM_RESERVOIR_NAME: sancha}
+    timeout: 120
+    source: plan-generation/tests/test-questions.md::Q6
+    truth_source: inline
+    expected_keywords: ["汛限", "安全"]
+  - id: PG12
+    skill: plan-generation
+    category: 数据分析
+    description: 历史预案统计（正常，live_db）
+    question: "系统中存储了多少条历史预案？最近一条是什么时候创建的？"
+    env: {SRM_TENANT_ID: 18, SRM_RESERVOIR_NAME: sancha}
+    timeout: 120
+    tags: [live_db]
+    source: plan-generation/tests/test-questions.md::Q11
+    truth_source: live_db
+    truth_query: "SELECT COUNT(*) AS cnt FROM model_result_files WHERE type = 2"
+    tolerance: 20.0
+    expected_keywords: ["历史", "预案"]
+  - id: PG13
+    skill: plan-generation
+    category: 数据分析
+    description: 历史洪水统计（边界，已完成比例）
+    question: "系统中存储了多少条历史洪水记录？哪些已经计算完成（status=2）？"
+    env: {SRM_TENANT_ID: 18, SRM_RESERVOIR_NAME: sancha}
+    timeout: 120
+    source: plan-generation/tests/test-questions.md::Q12
+    truth_source: inline
+    expected_keywords: ["历史", "洪水"]
+  # === 四、预案生成类（v1 Q13-Q17，精选 3 道） ===
+  - id: PG14
+    skill: plan-generation
+    category: 预案生成
+    description: 防洪优先预案（正常，100mm/48h）
+    question: "假设未来 48 小时有暴雨（预计降雨 100mm），请以防洪优先策略生成调度预案。"
+    env: {SRM_TENANT_ID: 18, SRM_RESERVOIR_NAME: sancha}
+    timeout: 180
+    source: plan-generation/tests/test-questions.md::Q13
+    truth_source: rubric
+    expected_keywords: ["防洪", "预案"]
+    rubric:
+      - schedulingTarget=0 / schedulingModel=0
+      - maxWaterLevel 不超校核洪水位 462.88m
+      - 参考历史预案（如 id=717）
+  - id: PG15
+    skill: plan-generation
+    category: 预案生成
+    description: 综合平衡预案（边界，无强降雨）
+    question: "当前水位正常，无强降雨预报，请生成一套综合平衡的调度预案。"
+    env: {SRM_TENANT_ID: 18, SRM_RESERVOIR_NAME: sancha}
+    timeout: 180
+    source: plan-generation/tests/test-questions.md::Q14
+    truth_source: rubric
+    expected_keywords: ["综合", "预案"]
+    rubric:
+      - 确认当前水位 459.18m < 汛限 462.5m
+      - 使用 schedulingModel=2（控制水位范围）
+      - maxWaterLevel 与 minWaterLevel 在合理范围内
+  - id: PG16
+    skill: plan-generation
+    category: 预案生成
+    description: 三方案对比与削峰率（正常）
+    question: "请生成 3 个不同策略的调度方案（防洪/综合/兴利），并对比削峰率和最高水位。"
+    env: {SRM_TENANT_ID: 18, SRM_RESERVOIR_NAME: sancha}
+    timeout: 240
+    source: plan-generation/tests/test-questions.md::Q15
+    truth_source: rubric
+    expected_keywords: ["削峰率", "方案"]
+    rubric:
+      - 生成 3 组不同 schedulingTarget 参数（0/1/2）
+      - 给出最高水位与削峰率对比
+      - 推荐最优方案并说明理由
+  # === 五、异常场景类（v1 Q18-Q27，精选 3 道） ===
+  - id: PG17
+    skill: plan-generation
+    category: 异常场景
+    description: 当前水位 NULL 处理（异常）
+    question: "如果当前水位数据为 NULL，应该如何处理预案生成？"
+    env: {SRM_TENANT_ID: 18, SRM_RESERVOIR_NAME: sancha}
+    timeout: 120
+    source: plan-generation/tests/test-questions.md::Q18
+    truth_source: rubric
+    expected_keywords: ["NULL", "不可用"]
+    rubric:
+      - 检测 rz=NULL 状态
+      - 提示"水位数据不可用，无法生成预案"或回退最近有效值
+      - 不输出崩溃或空方案
+  - id: PG18
+    skill: plan-generation
+    category: 异常场景
+    description: 水位超汛限预案（异常）
+    question: "如果当前水位已经超过汛限水位（假设 463.0m > 462.5m），应该如何生成预案？"
+    env: {SRM_TENANT_ID: 18, SRM_RESERVOIR_NAME: sancha}
+    timeout: 180
+    source: plan-generation/tests/test-questions.md::Q19
+    truth_source: rubric
+    expected_keywords: ["超汛限", "紧急"]
+    rubric:
+      - 进入紧急模式
+      - 生成最大泄流方案（受安全泄量约束）
+      - 标注"水位超汛限，需紧急调度"
+  - id: PG19
+    skill: plan-generation
+    category: 异常场景
+    description: 水位近死水位预案（异常，保供）
+    question: "如果当前水位接近死水位（假设 452m，接近 451m），应该如何生成预案？"
+    env: {SRM_TENANT_ID: 18, SRM_RESERVOIR_NAME: sancha}
+    timeout: 180
+    source: plan-generation/tests/test-questions.md::Q20
+    truth_source: rubric
+    expected_keywords: ["死水位", "保供"]
+    rubric:
+      - 进入兴利优先模式
+      - 减少下泄，保供水
+      - schedulingTarget=1（兴利供水）
+  # === 六、形势研判（v2 Q14-Q18，精选 2 道） ===
+  - id: PG20
+    skill: plan-generation
+    category: 形势研判
+    description: 安全余量 < 2m 启动防洪（边界）
+    question: "当前水位 462.3m，汛限水位 462.5m，未来 6 小时预报降雨 30mm。当前水位安全吗？需要采取什么措施？"
+    env: {SRM_TENANT_ID: 18, SRM_RESERVOIR_NAME: sancha}
+    timeout: 180
+    source: plan-generation/tests/test-questions-v2.md::Q15
+    truth_source: rubric
+    expected_keywords: ["安全", "措施"]
+    rubric:
+      - 识别余量仅 0.2m 的临界状态
+      - 建议启动防洪预案/加密监测
+      - 不输出"暂无风险"的过度乐观判断
+  - id: PG21
+    skill: plan-generation
+    category: 形势研判
+    description: 暴雨橙色预警研判（正常）
+    question: "气象台发布暴雨橙色预警（未来 24 小时降雨 100-150mm），当前水位 460.0m，汛限水位 462.5m。这个预警对水库调度意味着什么？"
+    env: {SRM_TENANT_ID: 18, SRM_RESERVOIR_NAME: sancha}
+    timeout: 180
+    source: plan-generation/tests/test-questions-v2.md::Q17
+    truth_source: rubric
+    expected_keywords: ["预警", "调度"]
+    rubric:
+      - 评估暴雨对水位的预期影响
+      - 给出预泄/防洪预案建议
+      - 引用 emergency-response.md
+  # === 七、历史参考类（v2 Q19-Q23，精选 2 道） ===
+  - id: PG22
+    skill: plan-generation
+    category: 历史参考
+    description: 相似历史洪水查询（正常）
+    question: "当前预报未来 24 小时降雨 80mm，起调水位约 459m。历史上有没有类似条件的洪水？当时是怎么调度的？"
+    env: {SRM_TENANT_ID: 18, SRM_RESERVOIR_NAME: sancha}
+    timeout: 180
+    source: plan-generation/tests/test-questions-v2.md::Q19
+    truth_source: inline
+    expected_keywords: ["历史", "相似"]
+  - id: PG23
+    skill: plan-generation
+    category: 历史参考
+    description: 削峰率经验提炼（正常）
+    question: "2018 年第二场次洪水（id=1）期间，入库洪峰 61.41 m³/s，出库 10.08 m³/s，削峰率 23.34%。从中可以总结什么调度经验？"
+    env: {SRM_TENANT_ID: 18, SRM_RESERVOIR_NAME: sancha}
+    timeout: 180
+    source: plan-generation/tests/test-questions-v2.md::Q21
+    truth_source: rubric
+    expected_keywords: ["削峰率", "经验"]
+    rubric:
+      - 解读削峰率 23.34% 的实际意义
+      - 提炼可复用的调度经验（拦蓄时机/泄量阶梯）
+      - 不编造历史数据
+  # === 八、边界条件类（v1 Q46-Q50，精选 2 道） ===
+  - id: PG24
+    skill: plan-generation
+    category: 边界条件
+    description: 水位恰好等于汛限（边界）
+    question: "如果当前水位恰好等于汛限水位 462.500m，是安全还是危险？"
+    env: {SRM_TENANT_ID: 18, SRM_RESERVOIR_NAME: sancha}
+    timeout: 120
+    source: plan-generation/tests/test-questions.md::Q46
+    truth_source: rubric
+    expected_keywords: ["汛限", "临界"]
+    rubric:
+      - 判定为临界状态
+      - 建议启动防洪预案
+      - 不输出"绝对安全/绝对危险"的二元结论
+  - id: PG25
+    skill: plan-generation
+    category: 边界条件
+    description: 调度时长 tmSpan=0 校验（异常）
+    question: "如果用户指定调度时长 tmSpan=0，系统如何处理？"
+    env: {SRM_TENANT_ID: 18, SRM_RESERVOIR_NAME: sancha}
+    timeout: 60
+    source: plan-generation/tests/test-questions.md::Q49
+    truth_source: rubric
+    expected_keywords: ["调度时长", "0"]
+    rubric:
+      - 检测 tmSpan=0 的参数错误
+      - 提示"调度时长必须大于 0"
+      - 不进入模型计算

@@ -1,0 +1,144 @@
+# supervisor 评估集（cull 自 supervisor/demo-output/A|B|C|D-*.json 四场景）
+# demo-output 实测数据基于桃曲坡水库 TQP (tenant 20, flood_limit=786.8m, 当前 rz=786.95m 超汛限)。
+# 按 brief：每场景转 1 正常 + 1 边界 = 8 题，再补 routing/queue 各 1 题，共 10 题。
+# 仲裁刚性规则（SKILL.md §四）：方案 vs 仿真冲突以仿真为准；Step6 不允许纯 LLM 臆断。
+forbidden_keywords: []
+cases:
+  # === 场景 A：汛期暴雨研判调度（7 步 DAG，priority 中） ===
+  - id: SUP1
+    skill: supervisor
+    category: 场景A_汛期暴雨研判
+    description: A 场景完整七步研判（正常，超汛限）
+    question: "桃曲坡水库当前水位 786.95m 超过汛限 786.8m，气象预报未来有暴雨，请走完整的汛期暴雨研判调度流程。"
+    env: {SRM_TENANT_ID: 20, SRM_RESERVOIR_NAME: taoqupo}
+    timeout: 600
+    tags: [smoke]
+    source: supervisor/demo-output/A-20260805-192723.json
+    truth_source: rubric
+    expected_keywords: ["研判", "调度"]
+    rubric:
+      - 完成 forecasting→diagnosis→inspection→simulation→plan-gen→仲裁→报告 七步
+      - 仲裁阶段识别"仿真最高水位 786.95m 超汛限 786.8m"
+      - 报告含事件号/场景/风险等级/状态四要素
+  - id: SUP2
+    skill: supervisor
+    category: 场景A_汛期暴雨研判
+    description: A 场景 HITL 暂停点（边界，等人工确认）
+    question: "A 场景中 Step5 已生成调度方案，Step6 仲裁前是否需要暂停等待人工确认？冲突时以谁为准？"
+    env: {SRM_TENANT_ID: 20, SRM_RESERVOIR_NAME: taoqupo}
+    timeout: 120
+    source: supervisor/SKILL.md::§二 HITL 检查点
+    truth_source: rubric
+    expected_keywords: ["人工", "确认"]
+    rubric:
+      - 明确 Step5/6 之间存在 HITL 暂停点
+      - 冲突时以仿真结果为准（不允许纯 LLM 臆断）
+      - 不跳过人工确认直接执行
+  # === 场景 B：大坝安全智能诊断（5 步 DAG，priority 中） ===
+  - id: SUP3
+    skill: supervisor
+    category: 场景B_大坝安全诊断
+    description: B 场景大坝诊断链（正常，数据质量异常 escalate）
+    question: "桃曲坡水库近期渗流和水位数据存在质量问题，请启动大坝安全智能诊断全流程。"
+    env: {SRM_TENANT_ID: 20, SRM_RESERVOIR_NAME: taoqupo}
+    timeout: 480
+    source: supervisor/demo-output/B-20260805-192723.json
+    truth_source: rubric
+    expected_keywords: ["诊断", "大坝"]
+    rubric:
+      - 完成 diagnosis→inspection→simulation→仲裁 链路
+      - 仲裁识别数据质量问题（water_level 空值率高、alerts 过期）
+      - 决策为 escalate 而非 accept
+  - id: SUP4
+    skill: supervisor
+    category: 场景B_大坝安全诊断
+    description: B 场景escalate至人工现场（边界，决策类型）
+    question: "B 场景仲裁结果为 escalate 且建议立即核查数据采集链路并人工现场查勘。何时应 escalate 而非 accept？"
+    env: {SRM_TENANT_ID: 20, SRM_RESERVOIR_NAME: taoqupo}
+    timeout: 120
+    source: supervisor/demo-output/B-20260805-192723.json::arbitrator
+    truth_source: rubric
+    expected_keywords: ["escalate", "数据"]
+    rubric:
+      - 明确 escalate 触发条件（数据严重异常/状态无法确认）
+      - 给出 escalate 与 accept 的判定边界
+      - 不在数据正常时贸然 escalate
+  # === 场景 C：日常精细化管控（3 步 DAG，priority 低） ===
+  - id: SUP5
+    skill: supervisor
+    category: 场景C_日常管控
+    description: C 场景日常水情汇报（正常）
+    question: "今天是工作日早晨，请生成桃曲坡水库的日常水情管控研判报告。"
+    env: {SRM_TENANT_ID: 20, SRM_RESERVOIR_NAME: taoqupo}
+    timeout: 300
+    source: supervisor/demo-output/C-20260805-192723.json
+    truth_source: rubric
+    expected_keywords: ["日常", "报告"]
+    rubric:
+      - 完成 forecasting→simulation→报告 三步
+      - 报告含当前水位/入库/出库/蓄水量四要素
+      - 不触发应急流程（C 场景 priority=低）
+  - id: SUP6
+    skill: supervisor
+    category: 场景C_日常管控
+    description: C 场景priority=低判定（边界，优先级映射）
+    question: "C 日常管控场景的默认 priority 是什么？多事件并行时如何排队？"
+    env: {SRM_TENANT_ID: 20, SRM_RESERVOIR_NAME: taoqupo}
+    timeout: 60
+    source: supervisor/SKILL.md::§三 priority 默认映射
+    truth_source: inline
+    expected_keywords: ["低", "优先级"]
+  # === 场景 D：应急响应（5 步 DAG，priority 高） ===
+  - id: SUP7
+    skill: supervisor
+    category: 场景D_应急响应
+    description: D 场景应急响应链（正常，险情上报）
+    question: "桃曲坡水库发生险情，I级响应触发，请启动应急响应流程。"
+    env: {SRM_TENANT_ID: 20, SRM_RESERVOIR_NAME: taoqupo}
+    timeout: 480
+    source: supervisor/demo-output/D-20260805-192723.json
+    truth_source: rubric
+    expected_keywords: ["应急", "响应"]
+    rubric:
+      - 完成 early-warning→plan-gen→simulation 等应急链步骤
+      - priority=高，进入优先处理队列
+      - 报告标注应急状态与责任部门
+  - id: SUP8
+    skill: supervisor
+    category: 场景D_应急响应
+    description: D 场景priority=高排队（边界，队列优先级）
+    question: "D 应急响应事件 priority=高，与同时到达的 A/B/C 事件相比如何排队？"
+    env: {SRM_TENANT_ID: 20, SRM_RESERVOIR_NAME: taoqupo}
+    timeout: 60
+    source: supervisor/SKILL.md::§三 queue
+    truth_source: rubric
+    expected_keywords: ["高", "队列"]
+    rubric:
+      - 高>中>低 的优先级排序正确
+      - 同优先级按 created_at 排序
+      - 明确 D 优先于 A/B/C
+  # === 场景路由 + 状态持久化 ===
+  - id: SUP9
+    skill: supervisor
+    category: 场景路由
+    description: 触发信号→场景路由（正常）
+    question: "用户输入'暴雨预警，水位超汛限，需要研判调度'，应识别为哪个场景？对应 DAG 是什么？"
+    env: {SRM_TENANT_ID: 20, SRM_RESERVOIR_NAME: taoqupo}
+    timeout: 60
+    source: supervisor/SKILL.md::§一 场景识别入口 scene_router.py
+    truth_source: inline
+    expected_keywords: ["A", "研判"]
+  - id: SUP10
+    skill: supervisor
+    category: 状态持久化
+    description: 断点续跑（边界，resume）
+    question: "事件 A-20260805-019 在 Step4 中断，如何从断点续跑？"
+    env: {SRM_TENANT_ID: 20, SRM_RESERVOIR_NAME: taoqupo}
+    timeout: 60
+    source: supervisor/SKILL.md::§三 resume
+    truth_source: rubric
+    expected_keywords: ["续跑", "step"]
+    rubric:
+      - 通过 supervisor_state.py resume 列出未完成阶段
+      - 从 Step4 续跑而非从头开始
+      - 保留已完成阶段结果（pending/ok/skipped/error）

@@ -1,0 +1,382 @@
+# simulation 评估集（cull 自 simulation/tests/test-questions.md 98 题 + autoresearch-simulation/questions.tsv）
+# 按 evaluator.py::CATEGORY_MAP 的 22 个分类各留代表（正常/异常/边界三类齐全）。
+# 三岔水库 sancha (tenant 18)；当前水位 459.18m，汛限 462.5m（非汛期）/462.88m（汛期），死水位 451m，
+# 校核洪水位 462.88m，最大下泄 191 m³/s，下游安全泄量 95.1 m³/s；历史洪水 11 条。
+# live_db 的 truth_query 仅用 plan-generation/autoresearch-plan-skill/eval.py::get_ground_truth 验证过的生产 SQL。
+forbidden_keywords: []
+cases:
+  # === 一、多方案对比预演（能力1） ===
+  - id: SIM1
+    skill: simulation
+    category: 多方案对比
+    description: 历史洪水三方案对比（正常，已知削峰率 23.34%）
+    question: "2018年第二场次洪水（id=1），分别用防洪优先、综合平衡、兴利优先三个方案做预演对比，看哪个方案效果最好"
+    env: {SRM_TENANT_ID: 18, SRM_RESERVOIR_NAME: sancha}
+    timeout: 240
+    source: simulation/tests/test-questions.md::Q1
+    truth_source: inline
+    expected_keywords: ["削峰率", "方案"]
+  - id: SIM2
+    skill: simulation
+    category: 多方案对比
+    description: 长历时洪水方案对比（正常）
+    question: "对2020年8月那场长历时洪水（id=11），用不同调度方案预演一下，看看削峰率差多少"
+    env: {SRM_TENANT_ID: 18, SRM_RESERVOIR_NAME: sancha}
+    timeout: 240
+    source: simulation/tests/test-questions.md::Q2
+    truth_source: inline
+    expected_keywords: ["削峰率", "方案"]
+  - id: SIM3
+    skill: simulation
+    category: 多方案对比
+    description: 自动生成方案并推荐（正常）
+    question: "用默认的3组方案预演2023年7月典型暴雨洪水（id=17），给出推荐方案和理由"
+    env: {SRM_TENANT_ID: 18, SRM_RESERVOIR_NAME: sancha}
+    timeout: 240
+    source: simulation/tests/test-questions.md::Q6
+    truth_source: rubric
+    expected_keywords: ["推荐", "方案"]
+    rubric:
+      - 给出 3 组不同策略方案对比
+      - 明确推荐理由（削峰率/最高水位）
+      - 不编造未运行的方案数据
+  - id: SIM4
+    skill: simulation
+    category: 多方案对比_异常
+    description: 失败洪水（status=3）多方案预演（异常）
+    question: "对2018年第一场次洪水（id=9）做多方案预演，看看结果怎么样"
+    env: {SRM_TENANT_ID: 18, SRM_RESERVOIR_NAME: sancha}
+    timeout: 180
+    source: simulation/tests/test-questions.md::Q7
+    truth_source: rubric
+    expected_keywords: ["失败", "status"]
+    rubric:
+      - 识别 status=3（失败）状态
+      - 不编造预演结果数据
+      - 提示该洪水预演失败或返回空
+  - id: SIM5
+    skill: simulation
+    category: 多方案对比_边界
+    description: 不存在的洪水 ID（异常边界）
+    question: "我想预演一个不存在的洪水（id=999），看看会怎样"
+    env: {SRM_TENANT_ID: 18, SRM_RESERVOIR_NAME: sancha}
+    timeout: 120
+    source: simulation/tests/test-questions.md::Q9
+    truth_source: rubric
+    expected_keywords: ["不存在", "未找到"]
+    rubric:
+      - 检测洪水 id=999 不存在
+      - 返回明确"未找到"提示而非崩溃
+      - 不编造虚拟结果
+  # === 二、结果智能解读（能力2） ===
+  - id: SIM6
+    skill: simulation
+    category: 结果解读
+    description: 历史洪水调度效果解读（正常，已知数据）
+    question: "帮我解读一下2018年第二场次洪水（id=1）的预演结果，这场洪水的调度效果怎么样？"
+    env: {SRM_TENANT_ID: 18, SRM_RESERVOIR_NAME: sancha}
+    timeout: 180
+    source: simulation/tests/test-questions.md::Q14
+    truth_source: inline
+    expected_keywords: ["削峰率", "23.34"]
+  - id: SIM7
+    skill: simulation
+    category: 结果解读
+    description: 水位距汛限安全评估（正常）
+    question: "2018年第二场次洪水（id=1）的最高水位458m，距汛限水位462.88m还有多远？算安全吗？"
+    env: {SRM_TENANT_ID: 18, SRM_RESERVOIR_NAME: sancha}
+    timeout: 120
+    source: simulation/tests/test-questions.md::Q16
+    truth_source: inline
+    expected_keywords: ["安全", "水位"]
+  - id: SIM8
+    skill: simulation
+    category: 结果解读
+    description: 两场洪水对比解读（正常）
+    question: "对比一下2018年两场洪水（id=1和id=9）的调度效果，哪场处理得好？"
+    env: {SRM_TENANT_ID: 18, SRM_RESERVOIR_NAME: sancha}
+    timeout: 180
+    source: simulation/tests/test-questions.md::Q19
+    truth_source: rubric
+    expected_keywords: ["对比", "效果"]
+    rubric:
+      - 给出两场洪水的关键指标对比（削峰率/最高水位）
+      - 注意 id=9 为 status=3 失败记录
+      - 给出明确的"哪场更好"判断及理由
+  - id: SIM9
+    skill: simulation
+    category: 结果解读_异常
+    description: 解读无结果洪水（异常，id=17 无预演）
+    question: "帮我解读2023年7月典型暴雨洪水（id=17）的预演结果"
+    env: {SRM_TENANT_ID: 18, SRM_RESERVOIR_NAME: sancha}
+    timeout: 120
+    source: simulation/tests/test-questions.md::Q20
+    truth_source: rubric
+    expected_keywords: ["无", "结果"]
+    rubric:
+      - 检测该洪水无预演结果数据
+      - 不编造削峰率/最高水位数值
+      - 给出"无可解读结果"提示
+  - id: SIM10
+    skill: simulation
+    category: 结果解读_边界
+    description: 数据合理性核实（边界，入库 458 出库 20）
+    question: "2018年第二场次洪水（id=1）的入库洪峰458 m³/s，出库只有20 m³/s，这个数据对吗？帮我核实一下"
+    env: {SRM_TENANT_ID: 18, SRM_RESERVOIR_NAME: sancha}
+    timeout: 120
+    source: simulation/tests/test-questions.md::Q23
+    truth_source: rubric
+    expected_keywords: ["核实", "数据"]
+    rubric:
+      - 交叉验证入库/出库数据合理性
+      - 给出明确"合理/异常"判断
+      - 不简单复述题目数据
+  # === 三、虚拟场景构建（能力3） ===
+  - id: SIM11
+    skill: simulation
+    category: 虚拟场景
+    description: 200mm/48h 均匀降雨虚拟预演（正常）
+    question: "假设未来48小时三岔水库遭遇一场大暴雨，总降雨量200mm，均匀分布，用防洪优先方案预演一下，水位会涨到多少？"
+    env: {SRM_TENANT_ID: 18, SRM_RESERVOIR_NAME: sancha}
+    timeout: 240
+    source: simulation/tests/test-questions.md::Q25
+    truth_source: inline
+    expected_keywords: ["水位", "mm"]
+  - id: SIM12
+    skill: simulation
+    category: 虚拟场景
+    description: 150mm/24h 三角分布预演（正常）
+    question: "如果未来24小时突降150mm暴雨，三角分布（前期小、中期大、后期小），起调水位用当前的459.18m，帮我预演一下"
+    env: {SRM_TENANT_ID: 18, SRM_RESERVOIR_NAME: sancha}
+    timeout: 240
+    source: simulation/tests/test-questions.md::Q26
+    truth_source: inline
+    expected_keywords: ["水位", "预演"]
+  - id: SIM13
+    skill: simulation
+    category: 虚拟场景
+    description: 300mm/72h 长历时预演（正常，汛限校核）
+    question: "假设未来72小时持续降雨300mm，用综合平衡方案预演，看看最高水位会不会超汛限"
+    env: {SRM_TENANT_ID: 18, SRM_RESERVOIR_NAME: sancha}
+    timeout: 240
+    source: simulation/tests/test-questions.md::Q27
+    truth_source: inline
+    expected_keywords: ["汛限", "水位"]
+  - id: SIM14
+    skill: simulation
+    category: 虚拟场景_异常
+    description: 1000mm/48h 超模型范围（异常）
+    question: "假设降雨量1000mm/48h，预演一下"
+    env: {SRM_TENANT_ID: 18, SRM_RESERVOIR_NAME: sancha}
+    timeout: 120
+    source: simulation/tests/test-questions.md::Q31
+    truth_source: rubric
+    expected_keywords: ["超出", "范围"]
+    rubric:
+      - 识别降雨量超出模型校准范围（>500mm）
+      - 不强行输出可能失真的结果
+      - 给出"超出可信范围"提示
+  - id: SIM15
+    skill: simulation
+    category: 虚拟场景_边界
+    description: 1mm/48h 极小降雨（边界）
+    question: "假设未来48小时只下了1mm的雨，几乎没什么雨，预演一下结果"
+    env: {SRM_TENANT_ID: 18, SRM_RESERVOIR_NAME: sancha}
+    timeout: 120
+    source: simulation/tests/test-questions.md::Q35
+    truth_source: inline
+    expected_keywords: ["水位", "变化"]
+  # === 四、预演报告生成（能力4） ===
+  - id: SIM16
+    skill: simulation
+    category: 预演报告
+    description: 历史洪水预演报告（正常）
+    question: "帮我生成2018年第二场次洪水（id=1）的预演报告"
+    env: {SRM_TENANT_ID: 18, SRM_RESERVOIR_NAME: sancha}
+    timeout: 240
+    source: simulation/tests/test-questions.md::Q38
+    truth_source: rubric
+    expected_keywords: ["报告", "预演"]
+    rubric:
+      - 报告含起调/最高/最低水位、削峰率等关键指标
+      - 引用调度规则（dispatch-rules）
+      - 结构完整（结论/建议/风险提示）
+  - id: SIM17
+    skill: simulation
+    category: 预演报告
+    description: 长历时洪水报告（正常）
+    question: "把2020年8月洪水（id=11）的预演结果整理成报告"
+    env: {SRM_TENANT_ID: 18, SRM_RESERVOIR_NAME: sancha}
+    timeout: 240
+    source: simulation/tests/test-questions.md::Q39
+    truth_source: rubric
+    expected_keywords: ["报告", "洪水"]
+    rubric:
+      - 长历时洪水报告包含完整时间过程
+      - 关键节点（洪峰/退水）标注清晰
+      - 不编造未经预演的指标
+  - id: SIM18
+    skill: simulation
+    category: 预演报告_异常
+    description: 无结果洪水报告（异常）
+    question: "帮我生成2023年7月典型暴雨洪水（id=17）的预演报告"
+    env: {SRM_TENANT_ID: 18, SRM_RESERVOIR_NAME: sancha}
+    timeout: 120
+    source: simulation/tests/test-questions.md::Q42
+    truth_source: rubric
+    expected_keywords: ["无", "结果"]
+    rubric:
+      - 检测该洪水无预演结果数据
+      - 不编造报告内容
+      - 给出"无可生成报告的数据"提示
+  - id: SIM19
+    skill: simulation
+    category: 预演报告_边界
+    description: 批量报告汇总（边界，status=2）
+    question: "帮我把所有已完成的洪水（status=2）都生成报告汇总"
+    env: {SRM_TENANT_ID: 18, SRM_RESERVOIR_NAME: sancha}
+    timeout: 300
+    source: simulation/tests/test-questions.md::Q45
+    truth_source: rubric
+    expected_keywords: ["汇总", "status"]
+    rubric:
+      - 仅汇总 status=2（已完成）的洪水
+      - 不混入 status=3（失败）记录
+      - 报告条目数量与已完成洪水数一致
+  # === 五、敏感性分析（能力5） ===
+  - id: SIM20
+    skill: simulation
+    category: 敏感性分析
+    description: 降雨量敏感性单参数扫描（正常）
+    question: "以当前水位459.18m为基准，分析降雨量从100mm到400mm（每100mm一档）对最高水位的影响，看看多少降雨量会超汛限"
+    env: {SRM_TENANT_ID: 18, SRM_RESERVOIR_NAME: sancha}
+    timeout: 300
+    source: simulation/tests/test-questions.md::Q46
+    truth_source: inline
+    expected_keywords: ["敏感性", "水位"]
+  - id: SIM21
+    skill: simulation
+    category: 敏感性分析
+    description: 起调水位敏感性（正常）
+    question: "起调水位分别用457m、458m、459m、460m，降雨量固定200mm/48h，分析起调水位对预演结果的影响"
+    env: {SRM_TENANT_ID: 18, SRM_RESERVOIR_NAME: sancha}
+    timeout: 300
+    source: simulation/tests/test-questions.md::Q47
+    truth_source: inline
+    expected_keywords: ["敏感性", "起调"]
+  - id: SIM22
+    skill: simulation
+    category: 敏感性分析_异常
+    description: 超模型范围降雨敏感性（异常，0-2000mm）
+    question: "分析降雨量从0mm到2000mm（每100mm一档）的敏感性"
+    env: {SRM_TENANT_ID: 18, SRM_RESERVOIR_NAME: sancha}
+    timeout: 180
+    source: simulation/tests/test-questions.md::Q51
+    truth_source: rubric
+    expected_keywords: ["超出", "范围"]
+    rubric:
+      - 识别参数值超出模型校准范围
+      - 给出可信区间与不可信区间区分
+      - 不对超出范围档位输出确定性结论
+  - id: SIM23
+    skill: simulation
+    category: 敏感性分析_边界
+    description: 极小参数范围（边界，1-5mm）
+    question: "分析降雨量从1mm到5mm（每1mm一档）的敏感性"
+    env: {SRM_TENANT_ID: 18, SRM_RESERVOIR_NAME: sancha}
+    timeout: 180
+    source: simulation/tests/test-questions.md::Q54
+    truth_source: inline
+    expected_keywords: ["敏感性", "水位"]
+  # === 六、历史经验提取（能力6） ===
+  - id: SIM24
+    skill: simulation
+    category: 历史经验
+    description: 相似洪水历史查询（正常）
+    question: "历史上三岔水库遇到过类似200mm/48h的洪水吗？当时是怎么调度的？"
+    env: {SRM_TENANT_ID: 18, SRM_RESERVOIR_NAME: sancha}
+    timeout: 180
+    source: simulation/tests/test-questions.md::Q56
+    truth_source: inline
+    expected_keywords: ["历史", "相似"]
+  - id: SIM25
+    skill: simulation
+    category: 历史经验
+    description: 失败案例经验教训（正常）
+    question: "历史上有没有调度失败的案例？失败原因是什么？"
+    env: {SRM_TENANT_ID: 18, SRM_RESERVOIR_NAME: sancha}
+    timeout: 180
+    source: simulation/tests/test-questions.md::Q58
+    truth_source: inline
+    expected_keywords: ["失败", "原因"]
+  - id: SIM26
+    skill: simulation
+    category: 历史经验_异常
+    description: 历史洪水总数 live_db（边界-数据完整性）
+    question: "历史洪水中有几场有完整的预演结果数据？"
+    env: {SRM_TENANT_ID: 18, SRM_RESERVOIR_NAME: sancha}
+    timeout: 120
+    tags: [live_db]
+    source: simulation/tests/test-questions.md::Q65
+    truth_source: live_db
+    truth_query: "SELECT COUNT(*) AS cnt FROM srm_flood_history_base WHERE deleted = 0"
+    tolerance: 50.0
+    expected_keywords: ["历史", "洪水"]
+  - id: SIM27
+    skill: simulation
+    category: 历史经验_边界
+    description: 当前水位实时查询（边界-数据验证，live_db）
+    question: "帮我查一下当前三岔水库的水位是多少？数据是什么时候的？"
+    env: {SRM_TENANT_ID: 18, SRM_RESERVOIR_NAME: sancha}
+    timeout: 60
+    tags: [live_db]
+    source: simulation/tests/test-questions.md::Q91
+    truth_source: live_db
+    truth_query: "SELECT rz FROM st_rsvr_r WHERE rz IS NOT NULL AND deleted = 0 ORDER BY tm DESC LIMIT 1"
+    tolerance: 1.0
+    expected_keywords: ["水位"]
+  # === 七、综合场景（多能力联动） ===
+  - id: SIM28
+    skill: simulation
+    category: 综合场景
+    description: 虚拟预演+多方案+报告联动（综合）
+    question: "气象预报说未来48小时有200mm暴雨，帮我做个全面分析：先用虚拟场景预演，再对比不同方案，最后生成报告"
+    env: {SRM_TENANT_ID: 18, SRM_RESERVOIR_NAME: sancha}
+    timeout: 360
+    source: simulation/tests/test-questions.md::Q66
+    truth_source: rubric
+    expected_keywords: ["预演", "方案", "报告"]
+    rubric:
+      - 完成"虚拟预演→多方案对比→报告生成"三步
+      - 每步输出前后衔接、数据一致
+      - 报告含明确推荐方案
+  # === 八、业务场景 ===
+  - id: SIM29
+    skill: simulation
+    category: 业务场景
+    description: 防汛值班预演分析（业务）
+    question: "防汛值班日志：今天水位459.18m，气象预报48小时有雨，请帮我做个预演分析"
+    env: {SRM_TENANT_ID: 18, SRM_RESERVOIR_NAME: sancha}
+    timeout: 240
+    source: simulation/tests/test-questions.md::Q73
+    truth_source: rubric
+    expected_keywords: ["预演", "分析"]
+    rubric:
+      - 结合当前水位 459.18m 与降雨预报给出研判
+      - 提示是否需要启动防洪预案
+      - 不输出与工况无关的内容
+  # === 九、异常边界场景 ===
+  - id: SIM30
+    skill: simulation
+    category: 异常边界
+    description: 无效洪水 ID=0 校验（异常）
+    question: "对洪水id=0做多方案预演"
+    env: {SRM_TENANT_ID: 18, SRM_RESERVOIR_NAME: sancha}
+    timeout: 120
+    source: simulation/tests/test-questions.md::Q82
+    truth_source: rubric
+    expected_keywords: ["无效", "id"]
+    rubric:
+      - 检测 id=0 为无效洪水 ID
+      - 返回明确"无效参数"提示而非崩溃
+      - 不编造预演结果

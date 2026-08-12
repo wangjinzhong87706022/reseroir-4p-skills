@@ -1,0 +1,152 @@
+# diagnosis-verification 评估集（cull 自 diagnosis-verification/tests/test-cases.md 5 道 + 补 5 道）
+# 三岔水库 sancha (tenant 18)；当前水位 ~459.18m，汛限 462.5m，死水位 451m，校核洪水位 462.88m。
+# 8 阶段诊断（Phase 0-8）+ 6 层验证（Layer 1-6）+ 6 步修复（Step 1-6），见 diagnosis-verification/SKILL.md。
+# live_db 水位真值用 eval.py::get_ground_truth 验证过的 SQL：SELECT rz FROM st_rsvr_r WHERE rz IS NOT NULL AND deleted = 0 ORDER BY tm DESC LIMIT 1
+forbidden_keywords: []
+cases:
+  # === 一、test-cases.md 5 道（保留） ===
+  - id: DV1
+    skill: diagnosis-verification
+    category: 数据时效性诊断
+    description: 水位数据停止更新诊断（正常，P0）
+    question: "水位数据异常，连续 3 小时未更新"
+    env: {SRM_TENANT_ID: 18, SRM_RESERVOIR_NAME: sancha}
+    timeout: 300
+    tags: [smoke]
+    source: diagnosis-verification/tests/test-cases.md::测试用例1
+    truth_source: rubric
+    expected_keywords: ["时效性", "P0"]
+    rubric:
+      - Phase 0 问题类型识别为数据时效性、优先级 P0
+      - Phase 2 给出完整性/时效性评分（差）
+      - Phase 5 根因分类为数据问题（pipeline 故障）
+      - Phase 7 给出短期止血+长期根治方案
+      - Phase 8 知识库已更新
+  - id: DV2
+    skill: diagnosis-verification
+    category: 告警堆积诊断
+    description: 1165 条未确认告警堆积诊断（正常，P1）
+    question: "告警堆积，最近有大量未确认告警"
+    env: {SRM_TENANT_ID: 18, SRM_RESERVOIR_NAME: sancha}
+    timeout: 240
+    source: diagnosis-verification/tests/test-cases.md::测试用例2
+    truth_source: rubric
+    expected_keywords: ["告警", "堆积"]
+    rubric:
+      - Phase 5 根因分类为预期行为（误报）或告警规则过敏感
+      - Phase 7 给出短期批量确认/清理 + 长期阈值调整
+      - 不简单清空告警而无根因分析
+  - id: DV3
+    skill: diagnosis-verification
+    category: 输出验证
+    description: 预报输出 6 层验证（正常）
+    question: "请验证最近一次预报输出是否符合验收标准（含数据源、三段式、安全校验段）"
+    env: {SRM_TENANT_ID: 18, SRM_RESERVOIR_NAME: sancha}
+    timeout: 240
+    source: diagnosis-verification/tests/test-cases.md::测试用例3
+    truth_source: rubric
+    expected_keywords: ["验证", "层"]
+    rubric:
+      - Layer 1 数据源正确（query_forecast_data.py）
+      - Layer 2 三段式完整 + 引用 GB/T 22482 + 无硬编码
+      - Layer 5 跨 skill 数据一致
+      - 6 层全部覆盖
+  - id: DV4
+    skill: diagnosis-verification
+    category: 安全约束验证
+    description: 水位超汛限 Layer 4 阻塞（边界，P0）
+    question: "预报最高水位 462.8m，汛限 462.5m，请验证安全约束"
+    env: {SRM_TENANT_ID: 18, SRM_RESERVOIR_NAME: sancha}
+    timeout: 120
+    source: diagnosis-verification/tests/test-cases.md::测试用例4
+    truth_source: rubric
+    expected_keywords: ["阻塞", "汛限"]
+    rubric:
+      - Layer 4 安全约束失败（462.8m > 462.5m）
+      - 立即阻塞发布而非告警后继续
+      - 不输出"通过"结论
+  - id: DV5
+    skill: diagnosis-verification
+    category: 自动修复
+    description: 基础设施问题自动修复（正常，6 步）
+    question: "诊断报告根因为基础设施问题（连接池配置不当），请走自动修复流程"
+    env: {SRM_TENANT_ID: 18, SRM_RESERVOIR_NAME: sancha}
+    timeout: 480
+    source: diagnosis-verification/tests/test-cases.md::测试用例5
+    truth_source: rubric
+    expected_keywords: ["修复", "基础设施"]
+    rubric:
+      - Step 1 诊断报告解析正确
+      - Step 2 知识库匹配度 >80%
+      - Step 5 测试通过（单元+集成+回归+性能）
+      - Step 6 代码已提交并部署
+  # === 二、补充 5 道（覆盖更多 Phase/异常/边界） ===
+  - id: DV6
+    skill: diagnosis-verification
+    category: 数据时效性诊断
+    description: 当前水位时效性快检（live_db，正常）
+    question: "请检查三岔水库当前水位数据是否正常更新，最后更新时间是什么时候？"
+    env: {SRM_TENANT_ID: 18, SRM_RESERVOIR_NAME: sancha}
+    timeout: 120
+    tags: [live_db]
+    source: 补充：水位时效性快检（对齐 test-cases.md::测试用例1 数据时效性）
+    truth_source: live_db
+    truth_query: "SELECT rz FROM st_rsvr_r WHERE rz IS NOT NULL AND deleted = 0 ORDER BY tm DESC LIMIT 1"
+    tolerance: 1.0
+    expected_keywords: ["水位", "时效"]
+  - id: DV7
+    skill: diagnosis-verification
+    category: 输出验证
+    description: 预演输出 Layer 5 跨 skill 一致性（正常）
+    question: "请验证最近一次 simulation 预演输出与 plan-generation 方案数据是否一致"
+    env: {SRM_TENANT_ID: 18, SRM_RESERVOIR_NAME: sancha}
+    timeout: 240
+    source: 补充：跨 skill 一致性验证（对齐 SKILL.md Layer 5）
+    truth_source: rubric
+    expected_keywords: ["一致", "验证"]
+    rubric:
+      - Layer 5 跨 skill 数据一致
+      - 比对 simulation 与 plan-generation 关键字段（最高水位/削峰率）
+      - 不一致时给出明确差异点
+  - id: DV8
+    skill: diagnosis-verification
+    category: 根因诊断
+    description: 预案失败根因诊断（异常）
+    question: "最近一次 plan-generation 预案执行失败，请诊断根因"
+    env: {SRM_TENANT_ID: 18, SRM_RESERVOIR_NAME: sancha}
+    timeout: 300
+    source: 补充：预案失败根因诊断（对齐 SKILL.md Phase 5 根因分类）
+    truth_source: rubric
+    expected_keywords: ["根因", "失败"]
+    rubric:
+      - Phase 5 根因分类明确（数据/规则/模型/基础设施之一）
+      - 给出证据链而非猜测
+      - Phase 7 给出可执行修复方案
+  - id: DV9
+    skill: diagnosis-verification
+    category: 安全约束验证
+    description: 水位恰好等于汛限（边界）
+    question: "预报最高水位恰好 462.5m，等于汛限 462.5m，是否通过安全约束？"
+    env: {SRM_TENANT_ID: 18, SRM_RESERVOIR_NAME: sancha}
+    timeout: 120
+    source: 补充：边界值验证（对齐 test-cases.md::测试用例4 边界）
+    truth_source: rubric
+    expected_keywords: ["汛限", "边界"]
+    rubric:
+      - 处理 rz == 汛限 的边界情况
+      - 按规则判定（≤ 通过 / > 阻塞）
+      - 不输出歧义结论
+  - id: DV10
+    skill: diagnosis-verification
+    category: 自动修复
+    description: 修复测试不通过回滚（异常边界，Step 5 失败）
+    question: "自动修复流程中 Step 5 测试未通过（性能回归），应如何处理？"
+    env: {SRM_TENANT_ID: 18, SRM_RESERVOIR_NAME: sancha}
+    timeout: 180
+    source: 补充：修复流程异常分支（对齐 test-cases.md::测试用例5 Step 5）
+    truth_source: rubric
+    expected_keywords: ["回滚", "测试"]
+    rubric:
+      - 检测 Step 5 测试失败
+      - 触发回滚而非强制部署
+      - 给出失败原因（性能/集成/回归之一）
