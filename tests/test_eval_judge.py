@@ -28,5 +28,39 @@ class TestInlineJudge(unittest.TestCase):
         self.assertEqual(r["verdict"], "FAIL")
         self.assertIn("桃曲坡", r["detail"]["forbidden_hits"])
 
+class TestLiveDbJudge(unittest.TestCase):
+    def test_pass(self):
+        c = _case(truth_source="live_db", truth_query="SELECT rsvr_rz FROM st_rsvr_r LIMIT 1",
+                  tolerance=1.0, expected_keywords=["水位"])
+        qf = lambda sql: [{"rsvr_rz": 462.5}]
+        r = judge.judge_live_db(c, "当前水位 462.4 m", qf)
+        self.assertEqual(r["verdict"], "PASS")
+
+    def test_error_when_empty(self):
+        c = _case(truth_source="live_db", truth_query="SELECT x", tolerance=1.0)
+        r = judge.judge_live_db(c, "out", lambda sql: [])
+        self.assertEqual(r["verdict"], "ERROR")
+
+
+class TestRubricJudge(unittest.TestCase):
+    def test_skip_without_llm(self):
+        c = _case(truth_source="rubric", rubric=["必须给数值"], expected_keywords=["水位"])
+        r = judge.judge_rubric(c, "当前水位 462 m")
+        self.assertEqual(r["verdict"], "PASS")
+        self.assertEqual(r["detail"]["rubric"], "skip (no llm)")
+
+    def test_fail_rule_layer_forbidden(self):
+        c = _case(truth_source="rubric", rubric=["x"], forbidden=["桃曲坡"])
+        r = judge.judge_rubric(c, "桃曲坡 结果", None)
+        self.assertEqual(r["verdict"], "FAIL")
+
+    def test_with_llm(self):
+        c = _case(truth_source="rubric", rubric=["必须给数值"])
+        fake = lambda out, rub: {"passed": True, "items": [{"criterion": "必须给数值", "pass": True}]}
+        r = judge.judge_rubric(c, "ok", fake)
+        self.assertEqual(r["verdict"], "PASS")
+        self.assertIn("rubric_score", r["detail"])
+
+
 if __name__ == "__main__":
     unittest.main()
