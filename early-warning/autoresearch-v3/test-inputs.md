@@ -1,3 +1,5 @@
+> ⚠️ 已迁入 `eval/cases/early-warning.yaml`（统一评估集）。本文件为历史存档，不再维护，仅作题源追溯。新题请加到 `eval/cases/`。
+
 # 告警 Skill 测试问题集（完整版）
 
 ## 版本信息

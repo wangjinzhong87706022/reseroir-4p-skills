@@ -1,3 +1,5 @@
+> ⚠️ 已迁入 `eval/cases/plan-generation.yaml`（统一评估集）。本文件为历史存档，不再维护，仅作题源追溯。新题请加到 `eval/cases/`。
+
 # 预案 Skill 测试问题集
 
 > **测试对象**: SmartTwinRes-skills/plan-generation/

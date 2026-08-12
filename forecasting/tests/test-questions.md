@@ -1,3 +1,5 @@
+> ⚠️ 已迁入 `eval/cases/forecasting.yaml`（统一评估集）。本文件为历史存档，不再维护，仅作题源追溯。新题请加到 `eval/cases/`。
+
 # 预报 Skill 测试问题集（v1，技术向，SQL 可验证）
 
 > **测试对象**: SmartTwinRes-skills/forecasting/
