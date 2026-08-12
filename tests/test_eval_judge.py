@@ -62,5 +62,27 @@ class TestRubricJudge(unittest.TestCase):
         self.assertIn("rubric_score", r["detail"])
 
 
+class TestLlmJudge(unittest.TestCase):
+    def test_parses_strict_json(self):
+        class B:
+            def __init__(self, t): self.text = t
+        class R:
+            def __init__(self, t): self.content = [B(t)]
+        class Client:
+            def __init__(self, t=None): self._t = t
+            class messages:
+                @staticmethod
+                def create(**kw):
+                    return R('{"passed": true, "items": [{"criterion": "必须给数值", "pass": true}]}')
+        r = judge.llm_judge("out", ["必须给数值"], client=Client())
+        self.assertTrue(r["passed"])
+        self.assertEqual(len(r["items"]), 1)
+
+    def test_build_prompt_lists_all_rubric(self):
+        prompt = judge._build_prompt("输出X", ["a", "b"])
+        self.assertIn("a", prompt)
+        self.assertIn("b", prompt)
+
+
 if __name__ == "__main__":
     unittest.main()
