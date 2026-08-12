@@ -42,5 +42,16 @@ class TestRunner(unittest.TestCase):
             rc = runmod.main(["--cases-dir", d, "--report-dir", d], transport_fn=fake_transport)
             self.assertEqual(rc, 0)
 
+    def test_transport_exception_becomes_error_not_crash(self):
+        import tempfile
+        with tempfile.TemporaryDirectory() as d:
+            self._cases_yaml(d)
+            def boom(question, skill_id, env, timeout, skill_dir=None, _runner=None):
+                raise RuntimeError("hermes exploded")
+            rc = runmod.main(["--cases-dir", d, "--report-dir", d], transport_fn=boom)
+            self.assertEqual(rc, 1)  # 异常 → ERROR → 非 all-PASS → 1；run 未崩溃
+            # 即便有用例异常，报告文件照常写出
+            self.assertTrue(any(p.suffix == ".json" for p in pathlib.Path(d).glob("eval-*.json")))
+
 if __name__ == "__main__":
     unittest.main()

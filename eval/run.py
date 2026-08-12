@@ -88,17 +88,23 @@ def main(argv=None, transport_fn=None, query_fn=None, llm_on=False, report_dir=N
     for i, c in enumerate(selected, 1):
         print(f"[{i}/{len(selected)}] {c.id} ({c.skill}/{c.category})", flush=True)
         t0 = time.time()
-        r = transport_fn(c.question, c.skill, c.env, c.timeout, skill_dir=str(get_skill_dir(c.skill)))
-        elapsed = time.time() - t0
-        if r.get("timed_out"):
-            v = {"verdict": "TIMEOUT", "detail": {"reason": f"超时 {c.timeout}s"}}
-        else:
-            v = _dispatch(c, r.get("output", ""), query_fn, llm_on)
+        try:
+            r = transport_fn(c.question, c.skill, c.env, c.timeout, skill_dir=str(get_skill_dir(c.skill)))
+            elapsed = time.time() - t0
+            if r.get("timed_out"):
+                v = {"verdict": "TIMEOUT", "detail": {"reason": f"超时 {c.timeout}s"}}
+            else:
+                v = _dispatch(c, r.get("output", ""), query_fn, llm_on)
+            out_preview = r.get("output", "")
+        except Exception as exc:
+            elapsed = time.time() - t0
+            v = {"verdict": "ERROR", "detail": {"reason": f"用例异常: {exc}"}}
+            out_preview = ""
         status = {"PASS": "PASS", "FAIL": "FAIL", "ERROR": "ERROR", "TIMEOUT": "TIMEOUT"}.get(v["verdict"], "ERROR")
-        results.append(report.build_result(c, status, elapsed, r.get("output", ""), v["detail"]))
+        results.append(report.build_result(c, status, elapsed, out_preview, v["detail"]))
         print(f"   -> {status}", flush=True)
         if i < len(selected):
-            time.sleep(2)  # 限流退避
+            time.sleep(2)
 
     summary = report.summarize(results)
     ensure_dirs()
