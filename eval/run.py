@@ -36,6 +36,10 @@ def parse_args(argv):
     p.add_argument("--id")
     p.add_argument("--truth", choices=["inline", "live_db", "rubric"])
     p.add_argument("--llm", action="store_true", help="启用 LLM-judge（rubric 题）")
+    p.add_argument("--sleep", type=float, default=2.0,
+                   help="每题之间休眠秒数（限流退避），默认 2，批量跑可设 0")
+    p.add_argument("--mode", choices=["gate", "report"], default="gate",
+                   help="gate=any non-PASS exit 1（CI 门禁）；report=永远 exit 0（只出报告）")
     p.add_argument("--list", action="store_true", help="仅列出用例")
     return p.parse_args(argv)
 
@@ -108,7 +112,7 @@ def main(argv=None, transport_fn=None, query_fn=None, llm_on=False, report_dir=N
         results.append(report.build_result(c, status, elapsed, out_preview, v["detail"]))
         print(f"   -> {status}", flush=True)
         if i < len(selected):
-            time.sleep(2)
+            time.sleep(args.sleep)
 
     summary = report.summarize(results)
     ensure_dirs()
@@ -118,6 +122,8 @@ def main(argv=None, transport_fn=None, query_fn=None, llm_on=False, report_dir=N
     report.write_json(results, summary, out_dir / f"eval-{ts}.json")
     report.write_markdown(results, summary, out_dir / f"eval-{ts}.md")
     print(f"\n{summary['overall']}")
+    if args.mode == "report":
+        return 0  # report 模式：只出报告，退出码恒 0
     return 0 if summary["overall"]["pass"] == summary["overall"]["total"] else 1
 
 
