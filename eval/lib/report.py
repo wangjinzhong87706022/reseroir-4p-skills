@@ -44,7 +44,7 @@ def write_markdown(results, summary, path):
         lines += [f"| {c} | {v['pass']}/{v['total']} | {v['rate']} |" for c, v in cats.items()]
         lines.append("")
     lines.append("## 逐题")
-    mark = lambda s: "x" if s != "PASS" else "PASS"
+    mark = lambda s: "x" if s == "PASS" else " "
     lines += [f"- [{mark(r['status'])}] {r['id']} ({r['skill']}/{r['category']}) — {r['description']}"
               for r in results]
     Path(path).write_text("\n".join(lines) + "\n", encoding="utf-8")
