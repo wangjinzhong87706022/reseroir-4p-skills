@@ -27,7 +27,7 @@ bash supervisor/demo.sh                      # 四场景一键演示（需 DB）
 1. **数据库凭据强制走环境变量**，缺失即 `sys.exit`：`SRM_DB_*` → `POWERELF_DB_*` → 默认值；默认库名是 `powerelf_srm_yml`（不是你以为的名字）。**禁止硬编码口令**，`db.py` 已统一处理，新脚本直接 `from db import execute_query`。
 2. **租户（多水库）**：所有 tenant_id 一律经 `lib/tenant.py` 解析，业务代码禁止硬编码 18/20。默认 18=三岔 sancha；桃曲坡需 `export SRM_TENANT_ID=20 SRM_RESERVOIR_NAME=taoqupo`。SQL 中的水位/汛限查询必须按 tenant 过滤（历史上有过漏过滤的 bug）。
 3. **路径**：禁止硬编码绝对路径，一律用 `lib/paths.py`（`PROJECT_ROOT`、`get_skill_dir()`、`get_reservoir_dir()` 等）。
-4. `tests/` 用标准库 `unittest`（pytest 未安装）；`tests/integration/test_supervisor_e2e.py` 需要 DB 才可跑。
+4. `tests/` 用标准库 `unittest`（pytest 未安装）；`tests/integration/test_supervisor_e2e.py` **不连真实 DB**——用临时 `SRM_STATE_DIR` 的 SQLite State 注入结构化 stage 结果，断言四场景仲裁/报告里程碑。整套 `tests/` + `tests/integration/` 在 CI 里以 `python3 -m unittest discover tests` 跑，无 DB、无 hermes。
 5. simulation 各脚本的**输出契约已统一**（`full_context` 等），改输出结构前先查 `docs/` 与近期评审文档，避免破坏 supervisor 的仲裁消费方。
 6. 新增 Skill 需同步注册到 `test_skills.py` 的 `SKILLS` 表和 `DB-CONFIG-STANDARD.md` 的适配清单。
 
