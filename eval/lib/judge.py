@@ -38,7 +38,11 @@ def judge_live_db(case, output: str, query_fn) -> dict:
     if not rows:
         return {"verdict": "ERROR", "detail": {"reason": "truth_query 无结果"}}
     first = rows[0]
-    truth = float(first[list(first)[0]]) if isinstance(first, dict) else float(first[0])
+    raw = first[list(first)[0]] if isinstance(first, dict) else first[0]
+    try:
+        truth = float(raw)
+    except (TypeError, ValueError):
+        return {"verdict": "ERROR", "detail": {"reason": f"真值非数值: {first!r}"}}
     cmp = compare_with_tolerance(_extract_numbers(output), truth, case.tolerance)
     kw = _keyword_check(output, case.expected_keywords)
     passed = cmp["passed"] and kw["all_found"]
@@ -69,7 +73,7 @@ def _build_prompt(output, rubric):
     )
 
 
-def _parse_rubric_score(text, n):
+def _parse_rubric_score(text):
     try:
         data = _json.loads(text)
     except Exception:
@@ -98,4 +102,4 @@ def llm_judge(output, rubric, client=None):
         messages=[{"role": "user", "content": _build_prompt(output, rubric)}],
     )
     text = "".join(getattr(b, "text", "") for b in resp.content)
-    return _parse_rubric_score(text, len(rubric))
+    return _parse_rubric_score(text)

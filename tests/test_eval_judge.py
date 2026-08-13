@@ -41,6 +41,15 @@ class TestLiveDbJudge(unittest.TestCase):
         r = judge.judge_live_db(c, "out", lambda sql: [])
         self.assertEqual(r["verdict"], "ERROR")
 
+    def test_error_when_truth_not_numeric(self):
+        # truth_query 返回非数值（如 'N/A' / None）时，应返回清晰 ERROR 而非抛 ValueError
+        c = _case(truth_source="live_db", truth_query="SELECT label FROM t LIMIT 1",
+                  tolerance=1.0)
+        for bad in ([{"label": "N/A"}], [{"label": None}], [["N/A"]]):
+            r = judge.judge_live_db(c, "水位 462 m", lambda sql: bad)
+            self.assertEqual(r["verdict"], "ERROR", f"bad={bad}")
+            self.assertIn("真值非数值", r["detail"]["reason"], f"bad={bad}")
+
 
 class TestRubricJudge(unittest.TestCase):
     def test_skip_without_llm(self):
