@@ -16,7 +16,7 @@ cases:
     source: test_skills.py::FORECASTING_TESTS::F1
     truth_source: inline
     expected_keywords: ["水位", "m"]
-    expected_range: {min: 450.0, max: 465.0}
+    expected_range: {min: 458.0, max: 463.0}  # 收紧：基线~459m，只防离谱水位
   - id: F2
     skill: forecasting
     category: 降雨预报解读
@@ -258,7 +258,7 @@ cases:
     source: forecasting/tests/test-questions.md::Q29
     truth_source: live_db
     truth_query: "SELECT COUNT(*) AS cnt FROM srm_flood_history_base WHERE deleted = 0"
-    tolerance: 50.0
+    tolerance: 2.0  # COUNT(*) 容差收紧到 ±2，原 50.0 形同放行
     expected_keywords: ["历史", "洪水"]
   # === 七、综合极端场景 ===
   - id: F23
