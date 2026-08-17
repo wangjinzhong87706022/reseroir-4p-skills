@@ -36,5 +36,19 @@ class TestReport(unittest.TestCase):
             self.assertEqual(json.loads(jp.read_text())["summary"]["overall"]["pass"], 1)
             self.assertIn("# 评估报告", mp.read_text())
 
+    def test_write_markdown_marks_pass_and_fail(self):
+        """PASS 渲染为 [x]、非 PASS 为 [ ]——防止 mark 语义再反（03a16b6 前的 bug）。"""
+        import tempfile
+        results = [
+            report.build_result(_c("1", "f", "c"), "PASS", 1, "o", {}),
+            report.build_result(_c("2", "f", "c"), "FAIL", 1, "o", {}),
+        ]
+        with tempfile.TemporaryDirectory() as d:
+            mp = Path(d) / "r.md"
+            report.write_markdown(results, report.summarize(results), mp)
+            md = mp.read_text()
+            self.assertIn("- [x] 1 ", md)
+            self.assertIn("- [ ] 2 ", md)
+
 if __name__ == "__main__":
     unittest.main()
