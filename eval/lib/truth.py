@@ -29,7 +29,11 @@ def _connect(env):
 
 
 def make_db_query_fn(env):
-    """返回 Callable[[sql:str], list[dict]]。env 仅用于将来按租户切库；当前读全局 SRM_DB_*。"""
+    """返回 Callable[[sql:str], list[dict]]。env 仅用于将来按租户切库；当前读全局 SRM_DB_*。
+
+    连接生命周期 = 进程生命周期（runner 是短命 CLI，退出即释放，故不提供 close）。
+    若将来被长驻服务复用，须改为返回可关闭句柄或每次 connect（评审 P2 决策：暂不改造）。
+    """
     conn = _connect(env)
 
     def _q(sql):
