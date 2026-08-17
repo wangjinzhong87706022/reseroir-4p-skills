@@ -70,6 +70,13 @@ class TestRubricJudge(unittest.TestCase):
         self.assertEqual(r["verdict"], "PASS")
         self.assertIn("rubric_score", r["detail"])
 
+    def test_rule_pass_but_llm_fail(self):
+        """规则层过 + LLM 判不过 → FAIL（AND 语义回归，评审 P10）。"""
+        c = _case(truth_source="rubric", rubric=["必须给数值"], expected_keywords=["水位"])
+        fake = lambda out, rub: {"passed": False, "items": [{"criterion": "必须给数值", "pass": False}]}
+        r = judge.judge_rubric(c, "当前水位 462 m", fake)
+        self.assertEqual(r["verdict"], "FAIL")
+
 
 class TestLlmJudge(unittest.TestCase):
     def test_parses_strict_json(self):
@@ -91,6 +98,26 @@ class TestLlmJudge(unittest.TestCase):
         prompt = judge._build_prompt("输出X", ["a", "b"])
         self.assertIn("a", prompt)
         self.assertIn("b", prompt)
+
+    def test_model_from_env_override(self):
+        """EVAL_JUDGE_MODEL 覆盖默认模型（评审 P8：不硬编码）。"""
+        import os
+        from unittest import mock
+        captured = {}
+
+        class R:
+            content = []
+
+        class Client:
+            class messages:
+                @staticmethod
+                def create(**kw):
+                    captured.update(kw)
+                    return R()
+
+        with mock.patch.dict(os.environ, {"EVAL_JUDGE_MODEL": "claude-haiku-4-5"}):
+            judge.llm_judge("out", ["c"], client=Client())
+        self.assertEqual(captured["model"], "claude-haiku-4-5")
 
 
 if __name__ == "__main__":

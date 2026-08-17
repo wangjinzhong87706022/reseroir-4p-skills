@@ -1,4 +1,5 @@
 """判分：inline（复用 reservoir_profile.verify_output）/ live_db / rubric / LLM-judge。"""
+import os
 import re
 import sys
 from pathlib import Path
@@ -85,7 +86,6 @@ def _parse_rubric_score(text):
 
 
 def make_anthropic_client():
-    import os
     try:
         import anthropic  # 延迟导入：可选依赖
     except ImportError as e:
@@ -97,7 +97,7 @@ def llm_judge(output, rubric, client=None):
     if client is None:
         client = make_anthropic_client()
     resp = client.messages.create(
-        model="claude-sonnet-5",
+        model=os.environ.get("EVAL_JUDGE_MODEL", "claude-sonnet-5"),
         max_tokens=512,
         messages=[{"role": "user", "content": _build_prompt(output, rubric)}],
     )
