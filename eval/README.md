@@ -33,6 +33,7 @@ python3 eval/run.py                               # 全跑
 ```
 
 报告输出到 `results/eval-<ts>.{json,md}`。退出码：全 PASS=0，否则=1。
+过滤条件 `--subset` / `--tag` / `--skill` / `--id` / `--truth` 同时给出时为 **AND** 组合过滤。
 LLM-judge 模型默认 `claude-sonnet-5`，可用 `EVAL_JUDGE_MODEL` 覆盖（如换更便宜的模型）。
 
 ## 加题
