@@ -52,7 +52,9 @@ def query_rainfall_forecast(hours=48, source=None, tenant_id=None):
         "ymdh <= DATE_ADD(NOW(), INTERVAL %s HOUR)",
         "fymdh = (SELECT MAX(fymdh) FROM f_rnfl_h WHERE ymdh >= NOW() AND tenant_id = %s)",
     ]
-    # 占位符顺序: tid(主表) → hours → tid(fymdh 子查询) → source
+    # 占位符顺序: tid(主表 WHERE) → hours(WHERE) → tid(fymdh 子查询)
+    # 注意: conditions 列表顺序是 deleted, tenant_id, ymdh>=, ymdh<=, fymdh=
+    # → %s 占位依次为: tid, hours, tid
     params = [tid, hours, tid]
 
     if source:
@@ -95,12 +97,13 @@ def query_flood_limit(tenant_id=None):
     """查询当前汛限水位"""
     tid = resolve_tenant(tenant_id)
     # 优先从 att_res_flse_lim 表查询（按当前日期匹配汛期 + tenant_id 过滤）
+    # 用 %% 转义 MySQL 的 %，避免 pymysql 把 %m/%d 当成 Python format 占位符
     sql = """
     SELECT flse_lim_stag, flood_season_name, flood_season_start, flood_season_end
     FROM att_res_flse_lim
     WHERE tenant_id = %s
-      AND flood_season_start <= DATE_FORMAT(NOW(), '%m%d')
-      AND flood_season_end >= DATE_FORMAT(NOW(), '%m%d')
+      AND flood_season_start <= DATE_FORMAT(NOW(), '%%m%%d')
+      AND flood_season_end >= DATE_FORMAT(NOW(), '%%m%%d')
     ORDER BY flse_lim_stag DESC
     LIMIT 1
     """
