@@ -52,6 +52,7 @@ EARLY_WARNING_DIR = SKILLS_DIR / "early-warning"
 PLAN_GENERATION_DIR = SKILLS_DIR / "plan-generation"
 SIMULATION_DIR = SKILLS_DIR / "simulation"
 DIAGNOSIS_VERIFICATION_DIR = SKILLS_DIR / "diagnosis-verification"
+SUPERVISOR_DIR = SKILLS_DIR / "supervisor"
 
 # =============================================================================
 # Autoresearch 结果目录（按 Skill 组织）
@@ -106,6 +107,7 @@ def get_skill_dir(skill_name: str) -> Path:
         'plan-generation': PLAN_GENERATION_DIR,
         'simulation': SIMULATION_DIR,
         'diagnosis-verification': DIAGNOSIS_VERIFICATION_DIR,
+        'supervisor': SUPERVISOR_DIR,
     }
 
     skill_dir = skill_map.get(skill_name)
@@ -180,6 +182,7 @@ def ensure_dirs():
 # =============================================================================
 __all__ = [
     'PROJECT_ROOT',
+    'SUPERVISOR_DIR',
     'BASE_DIR',  # 兼容旧代码
     'SKILLS_DIR',
     'RESULTS_DIR',
