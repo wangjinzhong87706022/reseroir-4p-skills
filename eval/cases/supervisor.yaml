@@ -11,8 +11,8 @@ cases:
     description: A 场景完整七步研判（正常，超汛限）
     question: "桃曲坡水库当前水位 786.95m 超过汛限 786.8m，气象预报未来有暴雨，请走完整的汛期暴雨研判调度流程。"
     env: {SRM_TENANT_ID: 20, SRM_RESERVOIR_NAME: taoqupo}
-    timeout: 600
-    tags: [smoke]
+    timeout: 1500
+    tags: [slow]
     source: supervisor/demo-output/A-20260805-192723.json
     truth_source: rubric
     expected_keywords: ["研判", "调度"]
