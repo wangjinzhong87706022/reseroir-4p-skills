@@ -441,7 +441,7 @@ def cmd_health(args) -> dict:
                         "msg": f"未来预报仅 {rf_cnt}h（阈值 168h，--forecast 未跑）"})
     else:
         checks.append({"item": "f_rnfl_h", "status": "ok",
-                        "msg": f"未来预报 {rf_cnt}h �覆盖完整"})
+                        "msg": f"未来预报 {rf_cnt}h 覆盖完整"})
 
     if al_total > 1000:
         checks.append({"item": "ew_info_message", "status": "warn",

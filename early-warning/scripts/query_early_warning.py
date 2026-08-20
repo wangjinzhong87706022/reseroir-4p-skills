@@ -17,7 +17,7 @@ from pathlib import Path
 _REPO_ROOT = Path(__file__).resolve().parents[2]  # scripts/x.py → 根
 if str(_REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(_REPO_ROOT))
-from lib.db import execute_query_list, _require_env  # noqa: E402
+from lib.db import execute_query_list  # noqa: E402
 from lib.tenant import current_tenant_id  # noqa: E402 -- 水库身份(SRM_TENANT_ID,默认18三岔)
 
 

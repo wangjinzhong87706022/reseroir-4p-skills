@@ -30,7 +30,7 @@ if _REPO_ROOT not in sys.path:
     sys.path.insert(0, _REPO_ROOT)
 from lib.paths import ensure_path  # noqa: E402
 ensure_path(os.path.dirname(os.path.abspath(__file__)), _REPO_ROOT)
-from lib.db import execute_query_list, _require_env  # noqa: E402
+from lib.db import execute_query_list  # noqa: E402
 from lib.tenant import current_tenant_id  # noqa: E402
 
 
