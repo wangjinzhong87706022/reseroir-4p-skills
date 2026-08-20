@@ -260,31 +260,3 @@ def query_one(sql, params=None):
     if data:
         return list(data[0].values())[0]
     return None
-
-
-# ---------------------------------------------------------------------------
-# Utility: Execute non-query (INSERT/UPDATE/DELETE)
-# ---------------------------------------------------------------------------
-
-def execute_write(sql, params=None):
-    """
-    Execute an INSERT/UPDATE/DELETE statement and return affected rows.
-
-    Args:
-        sql: SQL statement
-        params: Query parameters
-
-    Returns:
-        int -- number of affected rows
-    """
-    conn = get_connection()
-    try:
-        with conn.cursor() as cursor:
-            rows = cursor.execute(sql, params)
-            conn.commit()
-            return rows
-    except Exception:
-        conn.rollback()
-        raise
-    finally:
-        conn.close()

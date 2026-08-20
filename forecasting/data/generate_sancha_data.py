@@ -16,7 +16,8 @@ from datetime import datetime, timedelta
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "scripts"))
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", ".."))
-from lib.db import execute_query, execute_query_list, execute_write, get_connection, unpack  # noqa: E402
+from lib.db import execute_query, execute_query_list, get_connection, unpack  # noqa: E402
+from lib.db_write import execute_write  # noqa: E402 -- 显式写通道（仅造数）
 
 
 def _bulk_insert(sql, rows):

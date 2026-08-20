@@ -33,7 +33,8 @@ from datetime import datetime, timedelta
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "scripts"))
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", ".."))
-from lib.db import execute_query, execute_write, get_connection, unpack  # noqa: E402
+from lib.db import execute_query, get_connection, unpack  # noqa: E402
+from lib.db_write import execute_write  # noqa: E402 -- 显式写通道（仅造数）
 
 # ===========================================================================
 # 桃曲坡物理参数（reservoirs/taoqupo/identity.md + model_config tenant 20）
@@ -163,7 +164,7 @@ def generate_forecast(fc_hours=RNFL_FUTURE_HOURS):
     """向 f_rnfl_h 插入未来 fc_hours 小时逐时降雨预报(MOCK 标记,幂等)。
     YMDH=各未来时点, FYMDH=NOW(预报发布时刻), UNITNAME='1', TYPE='1', tenant_id=1。"""
     print(f"[forecast] f_rnfl_h 未来 {fc_hours}h 降雨预报 [NOW+1h → NOW+{fc_hours}h] ...")
-    execute_write("DELETE FROM f_rnfl_h WHERE COMMENTS='MOCK'", ())
+    execute_write("DELETE FROM f_rnfl_h WHERE COMMENTS='MOCK' AND tenant_id=%s", (TENANT,))
     rain = gen_forecast_rainfall_series(fc_hours)
     rows = []
     for i in range(fc_hours):
@@ -265,7 +266,7 @@ def main():
     if args.clean:
         n1 = execute_write("DELETE FROM st_rsvr_r WHERE creator='MOCK' AND tenant_id=%s", (TENANT,))
         n2 = execute_write("DELETE FROM st_pptn_r WHERE creator='MOCK' AND tenant_id=%s", (TENANT,))
-        n3 = execute_write("DELETE FROM f_rnfl_h WHERE COMMENTS='MOCK'", ())
+        n3 = execute_write("DELETE FROM f_rnfl_h WHERE COMMENTS='MOCK' AND tenant_id=%s", (TENANT,))
         print(f"[clean] 已删除 st_rsvr_r mock {n1} 行, st_pptn_r mock {n2} 行, "
               f"f_rnfl_h mock {n3} 行 (tenant {TENANT})")
         return
