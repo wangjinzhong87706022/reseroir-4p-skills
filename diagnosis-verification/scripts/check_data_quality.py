@@ -24,9 +24,7 @@ _REPO_ROOT = Path(__file__).resolve().parents[2]  # scripts/x.py → 根
 if str(_REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(_REPO_ROOT))
 from lib.db import execute_query_list  # noqa: E402
-from lib.tenant import current_tenant_id  # noqa: E402 -- 水库身份(SRM_TENANT_ID,默认18三岔)
-
-TENANT = current_tenant_id()
+from lib.tenant import resolve_tenant  # noqa: E402 -- 函数内动态解析，env 后置修改生效（T2）
 
 
 def check_water_level():
@@ -46,7 +44,8 @@ def check_water_level():
     WHERE deleted=0 AND tenant_id = %s
     """
 
-    result = execute_query_list(sql, (TENANT,))[0]
+    tenant_id = resolve_tenant()
+    result = execute_query_list(sql, (tenant_id,))[0]
 
     print(f"\n总行数：{result['总行数']}")
     print(f"rz 为空：{result['rz为空']} ({result['rz为空']/result['总行数']*100:.1f}%)")
@@ -83,7 +82,7 @@ def check_water_level():
     ORDER BY 数据量 DESC
     LIMIT 10
     """
-    stations = execute_query_list(sql2, (TENANT,))
+    stations = execute_query_list(sql2, (tenant_id,))
     print(f"\n按测站统计（前 10）：")
     for s in stations:
         print(f"  {s['stcd']}: {s['数据量']} 条, 最新 {s['最新时间']}")
@@ -109,7 +108,8 @@ def check_rainfall_forecast():
     WHERE deleted=0 AND tenant_id = %s
     """
 
-    result = execute_query_list(sql, (TENANT,))[0]
+    tenant_id = resolve_tenant()
+    result = execute_query_list(sql, (tenant_id,))[0]
 
     print(f"\n总行数：{result['总行数']}")
     print(f"最新预报时间：{result['最新预报时间']}")
@@ -278,7 +278,13 @@ def main():
     parser.add_argument('--output', help='输出文件路径（仅 type=all 时有效）')
     parser.add_argument('--json', action='store_true',
                        help='结构化 JSON 输出（供 supervisor arbitrator 消费，仅 type=all）')
+    parser.add_argument('--tenant', type=int, default=None,
+                       help='租户/水库ID（覆盖 SRM_TENANT_ID 环境变量，默认18=三岔）')
     args = parser.parse_args()
+
+    # --tenant 覆盖环境变量，所有 resolve_tenant() 运行时统一读取（T2）
+    if getattr(args, 'tenant', None) is not None:
+        os.environ['SRM_TENANT_ID'] = str(args.tenant)
 
     if args.type == 'water_level':
         check_water_level()

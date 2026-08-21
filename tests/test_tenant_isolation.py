@@ -23,9 +23,16 @@ _PLAN_SCRIPTS = os.path.join(_REPO_ROOT, "plan-generation", "scripts")
 _SIM_SCRIPTS = os.path.join(_REPO_ROOT, "simulation", "scripts")
 _EW_SCRIPTS = os.path.join(_REPO_ROOT, "early-warning", "scripts")
 _FC_SCRIPTS = os.path.join(_REPO_ROOT, "forecasting", "scripts")
-for _p in (_PLAN_SCRIPTS, _SIM_SCRIPTS, _EW_SCRIPTS, _FC_SCRIPTS):
+_SUP_SCRIPTS = os.path.join(_REPO_ROOT, "supervisor", "scripts")
+_DV_SCRIPTS = os.path.join(_REPO_ROOT, "diagnosis-verification", "scripts")
+for _p in (_PLAN_SCRIPTS, _SIM_SCRIPTS, _EW_SCRIPTS, _FC_SCRIPTS,
+           _SUP_SCRIPTS, _DV_SCRIPTS):
     if _p not in sys.path:
         sys.path.insert(0, _p)
+
+# T2：两脚本第一个使用 tenant 的查询函数名（盘点评审结论）
+_INSPECTION_TENANT_FN = 'overview'
+_CDQ_TENANT_FN = 'check_water_level'
 
 
 # ===========================================================================
@@ -253,6 +260,50 @@ class TestForecastingTenantIsolation(unittest.TestCase):
         self.assertTrue(seen, "f_rnfl_h 查询未被调用")
         for sql, params in seen:
             self.assertIn('tenant_id', sql)
+            self.assertIn(20, params)
+
+
+# ===========================================================================
+# T2：模块级 TENANT 改函数内动态解析——env 后置修改必须生效
+# ===========================================================================
+class TestDynamicTenantResolution(unittest.TestCase):
+
+    @patch('inspection_check.execute_query_list')
+    def test_inspection_check_tenant_dynamic(self, mock_eql):
+        """import 后再改 SRM_TENANT_ID，查询参数必须跟着变（T2）。"""
+        import inspection_check
+        os.environ['SRM_TENANT_ID'] = '20'
+        # overview() 依次发 6 个查询，各自取首行/全量；给匹配形状的返回值
+        mock_eql.side_effect = [
+            [{'cnt': 0}],            # equip_total
+            [],                      # type_rows
+            [{'cnt': 0}],            # anomaly
+            [{'cnt': 0}],            # offline_open
+            [{'cnt': 0}],            # defect_open
+            [],                      # gate_rows
+        ]
+        fn = getattr(inspection_check, _INSPECTION_TENANT_FN)
+        fn()
+        # 6 次调用的 params 必须全是动态解析的 20（非 import 时冻结的旧值）
+        for c in mock_eql.call_args_list:
+            params = c[0][1] if len(c[0]) > 1 else c[1].get('params', ())
+            self.assertIn(20, params)
+
+    @patch('check_data_quality.execute_query_list')
+    def test_check_data_quality_tenant_dynamic(self, mock_eql):
+        """import 后再改 SRM_TENANT_ID，查询参数必须跟着变（T2）。"""
+        import check_data_quality
+        os.environ['SRM_TENANT_ID'] = '20'
+        # check_water_level 先发聚合查询取 [0] 读中文键，再发按测站统计查询；
+        # 给匹配形状的返回值，让函数跑完两段查询
+        agg_row = {'总行数': 1, 'rz为空': 0, '最新时间': None,
+                   '距现在小时': 1, '有效数据': 1}
+        mock_eql.side_effect = [[agg_row], []]
+        fn = getattr(check_data_quality, _CDQ_TENANT_FN)
+        fn()
+        # 两次调用的 params 必须全是动态解析的 20（非 import 时冻结的旧值）
+        for c in mock_eql.call_args_list:
+            params = c[0][1] if len(c[0]) > 1 else c[1].get('params', ())
             self.assertIn(20, params)
 
 

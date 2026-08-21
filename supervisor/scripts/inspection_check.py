@@ -31,44 +31,41 @@ if _REPO_ROOT not in sys.path:
 from lib.paths import ensure_path  # noqa: E402
 ensure_path(os.path.dirname(os.path.abspath(__file__)), _REPO_ROOT)
 from lib.db import execute_query_list  # noqa: E402
-from lib.tenant import current_tenant_id  # noqa: E402
-
-
-TENANT = current_tenant_id()
+from lib.tenant import resolve_tenant  # noqa: E402 -- 函数内动态解析，env 后置修改生效（T2）
 
 
 def overview() -> dict:
     """设备全貌摘要：总数/类型分布/异常/缺陷/离线/闸门"""
     equip_total = execute_query_list(
         "SELECT COUNT(*) AS cnt FROM eq_equip_base WHERE deleted=0 AND tenant_id=%s",
-        (TENANT,),
+        (resolve_tenant(),),
     )[0]["cnt"]
 
     # 类型分布（type_flag: 1闸门 7水位计 8雨量计 20渗压计 等）
     type_rows = execute_query_list(
         "SELECT type_flag, COUNT(*) AS cnt FROM eq_equip_base "
         "WHERE deleted=0 AND tenant_id=%s GROUP BY type_flag ORDER BY cnt DESC",
-        (TENANT,),
+        (resolve_tenant(),),
     )
 
     # 异常记录（tenant 18/20；tenant=1 为测试数据）
     anomaly = execute_query_list(
         "SELECT COUNT(*) AS cnt FROM eq_equip_anomaly_record WHERE tenant_id=%s",
-        (TENANT,),
+        (resolve_tenant(),),
     )[0]["cnt"]
 
     # 未恢复离线（offline_end_time IS NULL）
     offline_open = execute_query_list(
         "SELECT COUNT(*) AS cnt FROM eq_equip_offline_record "
         "WHERE tenant_id=%s AND offline_end_time IS NULL",
-        (TENANT,),
+        (resolve_tenant(),),
     )[0]["cnt"]
 
     # 未处理缺陷（handle_status=0 待处理）
     defect_open = execute_query_list(
         "SELECT COUNT(*) AS cnt FROM eq_equip_defect "
         "WHERE tenant_id=%s AND deleted=0 AND handle_status=0",
-        (TENANT,),
+        (resolve_tenant(),),
     )[0]["cnt"]
 
     # 闸门最新状态
@@ -76,11 +73,11 @@ def overview() -> dict:
         "SELECT eq_code, gtq, gtophgt, gtopnum, status, tm "
         "FROM rei_gate_r WHERE tenant_id=%s AND deleted=0 "
         "ORDER BY tm DESC LIMIT 20",
-        (TENANT,),
+        (resolve_tenant(),),
     )
 
     return {
-        "tenant_id": TENANT,
+        "tenant_id": resolve_tenant(),
         "equip_total": equip_total,
         "type_distribution": [{"type_flag": r["type_flag"], "count": r["cnt"]} for r in type_rows],
         "anomaly_count": anomaly,
@@ -95,9 +92,9 @@ def offline() -> dict:
         "SELECT equipment_code, offline_start_date, offline_start_time, offline_end_time, "
         "total_offline_duration FROM eq_equip_offline_record "
         "WHERE tenant_id=%s AND offline_end_time IS NULL ORDER BY offline_start_time DESC LIMIT 20",
-        (TENANT,),
+        (resolve_tenant(),),
     )
-    return {"tenant_id": TENANT, "open_offline": [dict(r) for r in rows]}
+    return {"tenant_id": resolve_tenant(), "open_offline": [dict(r) for r in rows]}
 
 
 def defects() -> dict:
@@ -105,27 +102,34 @@ def defects() -> dict:
         "SELECT id, equip_id, name, description, type, discovery_time, handle_status, handler "
         "FROM eq_equip_defect WHERE tenant_id=%s AND deleted=0 AND handle_status=0 "
         "ORDER BY discovery_time DESC LIMIT 20",
-        (TENANT,),
+        (resolve_tenant(),),
     )
-    return {"tenant_id": TENANT, "open_defects": [dict(r) for r in rows]}
+    return {"tenant_id": resolve_tenant(), "open_defects": [dict(r) for r in rows]}
 
 
 def gates() -> dict:
     rows = execute_query_list(
         "SELECT eq_code, gtq, gtophgt, gtopnum, status, tm FROM rei_gate_r "
         "WHERE tenant_id=%s AND deleted=0 ORDER BY tm DESC LIMIT 30",
-        (TENANT,),
+        (resolve_tenant(),),
     )
-    return {"tenant_id": TENANT, "gates": [dict(r) for r in rows]}
+    return {"tenant_id": resolve_tenant(), "gates": [dict(r) for r in rows]}
 
 
 def main():
     parser = argparse.ArgumentParser(description="设备可调度性核查")
     parser.add_argument("--type", default="overview",
                         choices=["overview", "offline", "defects", "gates", "all"])
+    parser.add_argument('--tenant', type=int,
+                        help='水库租户 ID（18=三岔/20=桃曲坡，默认取 SRM_TENANT_ID）')
     args = parser.parse_args()
 
-    _ = TENANT  # 确保 tenant 解析在查询前完成（缺环境变量时提前报错）
+    # --tenant 覆盖 env，使后续 resolve_tenant() 生效（T2）
+    if args.tenant is not None:
+        os.environ['SRM_TENANT_ID'] = str(args.tenant)
+    # 确认 tenant 解析在查询前完成（缺环境变量时提前报错）
+    _ = resolve_tenant()
+
     result = {}
     if args.type in ("overview", "all"):
         result["overview"] = overview()
