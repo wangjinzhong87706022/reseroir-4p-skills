@@ -182,6 +182,45 @@ class TestFiltersRuleTable(unittest.TestCase):
         self.assertFalse(rule['filter'])
 
 
+class TestFiltersParametrized(unittest.TestCase):
+    """S2：tenant 过滤必须 %s 参数化（返回 (sql, params)），禁 f-string 拼接。"""
+
+    def setUp(self):
+        sys.path.insert(0, os.path.join(_REPO_ROOT, 'lib'))
+        import filters
+        self.filters = filters
+
+    def test_apply_tenant_filter_with_where(self):
+        sql, params = self.filters.apply_tenant_filter(
+            "SELECT * FROM st_rsvr_r WHERE deleted=0", "st_rsvr_r", tenant_id=18)
+        self.assertEqual(params, (18,))
+        self.assertIn("tenant_id = %s", sql)
+        self.assertNotIn("tenant_id = 18", sql)
+
+    def test_apply_tenant_filter_no_where(self):
+        sql, params = self.filters.apply_tenant_filter(
+            "SELECT * FROM st_rsvr_r", "st_rsvr_r", tenant_id=20)
+        self.assertEqual(params, (20,))
+        self.assertIn("tenant_id = %s", sql)
+
+    def test_apply_tenant_filter_skips_unfiltered_table(self):
+        sql, params = self.filters.apply_tenant_filter(
+            "SELECT * FROM ew_info_message WHERE deleted=0", "ew_info_message", tenant_id=18)
+        self.assertEqual(params, ())
+        self.assertNotIn("tenant_id", sql)
+
+    def test_apply_tenant_filter_rejects_bad_tenant(self):
+        with self.assertRaises(ValueError):
+            self.filters.apply_tenant_filter(
+                "SELECT * FROM st_rsvr_r", "st_rsvr_r", tenant_id="18 OR 1=1")
+
+    def test_generate_where_clause_parametrized(self):
+        clause, params = self.filters.generate_where_clause("st_rsvr_r", tenant_id=18)
+        self.assertIn("tenant_id = %s", clause)
+        self.assertIn("deleted = 0", clause)
+        self.assertEqual(params, [18])
+
+
 # ===========================================================================
 # forecasting/scripts/query_forecast_data.py —— S4：f_rnfl_h 补 tenant
 # ===========================================================================
