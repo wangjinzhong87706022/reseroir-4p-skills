@@ -152,7 +152,8 @@ def query_flood_detail(flood_id, tenant_id=None):
 
 
 def query_flood_result(flood_id):
-    """查询洪水结果（统计摘要 type=7）"""
+    """查询洪水结果（统计摘要 type=7）
+    无 tenant 列，依赖 base 表 flood_id 间接隔离（docs/shared-tables.md）"""
     sql = """
     SELECT type_name, vals, sort
     FROM srm_flood_history_result
@@ -163,7 +164,8 @@ def query_flood_result(flood_id):
 
 
 def query_flood_result_curve(flood_id):
-    """查询洪水结果曲线（入库/出库/水位过程 type IN 1,2,3,6）"""
+    """查询洪水结果曲线（入库/出库/水位过程 type IN 1,2,3,6）
+    无 tenant 列，依赖 base 表 flood_id 间接隔离（docs/shared-tables.md）"""
     sql = """
     SELECT type, type_name, vals, tm, sort
     FROM srm_flood_history_result
@@ -174,7 +176,8 @@ def query_flood_result_curve(flood_id):
 
 
 def query_flood_inflow(flood_id):
-    """查询洪水入库流量过程"""
+    """查询洪水入库流量过程
+    无 tenant 列，依赖 base 表 flood_id 间接隔离（docs/shared-tables.md）"""
     sql = """
     SELECT vals, tm, sort
     FROM srm_flood_history_result
@@ -185,7 +188,8 @@ def query_flood_inflow(flood_id):
 
 
 def query_flood_statistics(flood_id):
-    """查询洪水统计结果"""
+    """查询洪水统计结果
+    无 tenant 列，依赖 base 表 flood_id 间接隔离（docs/shared-tables.md）"""
     sql = """
     SELECT type_name, vals, sort
     FROM srm_flood_history_result

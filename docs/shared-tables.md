@@ -617,5 +617,13 @@ CREATE INDEX idx_rnfl_h_type_ymdh ON f_rnfl_h(type, ymdh);
 
 ---
 
+## srm_flood_history_result：依赖 flood_id 间接隔离
+
+经 live DESCRIBE 确认无 tenant_id 列（2026-08-20，评审 S5）。隔离依赖上游
+`query_historical_floods`（`srm_flood_history_base` 按 tenant 过滤）给出的
+flood_id；禁止任何调用方从用户输入直接传 flood_id 绕过 base 表。
+
+---
+
 *维护: SmartTwinRes Team*  
 *来源: forecasting/references/table-schema.md + plan-generation/references/table-schema.md*
