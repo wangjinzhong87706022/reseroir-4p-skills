@@ -33,7 +33,7 @@ for _p in (_PLAN_SCRIPTS, _SIM_SCRIPTS, _EW_SCRIPTS, _FC_SCRIPTS):
 # ===========================================================================
 class TestPlanDataTenantIsolation(unittest.TestCase):
 
-    @patch('query_plan_data.execute_query_list')
+    @patch('lib.flood_limit.execute_query_list')
     def test_query_flood_limit_filters_by_tenant(self, mock_eql):
         """query_flood_limit 应在 WHERE 含 tenant_id。"""
         from query_plan_data import query_flood_limit

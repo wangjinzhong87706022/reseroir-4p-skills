@@ -16,6 +16,7 @@ if str(_REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(_REPO_ROOT))
 from lib.db import execute_query, execute_query_list, unpack  # noqa: E402
 from lib.tenant import current_tenant_id, resolve_tenant  # 水库身份(SRM_TENANT_ID,默认18三岔)
+from lib.flood_limit import current_flood_limit  # noqa: E402 -- 汛限单一实现（评审 C2）
 
 DEFAULT_TENANT = current_tenant_id()
 
@@ -94,41 +95,17 @@ def query_weather_warning(since_date=None, status='1'):
 
 
 def query_flood_limit(tenant_id=None):
-    """查询当前汛限水位"""
-    tid = resolve_tenant(tenant_id)
-    # 优先从 att_res_flse_lim 表查询（按当前日期匹配汛期 + tenant_id 过滤）
-    # 用 %% 转义 MySQL 的 %，避免 pymysql 把 %m/%d 当成 Python format 占位符
-    sql = """
-    SELECT flse_lim_stag, flood_season_name, flood_season_start, flood_season_end
-    FROM att_res_flse_lim
-    WHERE tenant_id = %s
-      AND flood_season_start <= DATE_FORMAT(NOW(), '%%m%%d')
-      AND flood_season_end >= DATE_FORMAT(NOW(), '%%m%%d')
-    ORDER BY flse_lim_stag DESC
-    LIMIT 1
-    """
-    results = execute_query_list(sql, (tid,))
-    if results:
-        return results
-
-    # 非汛期：从 att_res_base 查询正常蓄水位作为参考
-    sql2 = """
-    SELECT fl_low_lim_lev as flse_lim_stag,
-           '非汛期' as flood_season_name,
-           NULL as flood_season_start,
-           NULL as flood_season_end
-    FROM att_res_base
-    WHERE fl_low_lim_lev IS NOT NULL AND deleted = 0 AND tenant_id = %s
-    ORDER BY id
-    LIMIT 1
-    """
-    results2 = execute_query_list(sql2, (tid,))
-    if results2:
-        return results2
-
-    # 无兜底硬编码值——汛限必须来自数据库（model_config 的 flood_limit_main/secondary
-    # 或 att_res_base）。缺失时返回空，由调用方处理（禁止编造水库特定数值）。
-    return []
+    """查询当前汛限水位（实现统一至 lib.flood_limit.current_flood_limit，评审 C2）"""
+    lim = current_flood_limit(tenant_id)
+    if lim['status'] == 'missing':
+        # 无兜底硬编码值——汛限必须来自数据库。缺失时返回空，由调用方处理。
+        return []
+    return [{
+        'flse_lim_stag': lim['flse_lim_stag'],
+        'flood_season_name': lim['flood_season_name'],
+        'flood_season_start': lim['flood_season_start'],
+        'flood_season_end': lim['flood_season_end'],
+    }]
 
 
 def query_historical_plans(limit=20, start_date=None, end_date=None,

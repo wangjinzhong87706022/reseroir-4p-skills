@@ -45,6 +45,7 @@ if str(_REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(_REPO_ROOT))
 from lib.db import execute_query, execute_query_list, unpack  # noqa: E402
 from lib.tenant import current_tenant_id, resolve_tenant  # noqa: E402 -- 水库身份(SRM_TENANT_ID,默认18三岔)
+from lib.flood_limit import current_flood_limit  # noqa: E402 -- 汛限单一实现（评审 C2）
 
 
 DEFAULT_TENANT = current_tenant_id()
@@ -151,62 +152,23 @@ def query_weather_warning(**_):
 #    源1:att_res_flse_lim(按当前日期落在哪段汛期,取该段 flse_lim_stag;无 deleted 列)
 #    回退:att_res_base.fl_low_lim_lev(tenant=18, deleted=0)
 # ===========================================================================
-def _pick_in_season_flse_lim(tenant_id):
-    """att_res_flse_lim 按 MMdd 选中当前汛期行;无匹配 → None。"""
-    sql = (
-        "SELECT flse_lim_stag, flood_season_name, "
-        "       flood_season_start, flood_season_end "
-        "FROM att_res_flse_lim "
-        "WHERE tenant_id=%s "
-        "ORDER BY id"
-    )
-    rows = unpack(execute_query(sql, (tenant_id,)))
-    if not rows:
-        return None
-    today_mmdd = datetime.now().strftime('%m%d')
-    in_season = None
-    for r in rows:
-        s, e = r.get('flood_season_start'), r.get('flood_season_end')
-        if not s or not e:
-            continue
-        # 跨年汛期(如 1101→0331)暂不支持。经 reservoir profile 确认（2026-08-06）：
-        # 桃曲坡 主汛 0701-0930 / 次汛 06、10 月，整体 0601-1031；三岔无汛期分段——
-        # 两库汛期均在同年内，直接区间比较即可；若未来接入跨年汛期水库需补跨年判断。
-        if s <= today_mmdd <= e:
-            in_season = r
-            break
-    # 未命中任意区间 → 回退到主汛期(若存在)
-    if not in_season:
-        in_season = next(
-            (r for r in rows if r.get('flood_season_name') == '主汛期'), None
-        )
-    return in_season
-
-
-def query_flood_limit(tenant_id=DEFAULT_TENANT, **_):
-    season = _pick_in_season_flse_lim(tenant_id)
-    if season:
-        return {
-            "field": "flse_lim_stag",
-            "value": season.get('flse_lim_stag'),
-            "source": f"att_res_flse_lim({season.get('flood_season_name')})",
-            "flood_season": season.get('flood_season_name'),
-            "flood_season_start": season.get('flood_season_start'),
-            "flood_season_end": season.get('flood_season_end'),
-        }
-    # 回退:att_res_base
-    sql = (
-        "SELECT fl_low_lim_lev FROM att_res_base "
-        "WHERE tenant_id=%s AND deleted=0 ORDER BY update_time DESC LIMIT 1"
-    )
-    rows = unpack(execute_query(sql, (tenant_id,)))
-    if rows and rows[0].get('fl_low_lim_lev') is not None:
-        return {
-            "field": "fl_low_lim_lev",
-            "value": rows[0]['fl_low_lim_lev'],
-            "source": "att_res_base (fallback)",
-        }
-    return {"status": "missing", "message": "汛限水位既无 att_res_flse_lim 也无 att_res_base 行"}
+def query_flood_limit(tenant_id=None, **_):
+    """汛限水位（实现统一至 lib.flood_limit.current_flood_limit，评审 C2）"""
+    lim = current_flood_limit(tenant_id)
+    if lim['status'] == 'missing':
+        return {"status": "missing",
+                "message": "汛限水位既无 att_res_flse_lim 也无 att_res_base 行"}
+    if lim['status'] == 'fallback':
+        return {"field": "fl_low_lim_lev", "value": lim['flse_lim_stag'],
+                "source": "att_res_base (fallback)"}
+    return {
+        "field": "flse_lim_stag",
+        "value": lim['flse_lim_stag'],
+        "source": lim['source'],
+        "flood_season": lim['flood_season_name'],
+        "flood_season_start": lim['flood_season_start'],
+        "flood_season_end": lim['flood_season_end'],
+    }
 
 
 # ===========================================================================

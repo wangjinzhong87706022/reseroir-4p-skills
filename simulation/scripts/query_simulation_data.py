@@ -21,6 +21,7 @@ if str(_REPO_ROOT) not in sys.path:
 from lib.db import execute_query_list  # noqa: E402
 from lib.db import execute_query, unpack  # noqa: E402 (用于需要元数据的场景)
 from lib.tenant import current_tenant_id, resolve_tenant  # noqa: E402 -- 水库身份(SRM_TENANT_ID,默认18三岔)
+from lib.flood_limit import current_flood_limit  # noqa: E402 -- 汛限单一实现（评审 C2）
 
 DEFAULT_TENANT = current_tenant_id()
 
@@ -39,41 +40,17 @@ def query_current_water_level(tenant_id=None):
 
 
 def query_flood_limit(tenant_id=None):
-    """查询当前汛限水位"""
-    tid = resolve_tenant(tenant_id)
-    # 优先从 att_res_flse_lim 表查询（按当前日期匹配汛期 + tenant_id 过滤）
-    # 注：DATE_FORMAT 的 %m/%d 需在 Python 端先格式化，避免与 pymysql 的 %s 占位符冲突
-    today_md = datetime.now().strftime("%m%d")
-    sql = """
-    SELECT flse_lim_stag, flood_season_name, flood_season_start, flood_season_end
-    FROM att_res_flse_lim
-    WHERE tenant_id = %s
-      AND flood_season_start <= %s
-      AND flood_season_end >= %s
-    ORDER BY flse_lim_stag DESC
-    LIMIT 1
-    """
-    results = execute_query_list(sql, (tid, today_md, today_md))
-    if results:
-        return results
-
-    # 非汛期：从 att_res_base 查询正常蓄水位作为参考
-    sql2 = """
-    SELECT fl_low_lim_lev as flse_lim_stag,
-           '非汛期' as flood_season_name,
-           NULL as flood_season_start,
-           NULL as flood_season_end
-    FROM att_res_base
-    WHERE fl_low_lim_lev IS NOT NULL AND deleted = 0 AND tenant_id = %s
-    ORDER BY id
-    LIMIT 1
-    """
-    results2 = execute_query(sql2, (tid,))
-    if results2:
-        return results2
-
-    # 无兜底硬编码值——汛限必须来自数据库。缺失返回空，禁止编造水库特定数值。
-    return []
+    """查询当前汛限水位（实现统一至 lib.flood_limit.current_flood_limit，评审 C2）"""
+    lim = current_flood_limit(tenant_id)
+    if lim['status'] == 'missing':
+        # 无兜底硬编码值——汛限必须来自数据库。缺失返回空，禁止编造数值。
+        return []
+    return [{
+        'flse_lim_stag': lim['flse_lim_stag'],
+        'flood_season_name': lim['flood_season_name'],
+        'flood_season_start': lim['flood_season_start'],
+        'flood_season_end': lim['flood_season_end'],
+    }]
 
 
 def query_config(tenant_id=None):
