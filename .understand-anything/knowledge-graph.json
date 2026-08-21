@@ -1,0 +1,4251 @@
+{
+  "version": "1.0.0",
+  "project": {
+    "name": "SmartTwinRes Skills",
+    "languages": [
+      "python",
+      "markdown",
+      "yaml",
+      "json",
+      "shell",
+      "sql",
+      "html"
+    ],
+    "frameworks": [
+      "Claude Code Skills",
+      "Hermes Agent",
+      "Flask",
+      "pymysql",
+      "SQLite",
+      "numpy",
+      "unittest"
+    ],
+    "description": "智慧水利水库运行管理矩阵平台 (Smart Water Reservoir Operation Management Platform) — A Claude Code Skill collection for reservoir management covering six domain skills (forecasting, plan-generation, simulation, early-warning, diagnosis-verification) plus a supervisor orchestration layer that routes, plans, and arbitrates multi-skill DAG workflows.",
+    "analyzedAt": "2026-08-18T13:55:44.377721",
+    "gitCommitHash": "ddcdb104d0143384d284f4de12847a772bdf30a5"
+  },
+  "nodes": [
+    {
+      "id": "file:lib/__init__.py",
+      "type": "file",
+      "name": "__init__.py",
+      "filePath": "lib/__init__.py",
+      "summary": "Package entry for the SmartTwinRes-skills shared lib; re-exports tenant/db/filters/paths submodules.",
+      "tags": [
+        "package",
+        "shared",
+        "init"
+      ]
+    },
+    {
+      "id": "file:lib/bootstrap.py",
+      "type": "file",
+      "name": "bootstrap.py",
+      "filePath": "lib/bootstrap.py",
+      "summary": "Three-tier locator for the project root (SRM_SKILLS_ROOT env, candidate roots, RuntimeError fallback). Provides locate_root/locate_lib/locate_shared.",
+      "tags": [
+        "shared",
+        "bootstrap",
+        "paths"
+      ]
+    },
+    {
+      "id": "file:lib/db.py",
+      "type": "constant",
+      "name": "MAX_ROWS",
+      "filePath": "lib/db.py",
+      "summary": "Global hard row cap, env-configurable via SRM_DB_MAX_ROWS (defaults to 1000).",
+      "tags": [
+        "database",
+        "limit"
+      ]
+    },
+    {
+      "id": "file:lib/filters.py",
+      "type": "constant",
+      "name": "LARGE_TABLES",
+      "filePath": "lib/filters.py",
+      "summary": "Per-table large-table metadata (time column + min_rows threshold) forcing callers to add time-range predicates.",
+      "tags": [
+        "filter",
+        "guardrail"
+      ]
+    },
+    {
+      "id": "file:lib/paths.py",
+      "type": "constant",
+      "name": "AUTORESEARCH_DIR",
+      "filePath": "lib/paths.py",
+      "summary": "Root path for autoresearch outputs across skills.",
+      "tags": [
+        "paths",
+        "autoresearch"
+      ]
+    },
+    {
+      "id": "file:lib/tenant.py",
+      "type": "constant",
+      "name": "DEFAULT_RESERVOIR_NAME",
+      "filePath": "lib/tenant.py",
+      "summary": "Fallback reservoir profile name ('sancha') used when SRM_RESERVOIR_NAME is unset.",
+      "tags": [
+        "tenant",
+        "default",
+        "reservoir"
+      ]
+    },
+    {
+      "id": "function:lib/bootstrap.py:locate_root",
+      "type": "function",
+      "name": "locate_root",
+      "filePath": "lib/bootstrap.py",
+      "summary": "Resolve the repository root directory by checking SRM_SKILLS_ROOT then known candidates; raises RuntimeError if not found.",
+      "tags": [
+        "locator",
+        "path"
+      ]
+    },
+    {
+      "id": "function:lib/bootstrap.py:locate_lib",
+      "type": "function",
+      "name": "locate_lib",
+      "filePath": "lib/bootstrap.py",
+      "summary": "Return the absolute path of the lib/ directory via locate_root().",
+      "tags": [
+        "locator",
+        "path"
+      ]
+    },
+    {
+      "id": "function:lib/bootstrap.py:locate_shared",
+      "type": "function",
+      "name": "locate_shared",
+      "filePath": "lib/bootstrap.py",
+      "summary": "Return the absolute path of the shared/ cross-skill knowledge base directory.",
+      "tags": [
+        "locator",
+        "shared"
+      ]
+    },
+    {
+      "id": "function:lib/db.py:require_env",
+      "type": "function",
+      "name": "require_env",
+      "filePath": "lib/db.py",
+      "summary": "Public alias of _require_env: read a required env var or sys.exit with a fail-loud message (prevents hard-coded credentials).",
+      "tags": [
+        "env",
+        "credential"
+      ]
+    },
+    {
+      "id": "function:lib/db.py:get_connection",
+      "type": "function",
+      "name": "get_connection",
+      "filePath": "lib/db.py",
+      "summary": "Acquire a MySQL connection from the PooledDB pool, falling back to a single pymysql.connect() if dbutils is unavailable.",
+      "tags": [
+        "database",
+        "pool"
+      ]
+    },
+    {
+      "id": "function:lib/db.py:execute_query",
+      "type": "function",
+      "name": "execute_query",
+      "filePath": "lib/db.py",
+      "summary": "Run a SELECT and return a result dict with data/count/truncated metadata; respects MAX_ROWS cap.",
+      "tags": [
+        "database",
+        "query"
+      ]
+    },
+    {
+      "id": "function:lib/db.py:execute_query_list",
+      "type": "function",
+      "name": "execute_query_list",
+      "filePath": "lib/db.py",
+      "summary": "Backward-compatible wrapper that returns execute_query()['data'] as a plain list[dict].",
+      "tags": [
+        "database",
+        "query"
+      ]
+    },
+    {
+      "id": "function:lib/db.py:unpack",
+      "type": "function",
+      "name": "unpack",
+      "filePath": "lib/db.py",
+      "summary": "Idempotently extract the 'data' list from an execute_query() result (or pass through a bare list).",
+      "tags": [
+        "database",
+        "helper"
+      ]
+    },
+    {
+      "id": "function:lib/db.py:query_one",
+      "type": "function",
+      "name": "query_one",
+      "filePath": "lib/db.py",
+      "summary": "Run a scalar SELECT and return a single value (first row, first column).",
+      "tags": [
+        "database",
+        "scalar"
+      ]
+    },
+    {
+      "id": "function:lib/db.py:execute_write",
+      "type": "function",
+      "name": "execute_write",
+      "filePath": "lib/db.py",
+      "summary": "Run an INSERT/UPDATE/DELETE with commit and rollback, returning the affected row count.",
+      "tags": [
+        "database",
+        "write"
+      ]
+    },
+    {
+      "id": "function:lib/filters.py:apply_tenant_filter",
+      "type": "function",
+      "name": "apply_tenant_filter",
+      "filePath": "lib/filters.py",
+      "summary": "Inject a tenant_id = N predicate into SQL based on the table name; rejects non-integer or negative tenant_id.",
+      "tags": [
+        "filter",
+        "tenant",
+        "sql"
+      ]
+    },
+    {
+      "id": "function:lib/filters.py:apply_deleted_filter",
+      "type": "function",
+      "name": "apply_deleted_filter",
+      "filePath": "lib/filters.py",
+      "summary": "Inject a deleted = 0 predicate into SQL based on the table name (no-op when the table has no deleted column).",
+      "tags": [
+        "filter",
+        "soft-delete",
+        "sql"
+      ]
+    },
+    {
+      "id": "function:lib/filters.py:apply_table_filters",
+      "type": "function",
+      "name": "apply_table_filters",
+      "filePath": "lib/filters.py",
+      "summary": "One-shot helper that runs apply_tenant_filter then apply_deleted_filter on the given SQL.",
+      "tags": [
+        "filter",
+        "tenant",
+        "sql"
+      ]
+    },
+    {
+      "id": "function:lib/filters.py:validate_table_filter",
+      "type": "function",
+      "name": "validate_table_filter",
+      "filePath": "lib/filters.py",
+      "summary": "Return (need_tenant, need_deleted, message) describing which filters apply to a given table.",
+      "tags": [
+        "filter",
+        "validation"
+      ]
+    },
+    {
+      "id": "function:lib/filters.py:generate_where_clause",
+      "type": "function",
+      "name": "generate_where_clause",
+      "filePath": "lib/filters.py",
+      "summary": "Build a full WHERE clause (tenant_id + deleted + extras) for a table, returning empty string if nothing applies.",
+      "tags": [
+        "filter",
+        "sql"
+      ]
+    },
+    {
+      "id": "function:lib/paths.py:get_skill_dir",
+      "type": "function",
+      "name": "get_skill_dir",
+      "filePath": "lib/paths.py",
+      "summary": "Resolve a skill directory by name (forecasting, simulation, etc.); raises ValueError on unknown skill.",
+      "tags": [
+        "paths",
+        "skill"
+      ]
+    },
+    {
+      "id": "function:lib/paths.py:get_reservoir_dir",
+      "type": "function",
+      "name": "get_reservoir_dir",
+      "filePath": "lib/paths.py",
+      "summary": "Return reservoirs/<name>/ path. Resolves name from arg > SRM_RESERVOIR_NAME > DEFAULT_RESERVOIR_NAME.",
+      "tags": [
+        "paths",
+        "reservoir"
+      ]
+    },
+    {
+      "id": "function:lib/paths.py:get_autoresearch_dir",
+      "type": "function",
+      "name": "get_autoresearch_dir",
+      "filePath": "lib/paths.py",
+      "summary": "Resolve the per-skill autoresearch output directory; raises ValueError on unknown skill.",
+      "tags": [
+        "paths",
+        "autoresearch"
+      ]
+    },
+    {
+      "id": "function:lib/paths.py:ensure_dirs",
+      "type": "function",
+      "name": "ensure_dirs",
+      "filePath": "lib/paths.py",
+      "summary": "Create all standard output/log/data/autoresearch directories (parents=True, exist_ok=True).",
+      "tags": [
+        "paths",
+        "init"
+      ]
+    },
+    {
+      "id": "function:lib/paths.py:ensure_path",
+      "type": "function",
+      "name": "ensure_path",
+      "filePath": "lib/paths.py",
+      "summary": "Normalize and dedupe-prepend one or more paths onto sys.path to avoid long-running sys.path bloat.",
+      "tags": [
+        "paths",
+        "sys"
+      ]
+    },
+    {
+      "id": "function:lib/tenant.py:current_tenant_id",
+      "type": "function",
+      "name": "current_tenant_id",
+      "filePath": "lib/tenant.py",
+      "summary": "Canonical tenant-id resolver: reads SRM_TENANT_ID with one-shot stderr warning, falls back to DEFAULT_TENANT_ID.",
+      "tags": [
+        "tenant",
+        "identity"
+      ]
+    },
+    {
+      "id": "function:lib/tenant.py:current_reservoir_name",
+      "type": "function",
+      "name": "current_reservoir_name",
+      "filePath": "lib/tenant.py",
+      "summary": "Read SRM_RESERVOIR_NAME (trimmed/lowercased); return None when unset. Used to route knowledge-layer references/reservoirs/{name}/.",
+      "tags": [
+        "tenant",
+        "reservoir"
+      ]
+    },
+    {
+      "id": "function:lib/tenant.py:resolve_reservoir_name",
+      "type": "function",
+      "name": "resolve_reservoir_name",
+      "filePath": "lib/tenant.py",
+      "summary": "Resolve reservoir name with priority: explicit arg > env > DEFAULT_RESERVOIR_NAME.",
+      "tags": [
+        "tenant",
+        "reservoir"
+      ]
+    },
+    {
+      "id": "function:lib/tenant.py:resolve_tenant",
+      "type": "function",
+      "name": "resolve_tenant",
+      "filePath": "lib/tenant.py",
+      "summary": "Resolve tenant_id with priority: explicit arg > current_tenant_id() (env/default).",
+      "tags": [
+        "tenant",
+        "identity"
+      ]
+    },
+    {
+      "id": "file:forecasting/SKILL.md",
+      "type": "document",
+      "name": "SKILL.md",
+      "filePath": "forecasting/SKILL.md",
+      "summary": "水库水文预报智能解读 Skill v1.0.1（forecasting）。覆盖降雨预报解读、水库影响估算、多源预报融合、水位趋势预测、预报精度评估、预报决策。包含 12 类查询（current_water_level/rainfall_forecast/flood_limit/full_context 等）、3 段式输出蓝图、9 条预报规则（置信度/影响估算/分歧裁决）、法规依据 GB/T 22482。",
+      "tags": [
+        "forecasting",
+        "skill",
+        "document"
+      ]
+    },
+    {
+      "id": "file:forecasting/scripts/query_forecast_data.py",
+      "type": "code",
+      "name": "query_forecast_data.py",
+      "filePath": "forecasting/scripts/query_forecast_data.py",
+      "summary": "预报主取数脚本（12 个 --type）。含 get_master_stcd 辅助函数、12 个查询函数（current_water_level/rainfall_forecast/weather_warning/flood_limit/model_forecast_result/zonal_rainfall_forecast/water_level_curve/historical_floods/forecast_accuracy_stats/multi_source_overview/config/full_context），主入口 query_full_context 聚合核心 5 项。tenant=18（三岔），参数化 SQL + LIMIT 1000。",
+      "tags": [
+        "forecasting",
+        "script",
+        "data-query"
+      ]
+    },
+    {
+      "id": "file:forecasting/scripts/query_forecast_analysis.py",
+      "type": "code",
+      "name": "query_forecast_analysis.py",
+      "filePath": "forecasting/scripts/query_forecast_analysis.py",
+      "summary": "预报场景分析脚本（4 个 --type 分析密集型）。query_fusion_detail（四源逐时对齐 + NMC fixture 解析 + 分歧标注）、query_accuracy_report（按源 MAPE + gated_flag 恒 true 因 C1 缺陷未修）、query_similar_floods（按峰值水位排序）、query_forecast_timeline（预报 vs 实测 bias/MAE）。复用 query_forecast_data.get_master_stcd。",
+      "tags": [
+        "forecasting",
+        "script",
+        "analysis"
+      ]
+    },
+    {
+      "id": "file:plan-generation/SKILL.md",
+      "type": "document",
+      "name": "SKILL.md",
+      "filePath": "plan-generation/SKILL.md",
+      "summary": "水库调度预案智能生成 Skill v3.2.1。覆盖防汛形势评估/汛情研判/水情分析/预案生成/方案对比/历史预案查询/调度决策。含调度目标选择（防洪优先/兴利/综合）、调度模式 0-5 映射、目标水位确定、调度时长选择、多方案生成（A防洪/B综合/C兴利）、法规依据《防洪法》第41条/GB 17621-1998/SL 224-2019。",
+      "tags": [
+        "plan-generation",
+        "skill",
+        "document"
+      ]
+    },
+    {
+      "id": "file:plan-generation/scripts/query_plan_data.py",
+      "type": "code",
+      "name": "query_plan_data.py",
+      "filePath": "plan-generation/scripts/query_plan_data.py",
+      "summary": "预案数据查询脚本（13 个 --type）。含 query_current_water_level、query_rainfall_forecast（f_rnfl_h 主表+子查询）、query_weather_warning、query_flood_limit（att_res_flse_lim + att_res_base 回退）、query_historical_plans、query_historical_floods、query_similar_plans（按水位接近度排序）、query_recent_rainfall、query_scenarios、query_water_level_curve、query_discharge_curve、query_config、query_full_context（M4 契约新增 max_level/max_discharge 顶层键供 supervisor 仲裁消费）。",
+      "tags": [
+        "plan-generation",
+        "script",
+        "data-query"
+      ]
+    },
+    {
+      "id": "file:plan-generation/scripts/query_plan_analysis.py",
+      "type": "code",
+      "name": "query_plan_analysis.py",
+      "filePath": "plan-generation/scripts/query_plan_analysis.py",
+      "summary": "预案分析专用脚本（4 个 --type）。query_plan_detail（model_result_files ⟕ dispatch_history 一次 SQL 取预案+调度）、query_plan_actual_water（预案时段实测水位）、query_scheme_context（生成方案所需：当前水位/汛限/配置/历史预案）、query_similar_plans（按水位接近度）、query_full_analysis（聚合）。",
+      "tags": [
+        "plan-generation",
+        "script",
+        "analysis"
+      ]
+    },
+    {
+      "id": "file:plan-generation/models/dispatch_model.py",
+      "type": "code",
+      "name": "dispatch_model.py",
+      "filePath": "plan-generation/models/dispatch_model.py",
+      "summary": "水库调度优化模型（Flask API，端口 18082）。DispatchModel 类：interpolate_wl_to_cap/interpolate_cap_to_wl/interpolate_wl_to_flow 线性插值、water_balance 水量平衡方程 V(t+1)=V(t)+(I-O)*dt、optimize_dispatch（约束优化调度方案）、_determine_outflow（按 scheduling_target/model 决策）。提供 /api/dispatch/optimize 与 /api/dispatch/verify 接口。含三岔默认曲线 fallback 与单调性 assert。",
+      "tags": [
+        "plan-generation",
+        "model",
+        "flask",
+        "dispatch"
+      ]
+    },
+    {
+      "id": "file:plan-generation/models/flood_routing.py",
+      "type": "code",
+      "name": "flood_routing.py",
+      "filePath": "plan-generation/models/flood_routing.py",
+      "summary": "调洪演算模型（Flask API，端口 18083）。FloodRoutingModel 类：wl_to_cap/cap_to_wl/wl_to_max_outflow 线性插值、route（按水量平衡逐时段计算水位/库容/累积流量，P2-2 修复超限溢流记为 extra_outflow，P2-5 用 np.cumsum 替代 O(n²)）。提供 /api/routing/calculate 与 /api/routing/water-balance 接口。",
+      "tags": [
+        "plan-generation",
+        "model",
+        "flask",
+        "routing"
+      ]
+    },
+    {
+      "id": "file:plan-generation/models/xaj_model.py",
+      "type": "code",
+      "name": "xaj_model.py",
+      "filePath": "plan-generation/models/xaj_model.py",
+      "summary": "新安江水文模型（XAJ，Flask API，端口 18081）。XAJModel 类：evapotranspiration 三层蒸散发、runoff_generation 蓄满产流（P2-1 修复 A 公式 + P2-17 修复 WU→WL→WD 级联充填）、source_partition 水源划分（地表/壤中/地下径流）、flow_routing 汇流计算。P2-3 用 threading.local per-request 实例保证 threaded=True 线程安全。提供 /api/xaj/forecast 与 /api/xaj/reset。",
+      "tags": [
+        "plan-generation",
+        "model",
+        "flask",
+        "xaj",
+        "hydrology"
+      ]
+    },
+    {
+      "id": "file:simulation/SKILL.md",
+      "type": "document",
+      "name": "SKILL.md",
+      "filePath": "simulation/SKILL.md",
+      "summary": "水库预演 AI 增强 Skill v1.9.3。覆盖 6 大能力：多方案对比预演、结果智能解读、虚拟场景构建、预演报告生成、敏感性分析、历史经验提取。模型服务编排 XAJ(18081)+Dispatch(18082)+Routing(18083)+Orchestrator(18084)。三段式输出+法规依据 E2/E4 强制。HITL 检查点：方案选择/参数确认/报告发布。",
+      "tags": [
+        "simulation",
+        "skill",
+        "document"
+      ]
+    },
+    {
+      "id": "file:simulation/scripts/query_simulation_data.py",
+      "type": "code",
+      "name": "query_simulation_data.py",
+      "filePath": "simulation/scripts/query_simulation_data.py",
+      "summary": "模拟数据查询脚本（14 个 --type）。含 query_current_water_level、query_flood_limit、query_config、query_water_level_curve、query_discharge_curve、query_historical_floods、query_flood_detail、query_flood_result（统计 type=7）、query_flood_result_curve（type IN 1,2,3,6）、query_flood_inflow、query_flood_statistics、query_similar_floods（按降雨量容差 ±20%）、query_scenarios、query_recent_rainfall、query_full_context（M4 契约显式 max_level/max_discharge）。",
+      "tags": [
+        "simulation",
+        "script",
+        "data-query"
+      ]
+    },
+    {
+      "id": "file:simulation/models/simulation_service.py",
+      "type": "code",
+      "name": "simulation_service.py",
+      "filePath": "simulation/models/simulation_service.py",
+      "summary": "预演编排服务（Flask API，端口 18084）。核心函数：call_model_service（带超时/连接错误处理）、check_idempotency（SHA256 缓存 5min）、run_multi_scheme（多方案对比 + _build_comparison 推荐）、run_virtual_scenario（XAJ→Dispatch→Routing 三阶段串联，partial failure 处理）、run_sensitivity（线性回归求 safety_threshold）、run_batch_run、generate_report。SANCHA_PROFILE / TAOQUPO_PROFILE 双水库常量。提供 /api/simulation/multi-scheme、virtual-scenario、sensitivity、batch-run、report 等端点。",
+      "tags": [
+        "simulation",
+        "model",
+        "flask",
+        "orchestration"
+      ]
+    },
+    {
+      "id": "file:early-warning/SKILL.md",
+      "type": "document",
+      "name": "SKILL.md",
+      "filePath": "early-warning/SKILL.md",
+      "summary": "智慧水利预警系统 Skill v5.2。覆盖告警分析/诊断/预测/问答。核心表 ew_info_message（2021 条）+ew_info_rules（25 条）+st_rsvr_r+st_pptn_r。告警 4 级（红/橙/黄/蓝）、5 类（0水位/2雨量/5大坝/12设备离线/40视频AI）、动态等级调整（超标 10/30/60% 分档）、趋势预警（连续单调变化）。含告警处理检查清单、日报/周报/复盘模板、HITL 检查点交互。",
+      "tags": [
+        "early-warning",
+        "skill",
+        "document",
+        "alarm"
+      ]
+    },
+    {
+      "id": "file:early-warning/scripts/query_early_warning.py",
+      "type": "code",
+      "name": "query_early_warning.py",
+      "filePath": "early-warning/scripts/query_early_warning.py",
+      "summary": "告警查询脚本（14 个 --type）。query_unconfirmed/query_by_level/query_recent/query_by_station/query_high_level（输出含 level_r 字段对齐 arbitrate_emergency 期望）、query_rules/query_station_ranking/query_hourly_distribution/query_device_offline/query_alarm_trend/query_rule_detail/query_water_level/query_rainfall/query_alarm_storm/query_confirmation_rate/query_weather_warning。",
+      "tags": [
+        "early-warning",
+        "script",
+        "data-query",
+        "alarm"
+      ]
+    },
+    {
+      "id": "file:diagnosis-verification/SKILL.md",
+      "type": "document",
+      "name": "SKILL.md",
+      "filePath": "diagnosis-verification/SKILL.md",
+      "summary": "水库四预系统诊断与验证 Skill v1.0。8 阶段结构化诊断（Phase 0 澄清-Phase 8 知识沉淀）、6 层独立验证（数据源/格式/业务规则/安全约束/跨域一致性/法规符合性）、6 步自动修复流程。覆盖 forecasting/early-warning/plan-generation/simulation 全场景。6 类根因：外部系统异常/内部代码缺陷/数据问题/基础设施问题/LLM 异常/预期行为。",
+      "tags": [
+        "diagnosis-verification",
+        "skill",
+        "document"
+      ]
+    },
+    {
+      "id": "file:diagnosis-verification/scripts/check_data_quality.py",
+      "type": "code",
+      "name": "check_data_quality.py",
+      "filePath": "diagnosis-verification/scripts/check_data_quality.py",
+      "summary": "数据质量检查脚本（4 个 --type）。check_water_level（st_rsvr_r 时效+空值率）、check_rainfall_forecast（f_rnfl_h 批次距现在小时）、check_alerts（ew_info_message 未确认+红橙堆积）、check_all（as_json=True 输出结构化对齐 arbitrate_dam_diagnosis 期望的 {age_hours, null_rate}）。_iter_problems 生成 P0/P1 问题集。",
+      "tags": [
+        "diagnosis-verification",
+        "script",
+        "data-quality"
+      ]
+    },
+    {
+      "id": "file:supervisor/SKILL.md",
+      "type": "document",
+      "name": "SKILL.md",
+      "filePath": "supervisor/SKILL.md",
+      "summary": "四预智能体 Supervisor 协同编排层 v0.4。把 forecasting/early-warning/plan-generation/simulation/diagnosis-verification 当工具按 DAG 编排。4 类场景：A 汛期暴雨研判（七步）/B 大坝诊断（五步）/C 日常管控（三步）/D 应急响应（五步）。State 持久化 SQLite（events+stage_results）。仲裁：方案 vs 仿真（HITL step5/6 之间）。",
+      "tags": [
+        "supervisor",
+        "skill",
+        "document",
+        "orchestration"
+      ]
+    },
+    {
+      "id": "file:supervisor/scripts/scene_router.py",
+      "type": "code",
+      "name": "scene_router.py",
+      "filePath": "supervisor/scripts/scene_router.py",
+      "summary": "Supervisor 场景识别（路由）。SCENE_RULES 关键词表驱动（D 应急 100>A 暴雨 80>B 大坝 60>C 日常 40）。route(trigger) 返回 {scene, name, dag, reason, matched_keywords}。EMERGENCY_STRONG/DAM_STRONG/DAILY_STRONG 强信号词优先判定（P1-2 修复大坝信号不被日常词压制）。UNKNOWN 不猜测。",
+      "tags": [
+        "supervisor",
+        "script",
+        "routing"
+      ]
+    },
+    {
+      "id": "file:supervisor/scripts/supervisor_state.py",
+      "type": "code",
+      "name": "supervisor_state.py",
+      "filePath": "supervisor/scripts/supervisor_state.py",
+      "summary": "Supervisor 全局 State 持久化（SQLite，断点续跑）。表 events（event_id/scene/status/risk_level/trigger/priority/created_at/updated_at）+ stage_results（event_id+stage 复合主键）。子命令：new/queue（v0.4 优先级队列）/stats（运维观测）/replay（失败重放提示）/health（cron 数据时效）/set/get/resume/status/list。P3-8 改走 lib.paths.ensure_path。",
+      "tags": [
+        "supervisor",
+        "script",
+        "state",
+        "sqlite"
+      ]
+    },
+    {
+      "id": "file:supervisor/scripts/orchestrator.py",
+      "type": "code",
+      "name": "orchestrator.py",
+      "filePath": "supervisor/scripts/orchestrator.py",
+      "summary": "Supervisor DAG 编排主脚本。STAGE_CMDS 字典定义 4 场景的 stage→(agent, cmd) 映射（A 七步/B 五步/C 三步/D 五步）。run_stage_cmd（subprocess + 60s 超时 + 60000 字符截断）、load_reservoir_params/resolve_thresholds（从 model_config + att_res_flse_lim 读取汛限/安全泄量）、_extract_sim_peaks（M4 契约 max_level/max_discharge 解析）、do_arbitration（分派 B/D/A 仲裁）、do_report（汇总 State 生成 Markdown 报告）。HITL 在 step5/6 之间强制确认。",
+      "tags": [
+        "supervisor",
+        "script",
+        "orchestration",
+        "dag"
+      ]
+    },
+    {
+      "id": "file:supervisor/scripts/arbitrator.py",
+      "type": "code",
+      "name": "arbitrator.py",
+      "filePath": "supervisor/scripts/arbitrator.py",
+      "summary": "Supervisor 结果仲裁。arbitrate_plan_vs_simulation（方案 vs 仿真水位以仿真为准/超安全泄量 reject）、arbitrate_risk_levels（取更高等级防洪优先）、arbitrate_emergency（场景 D：Ⅰ/Ⅱ级告警 escalate/超安全泄量 reject/超汛限 escalate/HITL 强制 hitl_required=True）、arbitrate_dam_diagnosis（场景 B：数据过期>24h 或空值率>50% 高/P0P1 缺陷高/超汛限高）。ArbitrationResult dataclass（passed/decision/issues/adopted_values/suggestion）。",
+      "tags": [
+        "supervisor",
+        "script",
+        "arbitration"
+      ]
+    },
+    {
+      "id": "file:eval/__init__.py",
+      "type": "file",
+      "name": "__init__.py",
+      "filePath": "eval/__init__.py",
+      "summary": "Package marker for the unified evaluation runner.",
+      "tags": [
+        "eval",
+        "package",
+        "init"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "file:eval/lib/__init__.py",
+      "type": "file",
+      "name": "__init__.py",
+      "filePath": "eval/lib/__init__.py",
+      "summary": "Package marker for the eval lib helpers (schema, judge, transport, truth, report).",
+      "tags": [
+        "eval",
+        "package",
+        "init"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "file:eval/run.py",
+      "type": "file",
+      "name": "run.py",
+      "filePath": "eval/run.py",
+      "summary": "Unified evaluation runner CLI. Loads YAML cases, applies AND-combined filters, runs each case through a Hermes subprocess, judges the output (inline / live_db / rubric, optionally with an LLM judge), and writes JSON + Markdown reports. Exits 0 in gate mode only when every case passes.",
+      "tags": [
+        "eval",
+        "runner",
+        "cli",
+        "hermes"
+      ],
+      "complexity": "complex"
+    },
+    {
+      "id": "function:eval/run.py:parse_args",
+      "type": "function",
+      "name": "parse_args",
+      "filePath": "eval/run.py",
+      "summary": "Parse CLI flags: --list, --cases-dir, --report-dir, --truth {inline,live_db,rubric}, --skill, --subset, --tag, --id, --no-judge, --with-llm.",
+      "tags": [
+        "cli",
+        "args"
+      ],
+      "lineRange": [
+        29,
+        44
+      ]
+    },
+    {
+      "id": "function:eval/run.py:filter_cases",
+      "type": "function",
+      "name": "filter_cases",
+      "filePath": "eval/run.py",
+      "summary": "AND-combine --skill / --subset / --tag / --id / --truth filters against the loaded EvalCase list.",
+      "tags": [
+        "filter"
+      ],
+      "lineRange": [
+        47,
+        59
+      ]
+    },
+    {
+      "id": "function:eval/run.py:_dispatch",
+      "type": "function",
+      "name": "_dispatch",
+      "filePath": "eval/run.py",
+      "summary": "Route a single case to judge_inline / judge_live_db / judge_rubric based on case.truth_source.",
+      "tags": [
+        "dispatch",
+        "judge"
+      ],
+      "lineRange": [
+        62,
+        73
+      ]
+    },
+    {
+      "id": "function:eval/run.py:main",
+      "type": "function",
+      "name": "main",
+      "filePath": "eval/run.py",
+      "summary": "End-to-end runner: parse args → load cases → filter → live-DB query_fn → run each case via transport_fn → dispatch judges → write reports → return gate exit code.",
+      "tags": [
+        "entry",
+        "orchestrator"
+      ],
+      "lineRange": [
+        76,
+        127
+      ]
+    },
+    {
+      "id": "file:eval/lib/schema.py",
+      "type": "file",
+      "name": "schema.py",
+      "filePath": "eval/lib/schema.py",
+      "summary": "EvalCase dataclass plus loader/validator. Required fields include id/skill/category/description/question/env{source,truth_source,SRM_TENANT_ID} and truth-source-specific fields (expected_keywords/expected_range, truth_query, or rubric).",
+      "tags": [
+        "eval",
+        "schema",
+        "dataclass"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "class:eval/lib/schema.py:EvalCase",
+      "type": "class",
+      "name": "EvalCase",
+      "filePath": "eval/lib/schema.py",
+      "summary": "Single evaluation-case dataclass carrying id, skill, category, question, env, source, truth_source, optional timeout/tags, and one of inline (expected_keywords/range/forbidden), live_db (truth_query/tolerance/expected_keywords), or rubric (rubric items).",
+      "tags": [
+        "schema",
+        "dataclass"
+      ],
+      "lineRange": [
+        11,
+        27
+      ]
+    },
+    {
+      "id": "function:eval/lib/schema.py:_coerce_str_list",
+      "type": "function",
+      "name": "_coerce_str_list",
+      "filePath": "eval/lib/schema.py",
+      "summary": "Coerce a YAML value (list, str, or None) into a list[str] used for keywords/forbidden/rubric fields.",
+      "tags": [
+        "schema",
+        "helper"
+      ],
+      "lineRange": [
+        30,
+        31
+      ]
+    },
+    {
+      "id": "function:eval/lib/schema.py:validate",
+      "type": "function",
+      "name": "validate",
+      "filePath": "eval/lib/schema.py",
+      "summary": "Reject malformed cases: missing core fields, bad truth_source, missing SRM_TENANT_ID, or truth-source-specific omissions.",
+      "tags": [
+        "schema",
+        "validation"
+      ],
+      "lineRange": [
+        34,
+        47
+      ]
+    },
+    {
+      "id": "function:eval/lib/schema.py:_case_from_dict",
+      "type": "function",
+      "name": "_case_from_dict",
+      "filePath": "eval/lib/schema.py",
+      "summary": "Construct EvalCase from a dict, merging file-level forbidden_keywords with case-level forbidden entries.",
+      "tags": [
+        "schema",
+        "loader"
+      ],
+      "lineRange": [
+        50,
+        63
+      ]
+    },
+    {
+      "id": "function:eval/lib/schema.py:load_file",
+      "type": "function",
+      "name": "load_file",
+      "filePath": "eval/lib/schema.py",
+      "summary": "Load a single YAML case file into a list of validated EvalCase objects.",
+      "tags": [
+        "schema",
+        "loader"
+      ],
+      "lineRange": [
+        66,
+        71
+      ]
+    },
+    {
+      "id": "function:eval/lib/schema.py:load_all",
+      "type": "function",
+      "name": "load_all",
+      "filePath": "eval/lib/schema.py",
+      "summary": "Load every YAML file in a directory and raise ValueError on duplicate case IDs.",
+      "tags": [
+        "schema",
+        "loader"
+      ],
+      "lineRange": [
+        74,
+        82
+      ]
+    },
+    {
+      "id": "file:eval/lib/judge.py",
+      "type": "file",
+      "name": "judge.py",
+      "filePath": "eval/lib/judge.py",
+      "summary": "Verdict logic for inline / live_db / rubric truth sources. Inline judging delegates to tests.reservoir_profile.verify_output; live_db delegates to eval.lib.truth.compare_with_tolerance; rubric combines rule-layer checks with an optional Anthropic LLM judge (model overridable via EVAL_JUDGE_MODEL).",
+      "tags": [
+        "eval",
+        "judge",
+        "llm"
+      ],
+      "complexity": "complex"
+    },
+    {
+      "id": "function:eval/lib/judge.py:_extract_numbers",
+      "type": "function",
+      "name": "_extract_numbers",
+      "filePath": "eval/lib/judge.py",
+      "summary": "Regex-based numeric extractor over the model output (shared with truth.extract_numbers).",
+      "tags": [
+        "helper",
+        "number"
+      ],
+      "lineRange": [
+        18,
+        19
+      ]
+    },
+    {
+      "id": "function:eval/lib/judge.py:_keyword_check",
+      "type": "function",
+      "name": "_keyword_check",
+      "filePath": "eval/lib/judge.py",
+      "summary": "Case-insensitive substring OR-check of expected keywords against the output.",
+      "tags": [
+        "helper",
+        "keyword"
+      ],
+      "lineRange": [
+        22,
+        25
+      ]
+    },
+    {
+      "id": "function:eval/lib/judge.py:judge_inline",
+      "type": "function",
+      "name": "judge_inline",
+      "filePath": "eval/lib/judge.py",
+      "summary": "Adapt an EvalCase into a TestCase and delegate to verify_output; returns {verdict, detail}.",
+      "tags": [
+        "judge",
+        "inline"
+      ],
+      "lineRange": [
+        28,
+        34
+      ]
+    },
+    {
+      "id": "function:eval/lib/judge.py:judge_live_db",
+      "type": "function",
+      "name": "judge_live_db",
+      "filePath": "eval/lib/judge.py",
+      "summary": "Run case.truth_query via the provided query_fn, extract numeric truth, compare against output numbers with tolerance, and re-check expected_keywords.",
+      "tags": [
+        "judge",
+        "live_db"
+      ],
+      "lineRange": [
+        37,
+        50
+      ]
+    },
+    {
+      "id": "function:eval/lib/judge.py:judge_rubric",
+      "type": "function",
+      "name": "judge_rubric",
+      "filePath": "eval/lib/judge.py",
+      "summary": "Rule-layer check (forbidden + expected_keywords) AND-composed with an optional LLM judge; returns PASS/FAIL/SKIP for the rubric layer.",
+      "tags": [
+        "judge",
+        "rubric"
+      ],
+      "lineRange": [
+        53,
+        63
+      ]
+    },
+    {
+      "id": "function:eval/lib/judge.py:_build_prompt",
+      "type": "function",
+      "name": "_build_prompt",
+      "filePath": "eval/lib/judge.py",
+      "summary": "Build a strict-JSON prompt that lists every rubric criterion and instructs the LLM to return {passed, items[]}.",
+      "tags": [
+        "judge",
+        "llm",
+        "prompt"
+      ],
+      "lineRange": [
+        66,
+        74
+      ]
+    },
+    {
+      "id": "function:eval/lib/judge.py:_parse_rubric_score",
+      "type": "function",
+      "name": "_parse_rubric_score",
+      "filePath": "eval/lib/judge.py",
+      "summary": "Parse LLM JSON output into the rubric-score dict; falls back to a uniform fail on malformed JSON.",
+      "tags": [
+        "judge",
+        "llm",
+        "parse"
+      ],
+      "lineRange": [
+        77,
+        85
+      ]
+    },
+    {
+      "id": "function:eval/lib/judge.py:make_anthropic_client",
+      "type": "function",
+      "name": "make_anthropic_client",
+      "filePath": "eval/lib/judge.py",
+      "summary": "Lazy-import anthropic and construct an Anthropic client; returns None when the SDK is unavailable.",
+      "tags": [
+        "judge",
+        "llm",
+        "factory"
+      ],
+      "lineRange": [
+        88,
+        93
+      ]
+    },
+    {
+      "id": "function:eval/lib/judge.py:llm_judge",
+      "type": "function",
+      "name": "llm_judge",
+      "filePath": "eval/lib/judge.py",
+      "summary": "Run an Anthropic messages.create call (model = env EVAL_JUDGE_MODEL or default 'claude-sonnet-5') and parse the strict-JSON response.",
+      "tags": [
+        "judge",
+        "llm"
+      ],
+      "lineRange": [
+        96,
+        105
+      ]
+    },
+    {
+      "id": "file:eval/lib/transport.py",
+      "type": "file",
+      "name": "transport.py",
+      "filePath": "eval/lib/transport.py",
+      "summary": "Run a single evaluation case as a Hermes subprocess. Merges case env over os.environ, sets cwd to the skill directory, and normalizes subprocess.TimeoutExpired into a timed_out result.",
+      "tags": [
+        "eval",
+        "transport",
+        "subprocess"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "function:eval/lib/transport.py:run_hermes",
+      "type": "function",
+      "name": "run_hermes",
+      "filePath": "eval/lib/transport.py",
+      "summary": "Run `hermes chat -q <question> --skills <skill_id> -Q` with injected env, return {output, stderr, exit_code, timed_out}.",
+      "tags": [
+        "transport",
+        "hermes"
+      ],
+      "lineRange": [
+        6,
+        15
+      ]
+    },
+    {
+      "id": "file:eval/lib/truth.py",
+      "type": "file",
+      "name": "truth.py",
+      "filePath": "eval/lib/truth.py",
+      "summary": "Live-database truth helpers. Reads SRM_DB_* env vars, builds a single connection-lifetime query closure, and exposes tolerance-aware numeric comparison.",
+      "tags": [
+        "eval",
+        "truth",
+        "database"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "function:eval/lib/truth.py:extract_numbers",
+      "type": "function",
+      "name": "extract_numbers",
+      "filePath": "eval/lib/truth.py",
+      "summary": "Extract numeric tokens from the model's output (delegated into judge.py for keyword/inline checks).",
+      "tags": [
+        "truth",
+        "number"
+      ],
+      "lineRange": [
+        8,
+        9
+      ]
+    },
+    {
+      "id": "function:eval/lib/truth.py:compare_with_tolerance",
+      "type": "function",
+      "name": "compare_with_tolerance",
+      "filePath": "eval/lib/truth.py",
+      "summary": "Return {truth, tolerance, extracted, passed} for `any(|n - truth| <= tolerance for n in numbers)`.",
+      "tags": [
+        "truth",
+        "comparison"
+      ],
+      "lineRange": [
+        12,
+        14
+      ]
+    },
+    {
+      "id": "function:eval/lib/truth.py:_connect",
+      "type": "function",
+      "name": "_connect",
+      "filePath": "eval/lib/truth.py",
+      "summary": "Lazy pymysql.connect using SRM_DB_HOST/PORT/USER/PASSWORD/NAME; reads credentials exclusively from env.",
+      "tags": [
+        "truth",
+        "database",
+        "env"
+      ],
+      "lineRange": [
+        17,
+        28
+      ]
+    },
+    {
+      "id": "function:eval/lib/truth.py:make_db_query_fn",
+      "type": "function",
+      "name": "make_db_query_fn",
+      "filePath": "eval/lib/truth.py",
+      "summary": "Create one process-lifetime connection and return a closure that executes SQL with a cursor (per docs: short-lived CLI, recycle-on-restart).",
+      "tags": [
+        "truth",
+        "database",
+        "factory"
+      ],
+      "lineRange": [
+        31,
+        44
+      ]
+    },
+    {
+      "id": "file:eval/lib/report.py",
+      "type": "file",
+      "name": "report.py",
+      "filePath": "eval/lib/report.py",
+      "summary": "Reporting layer: build per-result dicts (truncating output to 500 chars), aggregate pass/fail by skill and category, and serialize to JSON + Chinese Markdown.",
+      "tags": [
+        "eval",
+        "report",
+        "markdown"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "function:eval/lib/report.py:build_result",
+      "type": "function",
+      "name": "build_result",
+      "filePath": "eval/lib/report.py",
+      "summary": "Build a result row from (case, verdict, elapsed, output, detail) and truncate output to 500 chars.",
+      "tags": [
+        "report",
+        "result"
+      ],
+      "lineRange": [
+        7,
+        13
+      ]
+    },
+    {
+      "id": "function:eval/lib/report.py:summarize",
+      "type": "function",
+      "name": "summarize",
+      "filePath": "eval/lib/report.py",
+      "summary": "Group results by (skill, category) and compute overall + per-skill pass rates.",
+      "tags": [
+        "report",
+        "summary"
+      ],
+      "lineRange": [
+        16,
+        29
+      ]
+    },
+    {
+      "id": "function:eval/lib/report.py:write_json",
+      "type": "function",
+      "name": "write_json",
+      "filePath": "eval/lib/report.py",
+      "summary": "Write {summary, results} to a JSON file.",
+      "tags": [
+        "report",
+        "io"
+      ],
+      "lineRange": [
+        32,
+        35
+      ]
+    },
+    {
+      "id": "function:eval/lib/report.py:write_markdown",
+      "type": "function",
+      "name": "write_markdown",
+      "filePath": "eval/lib/report.py",
+      "summary": "Write a Chinese Markdown report with per-skill tables and per-case [x]/[ ] pass marks.",
+      "tags": [
+        "report",
+        "io",
+        "markdown"
+      ],
+      "lineRange": [
+        38,
+        50
+      ]
+    },
+    {
+      "id": "file:tests/reservoir_profile.py",
+      "type": "file",
+      "name": "reservoir_profile.py",
+      "filePath": "tests/reservoir_profile.py",
+      "summary": "Legacy reservoir-profile test fixture reused by eval inline judging. Defines TestCase and ReservoirProfile dataclasses plus verify_output (keyword + range + forbidden checks) and load_reservoir / load_all_reservoirs YAML loaders.",
+      "tags": [
+        "tests",
+        "fixture",
+        "legacy"
+      ],
+      "complexity": "complex"
+    },
+    {
+      "id": "class:tests/reservoir_profile.py:TestCase",
+      "type": "class",
+      "name": "TestCase",
+      "filePath": "tests/reservoir_profile.py",
+      "summary": "Legacy single-case dataclass: id, skill, description, question, expected_keywords, optional expected_range, with verify_output interpreting forbidden[].",
+      "tags": [
+        "fixture",
+        "dataclass"
+      ],
+      "lineRange": [
+        19,
+        26
+      ]
+    },
+    {
+      "id": "class:tests/reservoir_profile.py:ReservoirProfile",
+      "type": "class",
+      "name": "ReservoirProfile",
+      "filePath": "tests/reservoir_profile.py",
+      "summary": "Reservoir profile dataclass: name, tenant_id, display_name, forbidden_keywords, cases, with load_reservoir / load_all_reservoirs parsing reservoirs/<name>.yaml.",
+      "tags": [
+        "fixture",
+        "dataclass"
+      ],
+      "lineRange": [
+        30,
+        35
+      ]
+    },
+    {
+      "id": "function:tests/reservoir_profile.py:_extract_numbers",
+      "type": "function",
+      "name": "_extract_numbers",
+      "filePath": "tests/reservoir_profile.py",
+      "summary": "Regex extraction of numeric tokens (int/float, negative supported).",
+      "tags": [
+        "fixture",
+        "number"
+      ],
+      "lineRange": [
+        38,
+        46
+      ]
+    },
+    {
+      "id": "function:tests/reservoir_profile.py:verify_output",
+      "type": "function",
+      "name": "verify_output",
+      "filePath": "tests/reservoir_profile.py",
+      "summary": "Run keyword + optional range + forbidden checks against an output, returning {keywords_passed, range_passed, forbidden_hits, all_passed, ...}.",
+      "tags": [
+        "fixture",
+        "verify"
+      ],
+      "lineRange": [
+        49,
+        94
+      ]
+    },
+    {
+      "id": "function:tests/reservoir_profile.py:_coerce_keywords",
+      "type": "function",
+      "name": "_coerce_keywords",
+      "filePath": "tests/reservoir_profile.py",
+      "summary": "Coerce expected_keywords into a normalized list[str].",
+      "tags": [
+        "fixture",
+        "helper"
+      ],
+      "lineRange": [
+        97,
+        99
+      ]
+    },
+    {
+      "id": "function:tests/reservoir_profile.py:load_reservoir",
+      "type": "function",
+      "name": "load_reservoir",
+      "filePath": "tests/reservoir_profile.py",
+      "summary": "Load a single reservoirs/<name>.yaml file into a ReservoirProfile.",
+      "tags": [
+        "fixture",
+        "loader"
+      ],
+      "lineRange": [
+        102,
+        116
+      ]
+    },
+    {
+      "id": "function:tests/reservoir_profile.py:load_all_reservoirs",
+      "type": "function",
+      "name": "load_all_reservoirs",
+      "filePath": "tests/reservoir_profile.py",
+      "summary": "Load every reservoir YAML under reservoirs/<name>/*.yaml.",
+      "tags": [
+        "fixture",
+        "loader"
+      ],
+      "lineRange": [
+        119,
+        125
+      ]
+    },
+    {
+      "id": "file:eval/cases/forecasting.yaml",
+      "type": "file",
+      "name": "forecasting.yaml",
+      "filePath": "eval/cases/forecasting.yaml",
+      "summary": "25 forecasting evaluation cases (F1-F25). Covers water levels, rainfall interpretation, flood limits, multi-source fusion, trends, forecast accuracy, historical floods, and extreme scenarios. Mixed inline/live_db/rubric truth sources.",
+      "tags": [
+        "eval",
+        "cases",
+        "forecasting"
+      ],
+      "complexity": "complex"
+    },
+    {
+      "id": "file:eval/cases/plan-generation.yaml",
+      "type": "file",
+      "name": "plan-generation.yaml",
+      "filePath": "eval/cases/plan-generation.yaml",
+      "summary": "25 plan-generation evaluation cases (PG1-PG25). Covers plan generation, flood-season assessment, emergency response, historical plans, boundary conditions, and invalid-parameter rejection.",
+      "tags": [
+        "eval",
+        "cases",
+        "plan-generation"
+      ],
+      "complexity": "complex"
+    },
+    {
+      "id": "file:eval/cases/simulation.yaml",
+      "type": "file",
+      "name": "simulation.yaml",
+      "filePath": "eval/cases/simulation.yaml",
+      "summary": "30 simulation evaluation cases (SIM1-SIM30). Covers multi-scheme simulation, virtual scenarios, reports, sensitivity analysis, historical experience, and invalid flood IDs.",
+      "tags": [
+        "eval",
+        "cases",
+        "simulation"
+      ],
+      "complexity": "complex"
+    },
+    {
+      "id": "file:eval/cases/early-warning.yaml",
+      "type": "file",
+      "name": "early-warning.yaml",
+      "filePath": "eval/cases/early-warning.yaml",
+      "summary": "33 early-warning evaluation cases (EW1-EW33). Covers alert querying, root-cause analysis, trend prediction, risk assessment, cross-domain correlation, emergency response, and missing-data conditions.",
+      "tags": [
+        "eval",
+        "cases",
+        "early-warning"
+      ],
+      "complexity": "complex"
+    },
+    {
+      "id": "file:eval/cases/supervisor.yaml",
+      "type": "file",
+      "name": "supervisor.yaml",
+      "filePath": "eval/cases/supervisor.yaml",
+      "summary": "10 supervisor evaluation cases (SUP1-SUP10). Covers scenes A/B/C/D, HITL pauses, priority queues, routing, and resume behavior.",
+      "tags": [
+        "eval",
+        "cases",
+        "supervisor"
+      ],
+      "complexity": "complex"
+    },
+    {
+      "id": "file:eval/cases/diagnosis-verification.yaml",
+      "type": "file",
+      "name": "diagnosis-verification.yaml",
+      "filePath": "eval/cases/diagnosis-verification.yaml",
+      "summary": "10 diagnosis-verification evaluation cases (DV1-DV10). Covers data staleness, alert accumulation, six-layer verification, safety-constraint blocking, root-cause analysis, and six-step remediation.",
+      "tags": [
+        "eval",
+        "cases",
+        "diagnosis-verification"
+      ],
+      "complexity": "complex"
+    },
+    {
+      "id": "doc:eval/README.md",
+      "type": "documentation",
+      "name": "README.md",
+      "filePath": "eval/README.md",
+      "summary": "Unified evaluation runner documentation. Describes CLI usage, case schema, truth-source semantics, LLM-judge model override (EVAL_JUDGE_MODEL), AND-combined filters, and the 133-case set (25 forecasting + 25 plan + 30 sim + 33 EW + 10 supervisor + 10 DV).",
+      "tags": [
+        "docs",
+        "eval",
+        "readme"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "doc:shared/sql-safety-rules.md",
+      "type": "documentation",
+      "name": "sql-safety-rules.md",
+      "filePath": "shared/sql-safety-rules.md",
+      "summary": "Cross-skill SQL safety rules: read-only SQL in skill scripts, parameterized %s, WHERE + LIMIT required, no string concatenation, no DDL, tenant filtering required.",
+      "tags": [
+        "docs",
+        "sql",
+        "safety",
+        "shared"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "doc:shared/tenant-filtering-rules.md",
+      "type": "documentation",
+      "name": "tenant-filtering-rules.md",
+      "filePath": "shared/tenant-filtering-rules.md",
+      "summary": "Tenant resolution rules: explicit arg > SRM_TENANT_ID > default 18 (sancha). No hard-coded tenant IDs in business logic; reservoir profiles resolved via get_reservoir_dir().",
+      "tags": [
+        "docs",
+        "tenant",
+        "shared"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "doc:shared/db-connection.md",
+      "type": "documentation",
+      "name": "db-connection.md",
+      "filePath": "shared/db-connection.md",
+      "summary": "Database connection rules: SRM_DB_* env over legacy POWERELF_DB_*, no hard-coded credentials, standard imports from lib/db.py + lib/tenant.py, pooled connections with timeout and serialization.",
+      "tags": [
+        "docs",
+        "database",
+        "shared"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "file:tests/test_arbitrator.py",
+      "type": "file",
+      "name": "test_arbitrator.py",
+      "filePath": "tests/test_arbitrator.py",
+      "summary": "Supervisor arbitration tests: damage-diagnosis risk levels, emergency escalation, plan-vs-simulation decisions, and risk-level max selection. Imports the external supervisor/scripts/arbitrator module.",
+      "tags": [
+        "tests",
+        "supervisor",
+        "arbitrator"
+      ],
+      "complexity": "complex"
+    },
+    {
+      "id": "file:tests/test_tenant_isolation.py",
+      "type": "file",
+      "name": "test_tenant_isolation.py",
+      "filePath": "tests/test_tenant_isolation.py",
+      "summary": "Tenant-isolation tests for plan-generation / simulation / early-warning query helpers and lib/filters.py rule table. Patches execute_query_list / execute_query to avoid a real DB; asserts tenant_id 18 / 20 appear in SQL + parameters.",
+      "tags": [
+        "tests",
+        "tenant",
+        "isolation"
+      ],
+      "complexity": "complex"
+    },
+    {
+      "id": "file:tests/test_scene_router.py",
+      "type": "file",
+      "name": "test_scene_router.py",
+      "filePath": "tests/test_scene_router.py",
+      "summary": "Scene-routing tests for the supervisor. Imports supervisor/scripts/scene_router. Covers A storm / B dam / C daily / D emergency routing, mixed-trigger priority, and edge-case (empty / None / whitespace / unmatched) UNKNOWN returns.",
+      "tags": [
+        "tests",
+        "supervisor",
+        "routing"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "file:tests/test_supervisor_state_ops.py",
+      "type": "file",
+      "name": "test_supervisor_state_ops.py",
+      "filePath": "tests/test_supervisor_state_ops.py",
+      "summary": "Supervisor state-operation tests using a temporary SRM_STATE_DIR. Covers stage statistics, replay command generation, and graceful database-health behavior.",
+      "tags": [
+        "tests",
+        "supervisor",
+        "state"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "file:tests/test_models.py",
+      "type": "file",
+      "name": "test_models.py",
+      "filePath": "tests/test_models.py",
+      "summary": "Plan-generation model physics tests. Stubs Flask when unavailable. Covers monotonic discharge curves, XAJ dry-basin / saturated-basin behavior, and water-balance conservation. The dry-basin case is marked expectedFailure pending hydrology expert review.",
+      "tags": [
+        "tests",
+        "model",
+        "physics"
+      ],
+      "complexity": "complex"
+    },
+    {
+      "id": "file:tests/test_judge.py",
+      "type": "file",
+      "name": "test_judge.py",
+      "filePath": "tests/test_judge.py",
+      "summary": "Legacy reservoir-profile judge tests: number extraction, keyword/range/forbidden checks, and minimal YAML loading.",
+      "tags": [
+        "tests",
+        "judge",
+        "legacy"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "file:tests/test_eval_runner.py",
+      "type": "file",
+      "name": "test_eval_runner.py",
+      "filePath": "tests/test_eval_runner.py",
+      "summary": "Eval-runner tests: --list mode, filter + fake-transport run, all-pass exit status, transport exception handling, and DB-connection failure handling. Stdout is suppressed to avoid CI log crosstalk.",
+      "tags": [
+        "tests",
+        "eval",
+        "runner"
+      ],
+      "complexity": "complex"
+    },
+    {
+      "id": "file:tests/test_eval_schema.py",
+      "type": "file",
+      "name": "test_eval_schema.py",
+      "filePath": "tests/test_eval_schema.py",
+      "summary": "Eval schema tests: file-level forbidden-keyword merging, duplicate-ID detection, invalid truth_source rejection, and required truth-source-specific fields.",
+      "tags": [
+        "tests",
+        "eval",
+        "schema"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "file:tests/test_eval_cases.py",
+      "type": "file",
+      "name": "test_eval_cases.py",
+      "filePath": "tests/test_eval_cases.py",
+      "summary": "Eval case-file tests: all YAMLs load, IDs unique, per-skill counts in target bands, total in 100-180 range.",
+      "tags": [
+        "tests",
+        "eval",
+        "cases"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "file:tests/test_eval_truth.py",
+      "type": "file",
+      "name": "test_eval_truth.py",
+      "filePath": "tests/test_eval_truth.py",
+      "summary": "Eval truth tests: number extraction, tolerance comparison, and injected DB-port behavior via a fake _connect.",
+      "tags": [
+        "tests",
+        "eval",
+        "truth"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "file:tests/test_eval_report.py",
+      "type": "file",
+      "name": "test_eval_report.py",
+      "filePath": "tests/test_eval_report.py",
+      "summary": "Eval report tests: output truncation, skill/category summary math, JSON + Markdown writes, and PASS/FAIL mark semantics.",
+      "tags": [
+        "tests",
+        "eval",
+        "report"
+      ],
+      "complexity": "moderate"
+    },
+    {
+      "id": "file:tests/test_eval_judge.py",
+      "type": "file",
+      "name": "test_eval_judge.py",
+      "filePath": "tests/test_eval_judge.py",
+      "summary": "Eval judge tests: inline judge, live_db judge (ERROR on empty/non-numeric truth), rubric rule-layer + LLM judge, strict-JSON parsing, all-rubric prompt construction, EVAL_JUDGE_MODEL override, and rule∧LLM AND composition.",
+      "tags": [
+        "tests",
+        "eval",
+        "judge"
+      ],
+      "complexity": "complex"
+    },
+    {
+      "id": "file:tests/test_eval_transport.py",
+      "type": "file",
+      "name": "test_eval_transport.py",
+      "filePath": "tests/test_eval_transport.py",
+      "summary": "Eval transport tests: Hermes command construction, env injection merge, and TimeoutExpired → timed_out result.",
+      "tags": [
+        "tests",
+        "eval",
+        "transport"
+      ],
+      "complexity": "simple"
+    },
+    {
+      "id": "file:tests/integration/test_supervisor_e2e.py",
+      "type": "file",
+      "name": "test_supervisor_e2e.py",
+      "filePath": "tests/integration/test_supervisor_e2e.py",
+      "summary": "Supervisor end-to-end integration tests using a temporary SRM_STATE_DIR. Covers scenes A/B/C/D arbitration and the A/B/D arbitration→report flow.",
+      "tags": [
+        "tests",
+        "integration",
+        "supervisor"
+      ],
+      "complexity": "complex"
+    },
+    {
+      "id": "file:tests/integration/test_arbitration_contract.py",
+      "type": "file",
+      "name": "test_arbitration_contract.py",
+      "filePath": "tests/integration/test_arbitration_contract.py",
+      "summary": "Arbitration safety-closed-loop contract test (P0-3). Uses the real plan-gen query_full_context() return shape to verify that dangerous plans (level > flood limit or discharge > safe) are adjust/reject (not accept), and that query_full_context() emits top-level max_level / max_discharge keys.",
+      "tags": [
+        "tests",
+        "integration",
+        "arbitration"
+      ],
+      "complexity": "complex"
+    },
+    {
+      "id": "class:tests/test_arbitrator.py:TestDamDiagnosis",
+      "type": "class",
+      "name": "TestDamDiagnosis",
+      "filePath": "tests/test_arbitrator.py",
+      "summary": "Damage-diagnosis risk tests: low/medium/high risk paths via stale data, null rate, sim-over-flood-limit, and open defects.",
+      "tags": [
+        "test",
+        "arbitrator",
+        "risk"
+      ],
+      "lineRange": [
+        23,
+        92
+      ]
+    },
+    {
+      "id": "class:tests/test_arbitrator.py:TestEmergency",
+      "type": "class",
+      "name": "TestEmergency",
+      "filePath": "tests/test_arbitrator.py",
+      "summary": "Emergency-escalation tests: high alerts, discharge-over-safe, sim-over-flood-limit, pending approval, HITL always required, reject-overrides-escalate priority.",
+      "tags": [
+        "test",
+        "arbitrator",
+        "emergency"
+      ],
+      "lineRange": [
+        98,
+        157
+      ]
+    },
+    {
+      "id": "class:tests/test_arbitrator.py:TestRiskLevels",
+      "type": "class",
+      "name": "TestRiskLevels",
+      "filePath": "tests/test_arbitrator.py",
+      "summary": "Risk-level max selection: takes max, empty→low, None→skipped.",
+      "tags": [
+        "test",
+        "arbitrator",
+        "risk"
+      ],
+      "lineRange": [
+        163,
+        172
+      ]
+    },
+    {
+      "id": "class:tests/test_arbitrator.py:TestPlanVsSimulation",
+      "type": "class",
+      "name": "TestPlanVsSimulation",
+      "filePath": "tests/test_arbitrator.py",
+      "summary": "Plan-vs-simulation decision tests: accept when consistent, adjust when plan > sim, reject when discharge over safe.",
+      "tags": [
+        "test",
+        "arbitrator",
+        "plan"
+      ],
+      "lineRange": [
+        178,
+        203
+      ]
+    },
+    {
+      "id": "class:tests/test_tenant_isolation.py:TestPlanDataTenantIsolation",
+      "type": "class",
+      "name": "TestPlanDataTenantIsolation",
+      "filePath": "tests/test_tenant_isolation.py",
+      "summary": "Patch plan-gen query helpers and assert tenant_id 18/20 in SQL + params for flood-limit, historical-plans, similar-plans, and recent-rainfall queries.",
+      "tags": [
+        "test",
+        "tenant",
+        "plan"
+      ],
+      "lineRange": [
+        33,
+        77
+      ]
+    },
+    {
+      "id": "class:tests/test_tenant_isolation.py:TestSimulationDataTenantIsolation",
+      "type": "class",
+      "name": "TestSimulationDataTenantIsolation",
+      "filePath": "tests/test_tenant_isolation.py",
+      "summary": "Same for simulation: recent-rainfall, similar-floods, scenarios, and flood-detail queries.",
+      "tags": [
+        "test",
+        "tenant",
+        "simulation"
+      ],
+      "lineRange": [
+        83,
+        127
+      ]
+    },
+    {
+      "id": "class:tests/test_tenant_isolation.py:TestEarlyWarningTenantIsolation",
+      "type": "class",
+      "name": "TestEarlyWarningTenantIsolation",
+      "filePath": "tests/test_tenant_isolation.py",
+      "summary": "Same for early-warning: water-level and rainfall queries.",
+      "tags": [
+        "test",
+        "tenant",
+        "early-warning"
+      ],
+      "lineRange": [
+        133,
+        155
+      ]
+    },
+    {
+      "id": "class:tests/test_tenant_isolation.py:TestFiltersRuleTable",
+      "type": "class",
+      "name": "TestFiltersRuleTable",
+      "filePath": "tests/test_tenant_isolation.py",
+      "summary": "Validate lib/filters.py rule table: att_res_flse_lim / st_rsvr_r require tenant filter, ew_info_message does not.",
+      "tags": [
+        "test",
+        "tenant",
+        "filters"
+      ],
+      "lineRange": [
+        161,
+        181
+      ]
+    },
+    {
+      "id": "class:tests/test_scene_router.py:TestSceneRouting",
+      "type": "class",
+      "name": "TestSceneRouting",
+      "filePath": "tests/test_scene_router.py",
+      "summary": "Scene routing by keyword: D emergency, A storm, B dam, C daily.",
+      "tags": [
+        "test",
+        "router",
+        "scene"
+      ],
+      "lineRange": [
+        20,
+        41
+      ]
+    },
+    {
+      "id": "class:tests/test_scene_router.py:TestMixedTriggerPriority",
+      "type": "class",
+      "name": "TestMixedTriggerPriority",
+      "filePath": "tests/test_scene_router.py",
+      "summary": "Mixed-trigger priority: emergency-over-daily, emergency-over-storm, storm-over-daily, strong-word wins.",
+      "tags": [
+        "test",
+        "router",
+        "priority"
+      ],
+      "lineRange": [
+        44,
+        72
+      ]
+    },
+    {
+      "id": "class:tests/test_scene_router.py:TestEdgeCases",
+      "type": "class",
+      "name": "TestEdgeCases",
+      "filePath": "tests/test_scene_router.py",
+      "summary": "Edge cases: empty / None / whitespace / unmatched triggers return UNKNOWN.",
+      "tags": [
+        "test",
+        "router",
+        "edge"
+      ],
+      "lineRange": [
+        75,
+        93
+      ]
+    },
+    {
+      "id": "class:tests/test_supervisor_state_ops.py:TestStats",
+      "type": "class",
+      "name": "TestStats",
+      "filePath": "tests/test_supervisor_state_ops.py",
+      "summary": "State statistics after seeding plus empty-state no-crash.",
+      "tags": [
+        "test",
+        "state",
+        "stats"
+      ],
+      "lineRange": [
+        61,
+        96
+      ]
+    },
+    {
+      "id": "class:tests/test_supervisor_state_ops.py:TestReplay",
+      "type": "class",
+      "name": "TestReplay",
+      "filePath": "tests/test_supervisor_state_ops.py",
+      "summary": "Replay command generation: awaiting-approval → resume approve, aborted-with-error → stage cmd, running→resume, done-events excluded.",
+      "tags": [
+        "test",
+        "state",
+        "replay"
+      ],
+      "lineRange": [
+        99,
+        145
+      ]
+    },
+    {
+      "id": "class:tests/test_supervisor_state_ops.py:TestHealth",
+      "type": "class",
+      "name": "TestHealth",
+      "filePath": "tests/test_supervisor_state_ops.py",
+      "summary": "_health() is callable and DB-health behavior is graceful.",
+      "tags": [
+        "test",
+        "state",
+        "health"
+      ],
+      "lineRange": [
+        148,
+        171
+      ]
+    },
+    {
+      "id": "class:tests/test_models.py:TestDischargeCurveMonotonicity",
+      "type": "class",
+      "name": "TestDischargeCurveMonotonicity",
+      "filePath": "tests/test_models.py",
+      "summary": "Default flood-routing and dispatch-model discharge curves are monotonic.",
+      "tags": [
+        "test",
+        "model",
+        "curve"
+      ],
+      "lineRange": [
+        33,
+        56
+      ]
+    },
+    {
+      "id": "class:tests/test_models.py:TestXAJDryBasinNoRunoff",
+      "type": "class",
+      "name": "TestXAJDryBasinNoRunoff",
+      "filePath": "tests/test_models.py",
+      "summary": "XAJ dry-basin micro-rain yields near-zero runoff; saturated basin yields full runoff. Dry-basin case is expectedFailure.",
+      "tags": [
+        "test",
+        "model",
+        "xaj"
+      ],
+      "lineRange": [
+        59,
+        101
+      ]
+    },
+    {
+      "id": "class:tests/test_models.py:TestWaterBalanceConservation",
+      "type": "class",
+      "name": "TestWaterBalanceConservation",
+      "filePath": "tests/test_models.py",
+      "summary": "Route storage-change and overflow balances are conserved.",
+      "tags": [
+        "test",
+        "model",
+        "balance"
+      ],
+      "lineRange": [
+        104,
+        154
+      ]
+    },
+    {
+      "id": "class:tests/test_judge.py:TestExtractNumbers",
+      "type": "class",
+      "name": "TestExtractNumbers",
+      "filePath": "tests/test_judge.py",
+      "summary": "Numeric extraction: int/float, no-number returns [], negative numbers supported.",
+      "tags": [
+        "test",
+        "judge",
+        "number"
+      ],
+      "lineRange": [
+        10,
+        18
+      ]
+    },
+    {
+      "id": "class:tests/test_judge.py:TestVerifyOutput",
+      "type": "class",
+      "name": "TestVerifyOutput",
+      "filePath": "tests/test_judge.py",
+      "summary": "verify_output: keyword pass/miss, range pass/miss, forbidden hit overrides to fail, no range skips range check.",
+      "tags": [
+        "test",
+        "judge",
+        "verify"
+      ],
+      "lineRange": [
+        21,
+        59
+      ]
+    },
+    {
+      "id": "class:tests/test_judge.py:TestLoadReservoir",
+      "type": "class",
+      "name": "TestLoadReservoir",
+      "filePath": "tests/test_judge.py",
+      "summary": "Load a minimal YAML profile and verify name, tenant_id, forbidden_keywords, and first case fields.",
+      "tags": [
+        "test",
+        "judge",
+        "loader"
+      ],
+      "lineRange": [
+        62,
+        88
+      ]
+    },
+    {
+      "id": "class:tests/test_eval_runner.py:TestRunner",
+      "type": "class",
+      "name": "TestRunner",
+      "filePath": "tests/test_eval_runner.py",
+      "summary": "eval.run.main(): --list exits 0, filter+fake-transport returns 1 on FAIL, all-pass returns 0, transport exception becomes ERROR, DB-connection failure does not crash and report is still written.",
+      "tags": [
+        "test",
+        "eval",
+        "runner"
+      ],
+      "lineRange": [
+        14,
+        86
+      ]
+    },
+    {
+      "id": "class:tests/test_eval_schema.py:TestSchema",
+      "type": "class",
+      "name": "TestSchema",
+      "filePath": "tests/test_eval_schema.py",
+      "summary": "Schema validation: file-level forbidden merge, duplicate-ID detection, bad truth_source rejection, and per-truth-source required fields.",
+      "tags": [
+        "test",
+        "eval",
+        "schema"
+      ],
+      "lineRange": [
+        20,
+        53
+      ]
+    },
+    {
+      "id": "class:tests/test_eval_cases.py:TestCases",
+      "type": "class",
+      "name": "TestCases",
+      "filePath": "tests/test_eval_cases.py",
+      "summary": "All YAML cases load, IDs unique, per-skill counts in target bands, total in 100-180 range.",
+      "tags": [
+        "test",
+        "eval",
+        "cases"
+      ],
+      "lineRange": [
+        12,
+        29
+      ]
+    },
+    {
+      "id": "class:tests/test_eval_truth.py:TestTruth",
+      "type": "class",
+      "name": "TestTruth",
+      "filePath": "tests/test_eval_truth.py",
+      "summary": "Number extraction, tolerance comparison pass/fail, and make_db_query_fn behavior under an injected _connect.",
+      "tags": [
+        "test",
+        "eval",
+        "truth"
+      ],
+      "lineRange": [
+        5,
+        38
+      ]
+    },
+    {
+      "id": "class:tests/test_eval_report.py:TestReport",
+      "type": "class",
+      "name": "TestReport",
+      "filePath": "tests/test_eval_report.py",
+      "summary": "build_result truncation, summarize skill/category math, JSON+Markdown writes, and PASS/FAIL mark semantics.",
+      "tags": [
+        "test",
+        "eval",
+        "report"
+      ],
+      "lineRange": [
+        12,
+        51
+      ]
+    },
+    {
+      "id": "class:tests/test_eval_judge.py:TestInlineJudge",
+      "type": "class",
+      "name": "TestInlineJudge",
+      "filePath": "tests/test_eval_judge.py",
+      "summary": "Inline judge: pass on keywords+range, fail on range miss, fail on forbidden.",
+      "tags": [
+        "test",
+        "eval",
+        "judge"
+      ],
+      "lineRange": [
+        13,
+        29
+      ]
+    },
+    {
+      "id": "class:tests/test_eval_judge.py:TestLiveDbJudge",
+      "type": "class",
+      "name": "TestLiveDbJudge",
+      "filePath": "tests/test_eval_judge.py",
+      "summary": "Live_db judge: pass when extracted-within-tolerance, ERROR on empty result, ERROR on non-numeric truth (with '真值非数值' reason).",
+      "tags": [
+        "test",
+        "eval",
+        "judge"
+      ],
+      "lineRange": [
+        31,
+        51
+      ]
+    },
+    {
+      "id": "class:tests/test_eval_judge.py:TestRubricJudge",
+      "type": "class",
+      "name": "TestRubricJudge",
+      "filePath": "tests/test_eval_judge.py",
+      "summary": "Rubric judge: skip without LLM, fail rule-layer on forbidden, pass with LLM, fail when rule passes but LLM rejects (AND composition).",
+      "tags": [
+        "test",
+        "eval",
+        "judge"
+      ],
+      "lineRange": [
+        54,
+        78
+      ]
+    },
+    {
+      "id": "class:tests/test_eval_judge.py:TestLlmJudge",
+      "type": "class",
+      "name": "TestLlmJudge",
+      "filePath": "tests/test_eval_judge.py",
+      "summary": "LLM judge: parse strict JSON, prompt lists all rubric criteria, EVAL_JUDGE_MODEL env overrides the default model.",
+      "tags": [
+        "test",
+        "eval",
+        "judge"
+      ],
+      "lineRange": [
+        81,
+        120
+      ]
+    },
+    {
+      "id": "class:tests/test_eval_transport.py:TestTransport",
+      "type": "class",
+      "name": "TestTransport",
+      "filePath": "tests/test_eval_transport.py",
+      "summary": "run_hermes: command + env-injection merge (PATH preserved), timeout converts to timed_out=True with exit_code=None.",
+      "tags": [
+        "test",
+        "eval",
+        "transport"
+      ],
+      "lineRange": [
+        10,
+        33
+      ]
+    },
+    {
+      "id": "class:tests/integration/test_supervisor_e2e.py:TestSceneA",
+      "type": "class",
+      "name": "TestSceneA",
+      "filePath": "tests/integration/test_supervisor_e2e.py",
+      "summary": "Scene A: plan-vs-sim consistent → accept with risk flag; plan > sim → adjust.",
+      "tags": [
+        "test",
+        "integration",
+        "scene"
+      ],
+      "lineRange": [
+        76,
+        114
+      ]
+    },
+    {
+      "id": "class:tests/integration/test_supervisor_e2e.py:TestSceneB",
+      "type": "class",
+      "name": "TestSceneB",
+      "filePath": "tests/integration/test_supervisor_e2e.py",
+      "summary": "Scene B: data null-rate > 50% → high risk; open defects → medium risk.",
+      "tags": [
+        "test",
+        "integration",
+        "scene"
+      ],
+      "lineRange": [
+        117,
+        152
+      ]
+    },
+    {
+      "id": "class:tests/integration/test_supervisor_e2e.py:TestSceneC",
+      "type": "class",
+      "name": "TestSceneC",
+      "filePath": "tests/integration/test_supervisor_e2e.py",
+      "summary": "Scene C: report aggregates three stages; missing stage is labeled as 未执行/不可用/未生成.",
+      "tags": [
+        "test",
+        "integration",
+        "scene"
+      ],
+      "lineRange": [
+        155,
+        174
+      ]
+    },
+    {
+      "id": "class:tests/integration/test_supervisor_e2e.py:TestSceneD",
+      "type": "class",
+      "name": "TestSceneD",
+      "filePath": "tests/integration/test_supervisor_e2e.py",
+      "summary": "Scene D: high alerts → escalate + HITL; discharge over safe → reject.",
+      "tags": [
+        "test",
+        "integration",
+        "scene"
+      ],
+      "lineRange": [
+        177,
+        215
+      ]
+    },
+    {
+      "id": "class:tests/integration/test_supervisor_e2e.py:TestArbitrationReportFlow",
+      "type": "class",
+      "name": "TestArbitrationReportFlow",
+      "filePath": "tests/integration/test_supervisor_e2e.py",
+      "summary": "Arbitration→report flow: A accept, B review, D escalate, all reach the report step.",
+      "tags": [
+        "test",
+        "integration",
+        "flow"
+      ],
+      "lineRange": [
+        218,
+        286
+      ]
+    },
+    {
+      "id": "class:tests/integration/test_arbitration_contract.py:TestArbitrationContract",
+      "type": "class",
+      "name": "TestArbitrationContract",
+      "filePath": "tests/integration/test_arbitration_contract.py",
+      "summary": "P0-3 contract: dangerous plans are adjust/reject (not accept), safe plan accept, discharge-over-safe reject, plan>sim adjust, and query_full_context() emits top-level max_level / max_discharge.",
+      "tags": [
+        "test",
+        "integration",
+        "contract"
+      ],
+      "lineRange": [
+        27,
+        143
+      ]
+    }
+  ],
+  "edges": [
+    {
+      "source": "file:lib/__init__.py",
+      "target": "file:lib/tenant.py",
+      "type": "imports",
+      "weight": 1.0
+    },
+    {
+      "source": "file:lib/__init__.py",
+      "target": "file:lib/db.py",
+      "type": "imports",
+      "weight": 1.0
+    },
+    {
+      "source": "file:lib/__init__.py",
+      "target": "file:lib/filters.py",
+      "type": "imports",
+      "weight": 1.0
+    },
+    {
+      "source": "file:lib/__init__.py",
+      "target": "file:lib/paths.py",
+      "type": "imports",
+      "weight": 1.0
+    },
+    {
+      "source": "file:lib/bootstrap.py",
+      "target": "function:lib/bootstrap.py:locate_root",
+      "type": "contains",
+      "weight": 1.0
+    },
+    {
+      "source": "file:lib/bootstrap.py",
+      "target": "function:lib/bootstrap.py:locate_lib",
+      "type": "contains",
+      "weight": 1.0
+    },
+    {
+      "source": "file:lib/bootstrap.py",
+      "target": "function:lib/bootstrap.py:locate_shared",
+      "type": "contains",
+      "weight": 1.0
+    },
+    {
+      "source": "function:lib/bootstrap.py:locate_lib",
+      "target": "function:lib/bootstrap.py:locate_root",
+      "type": "calls",
+      "weight": 1.0
+    },
+    {
+      "source": "function:lib/bootstrap.py:locate_shared",
+      "target": "function:lib/bootstrap.py:locate_root",
+      "type": "calls",
+      "weight": 1.0
+    },
+    {
+      "source": "file:lib/db.py",
+      "target": "function:lib/db.py:require_env",
+      "type": "contains",
+      "weight": 1.0
+    },
+    {
+      "source": "file:lib/db.py",
+      "target": "function:lib/db.py:get_connection",
+      "type": "contains",
+      "weight": 1.0
+    },
+    {
+      "source": "file:lib/db.py",
+      "target": "function:lib/db.py:execute_query",
+      "type": "contains",
+      "weight": 1.0
+    },
+    {
+      "source": "file:lib/db.py",
+      "target": "function:lib/db.py:execute_query_list",
+      "type": "contains",
+      "weight": 1.0
+    },
+    {
+      "source": "file:lib/db.py",
+      "target": "function:lib/db.py:unpack",
+      "type": "contains",
+      "weight": 1.0
+    },
+    {
+      "source": "file:lib/db.py",
+      "target": "function:lib/db.py:query_one",
+      "type": "contains",
+      "weight": 1.0
+    },
+    {
+      "source": "file:lib/db.py",
+      "target": "function:lib/db.py:execute_write",
+      "type": "contains",
+      "weight": 1.0
+    },
+    {
+      "source": "function:lib/db.py:execute_query",
+      "target": "function:lib/db.py:get_connection",
+      "type": "calls",
+      "weight": 1.0
+    },
+    {
+      "source": "function:lib/db.py:execute_query_list",
+      "target": "function:lib/db.py:execute_query",
+      "type": "calls",
+      "weight": 1.0
+    },
+    {
+      "source": "function:lib/db.py:query_one",
+      "target": "function:lib/db.py:execute_query",
+      "type": "calls",
+      "weight": 1.0
+    },
+    {
+      "source": "function:lib/db.py:query_one",
+      "target": "function:lib/db.py:unpack",
+      "type": "calls",
+      "weight": 1.0
+    },
+    {
+      "source": "function:lib/db.py:execute_write",
+      "target": "function:lib/db.py:get_connection",
+      "type": "calls",
+      "weight": 1.0
+    },
+    {
+      "source": "file:lib/filters.py",
+      "target": "function:lib/filters.py:apply_tenant_filter",
+      "type": "contains",
+      "weight": 1.0
+    },
+    {
+      "source": "file:lib/filters.py",
+      "target": "function:lib/filters.py:apply_deleted_filter",
+      "type": "contains",
+      "weight": 1.0
+    },
+    {
+      "source": "file:lib/filters.py",
+      "target": "function:lib/filters.py:apply_table_filters",
+      "type": "contains",
+      "weight": 1.0
+    },
+    {
+      "source": "file:lib/filters.py",
+      "target": "function:lib/filters.py:validate_table_filter",
+      "type": "contains",
+      "weight": 1.0
+    },
+    {
+      "source": "file:lib/filters.py",
+      "target": "function:lib/filters.py:generate_where_clause",
+      "type": "contains",
+      "weight": 1.0
+    },
+    {
+      "source": "file:lib/filters.py",
+      "target": "function:lib/tenant.py:current_tenant_id",
+      "type": "imports",
+      "weight": 1.0
+    },
+    {
+      "source": "function:lib/filters.py:apply_tenant_filter",
+      "target": "function:lib/tenant.py:current_tenant_id",
+      "type": "calls",
+      "weight": 1.0
+    },
+    {
+      "source": "function:lib/filters.py:apply_table_filters",
+      "target": "function:lib/filters.py:apply_tenant_filter",
+      "type": "calls",
+      "weight": 1.0
+    },
+    {
+      "source": "function:lib/filters.py:apply_table_filters",
+      "target": "function:lib/filters.py:apply_deleted_filter",
+      "type": "calls",
+      "weight": 1.0
+    },
+    {
+      "source": "function:lib/filters.py:validate_table_filter",
+      "target": "function:lib/tenant.py:current_tenant_id",
+      "type": "calls",
+      "weight": 1.0
+    },
+    {
+      "source": "function:lib/filters.py:generate_where_clause",
+      "target": "function:lib/tenant.py:current_tenant_id",
+      "type": "calls",
+      "weight": 1.0
+    },
+    {
+      "source": "file:lib/paths.py",
+      "target": "function:lib/paths.py:get_skill_dir",
+      "type": "contains",
+      "weight": 1.0
+    },
+    {
+      "source": "file:lib/paths.py",
+      "target": "function:lib/paths.py:get_reservoir_dir",
+      "type": "contains",
+      "weight": 1.0
+    },
+    {
+      "source": "file:lib/paths.py",
+      "target": "function:lib/paths.py:get_autoresearch_dir",
+      "type": "contains",
+      "weight": 1.0
+    },
+    {
+      "source": "file:lib/paths.py",
+      "target": "function:lib/paths.py:ensure_dirs",
+      "type": "contains",
+      "weight": 1.0
+    },
+    {
+      "source": "file:lib/paths.py",
+      "target": "function:lib/paths.py:ensure_path",
+      "type": "contains",
+      "weight": 1.0
+    },
+    {
+      "source": "file:lib/tenant.py",
+      "target": "function:lib/tenant.py:current_tenant_id",
+      "type": "contains",
+      "weight": 1.0
+    },
+    {
+      "source": "file:lib/tenant.py",
+      "target": "function:lib/tenant.py:current_reservoir_name",
+      "type": "contains",
+      "weight": 1.0
+    },
+    {
+      "source": "file:lib/tenant.py",
+      "target": "function:lib/tenant.py:resolve_reservoir_name",
+      "type": "contains",
+      "weight": 1.0
+    },
+    {
+      "source": "file:lib/tenant.py",
+      "target": "function:lib/tenant.py:resolve_tenant",
+      "type": "contains",
+      "weight": 1.0
+    },
+    {
+      "source": "function:lib/tenant.py:resolve_reservoir_name",
+      "target": "function:lib/tenant.py:current_reservoir_name",
+      "type": "calls",
+      "weight": 1.0
+    },
+    {
+      "source": "function:lib/tenant.py:resolve_tenant",
+      "target": "function:lib/tenant.py:current_tenant_id",
+      "type": "calls",
+      "weight": 1.0
+    },
+    {
+      "source": "file:forecasting/scripts/query_forecast_data.py",
+      "target": "file:lib/db.py",
+      "type": "imports",
+      "weight": 0.9
+    },
+    {
+      "source": "file:forecasting/scripts/query_forecast_data.py",
+      "target": "file:lib/tenant.py",
+      "type": "imports",
+      "weight": 0.7
+    },
+    {
+      "source": "file:forecasting/scripts/query_forecast_analysis.py",
+      "target": "file:lib/db.py",
+      "type": "imports",
+      "weight": 0.9
+    },
+    {
+      "source": "file:forecasting/scripts/query_forecast_analysis.py",
+      "target": "file:lib/tenant.py",
+      "type": "imports",
+      "weight": 0.7
+    },
+    {
+      "source": "file:forecasting/scripts/query_forecast_analysis.py",
+      "target": "file:forecasting/scripts/query_forecast_data.py",
+      "type": "imports",
+      "weight": 0.9
+    },
+    {
+      "source": "file:plan-generation/scripts/query_plan_data.py",
+      "target": "file:lib/db.py",
+      "type": "imports",
+      "weight": 0.9
+    },
+    {
+      "source": "file:plan-generation/scripts/query_plan_data.py",
+      "target": "file:lib/tenant.py",
+      "type": "imports",
+      "weight": 0.7
+    },
+    {
+      "source": "file:plan-generation/scripts/query_plan_analysis.py",
+      "target": "file:lib/db.py",
+      "type": "imports",
+      "weight": 0.9
+    },
+    {
+      "source": "file:plan-generation/scripts/query_plan_analysis.py",
+      "target": "file:lib/tenant.py",
+      "type": "imports",
+      "weight": 0.7
+    },
+    {
+      "source": "file:plan-generation/models/dispatch_model.py",
+      "target": "file:plan-generation/models/flood_routing.py",
+      "type": "shares_default_curves",
+      "weight": 0.6
+    },
+    {
+      "source": "file:simulation/scripts/query_simulation_data.py",
+      "target": "file:lib/db.py",
+      "type": "imports",
+      "weight": 0.9
+    },
+    {
+      "source": "file:simulation/scripts/query_simulation_data.py",
+      "target": "file:lib/tenant.py",
+      "type": "imports",
+      "weight": 0.7
+    },
+    {
+      "source": "file:simulation/models/simulation_service.py",
+      "target": "file:simulation/scripts/query_simulation_data.py",
+      "type": "imports",
+      "weight": 0.9
+    },
+    {
+      "source": "file:simulation/models/simulation_service.py",
+      "target": "file:plan-generation/models/dispatch_model.py",
+      "type": "http_calls",
+      "weight": 0.8
+    },
+    {
+      "source": "file:simulation/models/simulation_service.py",
+      "target": "file:plan-generation/models/flood_routing.py",
+      "type": "http_calls",
+      "weight": 0.8
+    },
+    {
+      "source": "file:simulation/models/simulation_service.py",
+      "target": "file:plan-generation/models/xaj_model.py",
+      "type": "http_calls",
+      "weight": 0.8
+    },
+    {
+      "source": "file:early-warning/scripts/query_early_warning.py",
+      "target": "file:lib/db.py",
+      "type": "imports",
+      "weight": 0.9
+    },
+    {
+      "source": "file:early-warning/scripts/query_early_warning.py",
+      "target": "file:lib/tenant.py",
+      "type": "imports",
+      "weight": 0.7
+    },
+    {
+      "source": "file:diagnosis-verification/scripts/check_data_quality.py",
+      "target": "file:lib/db.py",
+      "type": "imports",
+      "weight": 0.9
+    },
+    {
+      "source": "file:diagnosis-verification/scripts/check_data_quality.py",
+      "target": "file:lib/tenant.py",
+      "type": "imports",
+      "weight": 0.7
+    },
+    {
+      "source": "file:supervisor/scripts/supervisor_state.py",
+      "target": "file:lib/paths.py",
+      "type": "imports",
+      "weight": 0.6
+    },
+    {
+      "source": "file:supervisor/scripts/supervisor_state.py",
+      "target": "file:lib/db.py",
+      "type": "imports",
+      "weight": 0.6
+    },
+    {
+      "source": "file:supervisor/scripts/supervisor_state.py",
+      "target": "file:lib/tenant.py",
+      "type": "imports",
+      "weight": 0.5
+    },
+    {
+      "source": "file:supervisor/scripts/orchestrator.py",
+      "target": "file:supervisor/scripts/supervisor_state.py",
+      "type": "imports",
+      "weight": 0.9
+    },
+    {
+      "source": "file:supervisor/scripts/orchestrator.py",
+      "target": "file:supervisor/scripts/scene_router.py",
+      "type": "imports",
+      "weight": 0.9
+    },
+    {
+      "source": "file:supervisor/scripts/orchestrator.py",
+      "target": "file:supervisor/scripts/arbitrator.py",
+      "type": "imports",
+      "weight": 0.9
+    },
+    {
+      "source": "file:supervisor/scripts/orchestrator.py",
+      "target": "file:lib/tenant.py",
+      "type": "imports",
+      "weight": 0.5
+    },
+    {
+      "source": "file:supervisor/scripts/orchestrator.py",
+      "target": "file:lib/db.py",
+      "type": "imports",
+      "weight": 0.6
+    },
+    {
+      "source": "file:supervisor/scripts/orchestrator.py",
+      "target": "file:forecasting/scripts/query_forecast_data.py",
+      "type": "subprocess_call",
+      "weight": 0.8
+    },
+    {
+      "source": "file:supervisor/scripts/orchestrator.py",
+      "target": "file:simulation/scripts/query_simulation_data.py",
+      "type": "subprocess_call",
+      "weight": 0.8
+    },
+    {
+      "source": "file:supervisor/scripts/orchestrator.py",
+      "target": "file:plan-generation/scripts/query_plan_data.py",
+      "type": "subprocess_call",
+      "weight": 0.8
+    },
+    {
+      "source": "file:supervisor/scripts/orchestrator.py",
+      "target": "file:diagnosis-verification/scripts/check_data_quality.py",
+      "type": "subprocess_call",
+      "weight": 0.7
+    },
+    {
+      "source": "file:supervisor/scripts/orchestrator.py",
+      "target": "file:early-warning/scripts/query_early_warning.py",
+      "type": "subprocess_call",
+      "weight": 0.7
+    },
+    {
+      "source": "file:forecasting/SKILL.md",
+      "target": "file:forecasting/scripts/query_forecast_data.py",
+      "type": "documents",
+      "weight": 0.9
+    },
+    {
+      "source": "file:forecasting/SKILL.md",
+      "target": "file:forecasting/scripts/query_forecast_analysis.py",
+      "type": "documents",
+      "weight": 0.9
+    },
+    {
+      "source": "file:plan-generation/SKILL.md",
+      "target": "file:plan-generation/scripts/query_plan_data.py",
+      "type": "documents",
+      "weight": 0.9
+    },
+    {
+      "source": "file:plan-generation/SKILL.md",
+      "target": "file:plan-generation/scripts/query_plan_analysis.py",
+      "type": "documents",
+      "weight": 0.9
+    },
+    {
+      "source": "file:plan-generation/SKILL.md",
+      "target": "file:plan-generation/models/dispatch_model.py",
+      "type": "documents",
+      "weight": 0.7
+    },
+    {
+      "source": "file:plan-generation/SKILL.md",
+      "target": "file:plan-generation/models/flood_routing.py",
+      "type": "documents",
+      "weight": 0.7
+    },
+    {
+      "source": "file:plan-generation/SKILL.md",
+      "target": "file:plan-generation/models/xaj_model.py",
+      "type": "documents",
+      "weight": 0.7
+    },
+    {
+      "source": "file:simulation/SKILL.md",
+      "target": "file:simulation/scripts/query_simulation_data.py",
+      "type": "documents",
+      "weight": 0.9
+    },
+    {
+      "source": "file:simulation/SKILL.md",
+      "target": "file:simulation/models/simulation_service.py",
+      "type": "documents",
+      "weight": 0.9
+    },
+    {
+      "source": "file:early-warning/SKILL.md",
+      "target": "file:early-warning/scripts/query_early_warning.py",
+      "type": "documents",
+      "weight": 0.9
+    },
+    {
+      "source": "file:supervisor/SKILL.md",
+      "target": "file:supervisor/scripts/scene_router.py",
+      "type": "documents",
+      "weight": 0.9
+    },
+    {
+      "source": "file:supervisor/SKILL.md",
+      "target": "file:supervisor/scripts/supervisor_state.py",
+      "type": "documents",
+      "weight": 0.9
+    },
+    {
+      "source": "file:supervisor/SKILL.md",
+      "target": "file:supervisor/scripts/orchestrator.py",
+      "type": "documents",
+      "weight": 0.9
+    },
+    {
+      "source": "file:supervisor/SKILL.md",
+      "target": "file:supervisor/scripts/arbitrator.py",
+      "type": "documents",
+      "weight": 0.9
+    },
+    {
+      "source": "file:supervisor/SKILL.md",
+      "target": "file:forecasting/SKILL.md",
+      "type": "related_skill",
+      "weight": 0.7
+    },
+    {
+      "source": "file:supervisor/SKILL.md",
+      "target": "file:early-warning/SKILL.md",
+      "type": "related_skill",
+      "weight": 0.7
+    },
+    {
+      "source": "file:supervisor/SKILL.md",
+      "target": "file:plan-generation/SKILL.md",
+      "type": "related_skill",
+      "weight": 0.7
+    },
+    {
+      "source": "file:supervisor/SKILL.md",
+      "target": "file:simulation/SKILL.md",
+      "type": "related_skill",
+      "weight": 0.7
+    },
+    {
+      "source": "file:eval/run.py",
+      "target": "function:eval/run.py:parse_args",
+      "type": "contains",
+      "weight": 1.0
+    },
+    {
+      "source": "file:eval/run.py",
+      "target": "function:eval/run.py:filter_cases",
+      "type": "contains",
+      "weight": 1.0
+    },
+    {
+      "source": "file:eval/run.py",
+      "target": "function:eval/run.py:_dispatch",
+      "type": "contains",
+      "weight": 1.0
+    },
+    {
+      "source": "file:eval/run.py",
+      "target": "function:eval/run.py:main",
+      "type": "contains",
+      "weight": 1.0
+    },
+    {
+      "source": "file:eval/lib/schema.py",
+      "target": "class:eval/lib/schema.py:EvalCase",
+      "type": "contains",
+      "weight": 1.0
+    },
+    {
+      "source": "file:eval/lib/schema.py",
+      "target": "function:eval/lib/schema.py:_coerce_str_list",
+      "type": "contains",
+      "weight": 1.0
+    },
+    {
+      "source": "file:eval/lib/schema.py",
+      "target": "function:eval/lib/schema.py:validate",
+      "type": "contains",
+      "weight": 1.0
+    },
+    {
+      "source": "file:eval/lib/schema.py",
+      "target": "function:eval/lib/schema.py:_case_from_dict",
+      "type": "contains",
+      "weight": 1.0
+    },
+    {
+      "source": "file:eval/lib/schema.py",
+      "target": "function:eval/lib/schema.py:load_file",
+      "type": "contains",
+      "weight": 1.0
+    },
+    {
+      "source": "file:eval/lib/schema.py",
+      "target": "function:eval/lib/schema.py:load_all",
+      "type": "contains",
+      "weight": 1.0
+    },
+    {
+      "source": "file:eval/lib/judge.py",
+      "target": "function:eval/lib/judge.py:_extract_numbers",
+      "type": "contains",
+      "weight": 1.0
+    },
+    {
+      "source": "file:eval/lib/judge.py",
+      "target": "function:eval/lib/judge.py:_keyword_check",
+      "type": "contains",
+      "weight": 1.0
+    },
+    {
+      "source": "file:eval/lib/judge.py",
+      "target": "function:eval/lib/judge.py:judge_inline",
+      "type": "contains",
+      "weight": 1.0
+    },
+    {
+      "source": "file:eval/lib/judge.py",
+      "target": "function:eval/lib/judge.py:judge_live_db",
+      "type": "contains",
+      "weight": 1.0
+    },
+    {
+      "source": "file:eval/lib/judge.py",
+      "target": "function:eval/lib/judge.py:judge_rubric",
+      "type": "contains",
+      "weight": 1.0
+    },
+    {
+      "source": "file:eval/lib/judge.py",
+      "target": "function:eval/lib/judge.py:_build_prompt",
+      "type": "contains",
+      "weight": 1.0
+    },
+    {
+      "source": "file:eval/lib/judge.py",
+      "target": "function:eval/lib/judge.py:_parse_rubric_score",
+      "type": "contains",
+      "weight": 1.0
+    },
+    {
+      "source": "file:eval/lib/judge.py",
+      "target": "function:eval/lib/judge.py:make_anthropic_client",
+      "type": "contains",
+      "weight": 1.0
+    },
+    {
+      "source": "file:eval/lib/judge.py",
+      "target": "function:eval/lib/judge.py:llm_judge",
+      "type": "contains",
+      "weight": 1.0
+    },
+    {
+      "source": "file:eval/lib/transport.py",
+      "target": "function:eval/lib/transport.py:run_hermes",
+      "type": "contains",
+      "weight": 1.0
+    },
+    {
+      "source": "file:eval/lib/truth.py",
+      "target": "function:eval/lib/truth.py:extract_numbers",
+      "type": "contains",
+      "weight": 1.0
+    },
+    {
+      "source": "file:eval/lib/truth.py",
+      "target": "function:eval/lib/truth.py:compare_with_tolerance",
+      "type": "contains",
+      "weight": 1.0
+    },
+    {
+      "source": "file:eval/lib/truth.py",
+      "target": "function:eval/lib/truth.py:_connect",
+      "type": "contains",
+      "weight": 1.0
+    },
+    {
+      "source": "file:eval/lib/truth.py",
+      "target": "function:eval/lib/truth.py:make_db_query_fn",
+      "type": "contains",
+      "weight": 1.0
+    },
+    {
+      "source": "file:eval/lib/report.py",
+      "target": "function:eval/lib/report.py:build_result",
+      "type": "contains",
+      "weight": 1.0
+    },
+    {
+      "source": "file:eval/lib/report.py",
+      "target": "function:eval/lib/report.py:summarize",
+      "type": "contains",
+      "weight": 1.0
+    },
+    {
+      "source": "file:eval/lib/report.py",
+      "target": "function:eval/lib/report.py:write_json",
+      "type": "contains",
+      "weight": 1.0
+    },
+    {
+      "source": "file:eval/lib/report.py",
+      "target": "function:eval/lib/report.py:write_markdown",
+      "type": "contains",
+      "weight": 1.0
+    },
+    {
+      "source": "file:tests/reservoir_profile.py",
+      "target": "class:tests/reservoir_profile.py:TestCase",
+      "type": "contains",
+      "weight": 1.0
+    },
+    {
+      "source": "file:tests/reservoir_profile.py",
+      "target": "class:tests/reservoir_profile.py:ReservoirProfile",
+      "type": "contains",
+      "weight": 1.0
+    },
+    {
+      "source": "file:tests/reservoir_profile.py",
+      "target": "function:tests/reservoir_profile.py:_extract_numbers",
+      "type": "contains",
+      "weight": 1.0
+    },
+    {
+      "source": "file:tests/reservoir_profile.py",
+      "target": "function:tests/reservoir_profile.py:verify_output",
+      "type": "contains",
+      "weight": 1.0
+    },
+    {
+      "source": "file:tests/reservoir_profile.py",
+      "target": "function:tests/reservoir_profile.py:_coerce_keywords",
+      "type": "contains",
+      "weight": 1.0
+    },
+    {
+      "source": "file:tests/reservoir_profile.py",
+      "target": "function:tests/reservoir_profile.py:load_reservoir",
+      "type": "contains",
+      "weight": 1.0
+    },
+    {
+      "source": "file:tests/reservoir_profile.py",
+      "target": "function:tests/reservoir_profile.py:load_all_reservoirs",
+      "type": "contains",
+      "weight": 1.0
+    },
+    {
+      "source": "file:tests/test_arbitrator.py",
+      "target": "class:tests/test_arbitrator.py:TestDamDiagnosis",
+      "type": "contains",
+      "weight": 1.0
+    },
+    {
+      "source": "file:tests/test_arbitrator.py",
+      "target": "class:tests/test_arbitrator.py:TestEmergency",
+      "type": "contains",
+      "weight": 1.0
+    },
+    {
+      "source": "file:tests/test_arbitrator.py",
+      "target": "class:tests/test_arbitrator.py:TestRiskLevels",
+      "type": "contains",
+      "weight": 1.0
+    },
+    {
+      "source": "file:tests/test_arbitrator.py",
+      "target": "class:tests/test_arbitrator.py:TestPlanVsSimulation",
+      "type": "contains",
+      "weight": 1.0
+    },
+    {
+      "source": "file:tests/test_tenant_isolation.py",
+      "target": "class:tests/test_tenant_isolation.py:TestPlanDataTenantIsolation",
+      "type": "contains",
+      "weight": 1.0
+    },
+    {
+      "source": "file:tests/test_tenant_isolation.py",
+      "target": "class:tests/test_tenant_isolation.py:TestSimulationDataTenantIsolation",
+      "type": "contains",
+      "weight": 1.0
+    },
+    {
+      "source": "file:tests/test_tenant_isolation.py",
+      "target": "class:tests/test_tenant_isolation.py:TestEarlyWarningTenantIsolation",
+      "type": "contains",
+      "weight": 1.0
+    },
+    {
+      "source": "file:tests/test_tenant_isolation.py",
+      "target": "class:tests/test_tenant_isolation.py:TestFiltersRuleTable",
+      "type": "contains",
+      "weight": 1.0
+    },
+    {
+      "source": "file:tests/test_scene_router.py",
+      "target": "class:tests/test_scene_router.py:TestSceneRouting",
+      "type": "contains",
+      "weight": 1.0
+    },
+    {
+      "source": "file:tests/test_scene_router.py",
+      "target": "class:tests/test_scene_router.py:TestMixedTriggerPriority",
+      "type": "contains",
+      "weight": 1.0
+    },
+    {
+      "source": "file:tests/test_scene_router.py",
+      "target": "class:tests/test_scene_router.py:TestEdgeCases",
+      "type": "contains",
+      "weight": 1.0
+    },
+    {
+      "source": "file:tests/test_supervisor_state_ops.py",
+      "target": "class:tests/test_supervisor_state_ops.py:TestStats",
+      "type": "contains",
+      "weight": 1.0
+    },
+    {
+      "source": "file:tests/test_supervisor_state_ops.py",
+      "target": "class:tests/test_supervisor_state_ops.py:TestReplay",
+      "type": "contains",
+      "weight": 1.0
+    },
+    {
+      "source": "file:tests/test_supervisor_state_ops.py",
+      "target": "class:tests/test_supervisor_state_ops.py:TestHealth",
+      "type": "contains",
+      "weight": 1.0
+    },
+    {
+      "source": "file:tests/test_models.py",
+      "target": "class:tests/test_models.py:TestDischargeCurveMonotonicity",
+      "type": "contains",
+      "weight": 1.0
+    },
+    {
+      "source": "file:tests/test_models.py",
+      "target": "class:tests/test_models.py:TestXAJDryBasinNoRunoff",
+      "type": "contains",
+      "weight": 1.0
+    },
+    {
+      "source": "file:tests/test_models.py",
+      "target": "class:tests/test_models.py:TestWaterBalanceConservation",
+      "type": "contains",
+      "weight": 1.0
+    },
+    {
+      "source": "file:tests/test_judge.py",
+      "target": "class:tests/test_judge.py:TestExtractNumbers",
+      "type": "contains",
+      "weight": 1.0
+    },
+    {
+      "source": "file:tests/test_judge.py",
+      "target": "class:tests/test_judge.py:TestVerifyOutput",
+      "type": "contains",
+      "weight": 1.0
+    },
+    {
+      "source": "file:tests/test_judge.py",
+      "target": "class:tests/test_judge.py:TestLoadReservoir",
+      "type": "contains",
+      "weight": 1.0
+    },
+    {
+      "source": "file:tests/test_eval_runner.py",
+      "target": "class:tests/test_eval_runner.py:TestRunner",
+      "type": "contains",
+      "weight": 1.0
+    },
+    {
+      "source": "file:tests/test_eval_schema.py",
+      "target": "class:tests/test_eval_schema.py:TestSchema",
+      "type": "contains",
+      "weight": 1.0
+    },
+    {
+      "source": "file:tests/test_eval_cases.py",
+      "target": "class:tests/test_eval_cases.py:TestCases",
+      "type": "contains",
+      "weight": 1.0
+    },
+    {
+      "source": "file:tests/test_eval_truth.py",
+      "target": "class:tests/test_eval_truth.py:TestTruth",
+      "type": "contains",
+      "weight": 1.0
+    },
+    {
+      "source": "file:tests/test_eval_report.py",
+      "target": "class:tests/test_eval_report.py:TestReport",
+      "type": "contains",
+      "weight": 1.0
+    },
+    {
+      "source": "file:tests/test_eval_judge.py",
+      "target": "class:tests/test_eval_judge.py:TestInlineJudge",
+      "type": "contains",
+      "weight": 1.0
+    },
+    {
+      "source": "file:tests/test_eval_judge.py",
+      "target": "class:tests/test_eval_judge.py:TestLiveDbJudge",
+      "type": "contains",
+      "weight": 1.0
+    },
+    {
+      "source": "file:tests/test_eval_judge.py",
+      "target": "class:tests/test_eval_judge.py:TestRubricJudge",
+      "type": "contains",
+      "weight": 1.0
+    },
+    {
+      "source": "file:tests/test_eval_judge.py",
+      "target": "class:tests/test_eval_judge.py:TestLlmJudge",
+      "type": "contains",
+      "weight": 1.0
+    },
+    {
+      "source": "file:tests/test_eval_transport.py",
+      "target": "class:tests/test_eval_transport.py:TestTransport",
+      "type": "contains",
+      "weight": 1.0
+    },
+    {
+      "source": "file:tests/integration/test_supervisor_e2e.py",
+      "target": "class:tests/integration/test_supervisor_e2e.py:TestSceneA",
+      "type": "contains",
+      "weight": 1.0
+    },
+    {
+      "source": "file:tests/integration/test_supervisor_e2e.py",
+      "target": "class:tests/integration/test_supervisor_e2e.py:TestSceneB",
+      "type": "contains",
+      "weight": 1.0
+    },
+    {
+      "source": "file:tests/integration/test_supervisor_e2e.py",
+      "target": "class:tests/integration/test_supervisor_e2e.py:TestSceneC",
+      "type": "contains",
+      "weight": 1.0
+    },
+    {
+      "source": "file:tests/integration/test_supervisor_e2e.py",
+      "target": "class:tests/integration/test_supervisor_e2e.py:TestSceneD",
+      "type": "contains",
+      "weight": 1.0
+    },
+    {
+      "source": "file:tests/integration/test_supervisor_e2e.py",
+      "target": "class:tests/integration/test_supervisor_e2e.py:TestArbitrationReportFlow",
+      "type": "contains",
+      "weight": 1.0
+    },
+    {
+      "source": "file:tests/integration/test_arbitration_contract.py",
+      "target": "class:tests/integration/test_arbitration_contract.py:TestArbitrationContract",
+      "type": "contains",
+      "weight": 1.0
+    },
+    {
+      "source": "file:eval/run.py",
+      "target": "file:eval/lib/schema.py",
+      "type": "imports",
+      "weight": 1.0
+    },
+    {
+      "source": "file:eval/run.py",
+      "target": "file:eval/lib/judge.py",
+      "type": "imports",
+      "weight": 1.0
+    },
+    {
+      "source": "file:eval/run.py",
+      "target": "file:eval/lib/transport.py",
+      "type": "imports",
+      "weight": 1.0
+    },
+    {
+      "source": "file:eval/run.py",
+      "target": "file:eval/lib/truth.py",
+      "type": "imports",
+      "weight": 1.0
+    },
+    {
+      "source": "file:eval/run.py",
+      "target": "file:eval/lib/report.py",
+      "type": "imports",
+      "weight": 1.0
+    },
+    {
+      "source": "file:eval/lib/judge.py",
+      "target": "file:tests/reservoir_profile.py",
+      "type": "imports",
+      "weight": 1.0
+    },
+    {
+      "source": "file:eval/lib/judge.py",
+      "target": "file:eval/lib/truth.py",
+      "type": "imports",
+      "weight": 1.0
+    },
+    {
+      "source": "file:eval/lib/__init__.py",
+      "target": "file:eval/lib/schema.py",
+      "type": "imports",
+      "weight": 1.0
+    },
+    {
+      "source": "file:eval/lib/__init__.py",
+      "target": "file:eval/lib/judge.py",
+      "type": "imports",
+      "weight": 1.0
+    },
+    {
+      "source": "file:eval/lib/__init__.py",
+      "target": "file:eval/lib/transport.py",
+      "type": "imports",
+      "weight": 1.0
+    },
+    {
+      "source": "file:eval/lib/__init__.py",
+      "target": "file:eval/lib/truth.py",
+      "type": "imports",
+      "weight": 1.0
+    },
+    {
+      "source": "file:eval/lib/__init__.py",
+      "target": "file:eval/lib/report.py",
+      "type": "imports",
+      "weight": 1.0
+    },
+    {
+      "source": "function:eval/run.py:main",
+      "target": "function:eval/run.py:parse_args",
+      "type": "calls",
+      "weight": 1.0
+    },
+    {
+      "source": "function:eval/run.py:main",
+      "target": "function:eval/run.py:filter_cases",
+      "type": "calls",
+      "weight": 1.0
+    },
+    {
+      "source": "function:eval/run.py:main",
+      "target": "function:eval/run.py:_dispatch",
+      "type": "calls",
+      "weight": 1.0
+    },
+    {
+      "source": "function:eval/run.py:_dispatch",
+      "target": "function:eval/lib/judge.py:judge_inline",
+      "type": "calls",
+      "weight": 1.0
+    },
+    {
+      "source": "function:eval/run.py:_dispatch",
+      "target": "function:eval/lib/judge.py:judge_live_db",
+      "type": "calls",
+      "weight": 1.0
+    },
+    {
+      "source": "function:eval/run.py:_dispatch",
+      "target": "function:eval/lib/judge.py:judge_rubric",
+      "type": "calls",
+      "weight": 1.0
+    },
+    {
+      "source": "function:eval/run.py:main",
+      "target": "function:eval/lib/schema.py:load_all",
+      "type": "calls",
+      "weight": 1.0
+    },
+    {
+      "source": "function:eval/run.py:main",
+      "target": "function:eval/lib/transport.py:run_hermes",
+      "type": "calls",
+      "weight": 1.0
+    },
+    {
+      "source": "function:eval/run.py:main",
+      "target": "function:eval/lib/truth.py:make_db_query_fn",
+      "type": "calls",
+      "weight": 1.0
+    },
+    {
+      "source": "function:eval/run.py:main",
+      "target": "function:eval/lib/report.py:build_result",
+      "type": "calls",
+      "weight": 1.0
+    },
+    {
+      "source": "function:eval/run.py:main",
+      "target": "function:eval/lib/report.py:summarize",
+      "type": "calls",
+      "weight": 1.0
+    },
+    {
+      "source": "function:eval/run.py:main",
+      "target": "function:eval/lib/report.py:write_json",
+      "type": "calls",
+      "weight": 1.0
+    },
+    {
+      "source": "function:eval/run.py:main",
+      "target": "function:eval/lib/report.py:write_markdown",
+      "type": "calls",
+      "weight": 1.0
+    },
+    {
+      "source": "function:eval/lib/schema.py:_case_from_dict",
+      "target": "function:eval/lib/schema.py:_coerce_str_list",
+      "type": "calls",
+      "weight": 1.0
+    },
+    {
+      "source": "function:eval/lib/schema.py:load_file",
+      "target": "function:eval/lib/schema.py:_case_from_dict",
+      "type": "calls",
+      "weight": 1.0
+    },
+    {
+      "source": "function:eval/lib/schema.py:load_file",
+      "target": "function:eval/lib/schema.py:validate",
+      "type": "calls",
+      "weight": 1.0
+    },
+    {
+      "source": "function:eval/lib/schema.py:load_all",
+      "target": "function:eval/lib/schema.py:load_file",
+      "type": "calls",
+      "weight": 1.0
+    },
+    {
+      "source": "function:eval/lib/judge.py:judge_inline",
+      "target": "function:tests/reservoir_profile.py:verify_output",
+      "type": "calls",
+      "weight": 1.0
+    },
+    {
+      "source": "function:eval/lib/judge.py:judge_inline",
+      "target": "function:eval/lib/judge.py:_extract_numbers",
+      "type": "calls",
+      "weight": 1.0
+    },
+    {
+      "source": "function:eval/lib/judge.py:judge_inline",
+      "target": "function:eval/lib/judge.py:_keyword_check",
+      "type": "calls",
+      "weight": 1.0
+    },
+    {
+      "source": "function:eval/lib/judge.py:judge_live_db",
+      "target": "function:eval/lib/truth.py:compare_with_tolerance",
+      "type": "calls",
+      "weight": 1.0
+    },
+    {
+      "source": "function:eval/lib/judge.py:judge_live_db",
+      "target": "function:eval/lib/judge.py:_extract_numbers",
+      "type": "calls",
+      "weight": 1.0
+    },
+    {
+      "source": "function:eval/lib/judge.py:judge_live_db",
+      "target": "function:eval/lib/judge.py:_keyword_check",
+      "type": "calls",
+      "weight": 1.0
+    },
+    {
+      "source": "function:eval/lib/judge.py:judge_rubric",
+      "target": "function:eval/lib/judge.py:_keyword_check",
+      "type": "calls",
+      "weight": 1.0
+    },
+    {
+      "source": "function:eval/lib/judge.py:judge_rubric",
+      "target": "function:eval/lib/judge.py:llm_judge",
+      "type": "calls",
+      "weight": 1.0
+    },
+    {
+      "source": "function:eval/lib/judge.py:llm_judge",
+      "target": "function:eval/lib/judge.py:_build_prompt",
+      "type": "calls",
+      "weight": 1.0
+    },
+    {
+      "source": "function:eval/lib/judge.py:llm_judge",
+      "target": "function:eval/lib/judge.py:_parse_rubric_score",
+      "type": "calls",
+      "weight": 1.0
+    },
+    {
+      "source": "function:eval/lib/judge.py:llm_judge",
+      "target": "function:eval/lib/judge.py:make_anthropic_client",
+      "type": "calls",
+      "weight": 1.0
+    },
+    {
+      "source": "function:eval/lib/truth.py:make_db_query_fn",
+      "target": "function:eval/lib/truth.py:_connect",
+      "type": "calls",
+      "weight": 1.0
+    },
+    {
+      "source": "function:eval/lib/report.py:summarize",
+      "target": "function:eval/lib/report.py:build_result",
+      "type": "calls",
+      "weight": 1.0
+    },
+    {
+      "source": "function:eval/run.py:main",
+      "target": "class:tests/test_eval_runner.py:TestRunner",
+      "type": "tested_by",
+      "weight": 1.0
+    },
+    {
+      "source": "function:eval/run.py:parse_args",
+      "target": "class:tests/test_eval_runner.py:TestRunner",
+      "type": "tested_by",
+      "weight": 1.0
+    },
+    {
+      "source": "function:eval/run.py:filter_cases",
+      "target": "class:tests/test_eval_runner.py:TestRunner",
+      "type": "tested_by",
+      "weight": 1.0
+    },
+    {
+      "source": "function:eval/run.py:_dispatch",
+      "target": "class:tests/test_eval_runner.py:TestRunner",
+      "type": "tested_by",
+      "weight": 1.0
+    },
+    {
+      "source": "class:eval/lib/schema.py:EvalCase",
+      "target": "class:tests/test_eval_schema.py:TestSchema",
+      "type": "tested_by",
+      "weight": 1.0
+    },
+    {
+      "source": "function:eval/lib/schema.py:validate",
+      "target": "class:tests/test_eval_schema.py:TestSchema",
+      "type": "tested_by",
+      "weight": 1.0
+    },
+    {
+      "source": "function:eval/lib/schema.py:_case_from_dict",
+      "target": "class:tests/test_eval_schema.py:TestSchema",
+      "type": "tested_by",
+      "weight": 1.0
+    },
+    {
+      "source": "function:eval/lib/schema.py:_coerce_str_list",
+      "target": "class:tests/test_eval_schema.py:TestSchema",
+      "type": "tested_by",
+      "weight": 1.0
+    },
+    {
+      "source": "function:eval/lib/schema.py:load_file",
+      "target": "class:tests/test_eval_schema.py:TestSchema",
+      "type": "tested_by",
+      "weight": 1.0
+    },
+    {
+      "source": "function:eval/lib/schema.py:load_all",
+      "target": "class:tests/test_eval_schema.py:TestSchema",
+      "type": "tested_by",
+      "weight": 1.0
+    },
+    {
+      "source": "function:eval/lib/schema.py:load_all",
+      "target": "class:tests/test_eval_cases.py:TestCases",
+      "type": "tested_by",
+      "weight": 1.0
+    },
+    {
+      "source": "function:eval/lib/schema.py:load_file",
+      "target": "class:tests/test_eval_cases.py:TestCases",
+      "type": "tested_by",
+      "weight": 1.0
+    },
+    {
+      "source": "function:eval/lib/judge.py:judge_inline",
+      "target": "class:tests/test_eval_judge.py:TestInlineJudge",
+      "type": "tested_by",
+      "weight": 1.0
+    },
+    {
+      "source": "function:eval/lib/judge.py:judge_live_db",
+      "target": "class:tests/test_eval_judge.py:TestLiveDbJudge",
+      "type": "tested_by",
+      "weight": 1.0
+    },
+    {
+      "source": "function:eval/lib/judge.py:judge_rubric",
+      "target": "class:tests/test_eval_judge.py:TestRubricJudge",
+      "type": "tested_by",
+      "weight": 1.0
+    },
+    {
+      "source": "function:eval/lib/judge.py:llm_judge",
+      "target": "class:tests/test_eval_judge.py:TestLlmJudge",
+      "type": "tested_by",
+      "weight": 1.0
+    },
+    {
+      "source": "function:eval/lib/judge.py:_build_prompt",
+      "target": "class:tests/test_eval_judge.py:TestLlmJudge",
+      "type": "tested_by",
+      "weight": 1.0
+    },
+    {
+      "source": "function:eval/lib/judge.py:_extract_numbers",
+      "target": "class:tests/test_judge.py:TestExtractNumbers",
+      "type": "tested_by",
+      "weight": 1.0
+    },
+    {
+      "source": "function:eval/lib/transport.py:run_hermes",
+      "target": "class:tests/test_eval_transport.py:TestTransport",
+      "type": "tested_by",
+      "weight": 1.0
+    },
+    {
+      "source": "function:eval/lib/truth.py:extract_numbers",
+      "target": "class:tests/test_eval_truth.py:TestTruth",
+      "type": "tested_by",
+      "weight": 1.0
+    },
+    {
+      "source": "function:eval/lib/truth.py:compare_with_tolerance",
+      "target": "class:tests/test_eval_truth.py:TestTruth",
+      "type": "tested_by",
+      "weight": 1.0
+    },
+    {
+      "source": "function:eval/lib/truth.py:make_db_query_fn",
+      "target": "class:tests/test_eval_truth.py:TestTruth",
+      "type": "tested_by",
+      "weight": 1.0
+    },
+    {
+      "source": "function:eval/lib/truth.py:_connect",
+      "target": "class:tests/test_eval_truth.py:TestTruth",
+      "type": "tested_by",
+      "weight": 1.0
+    },
+    {
+      "source": "function:eval/lib/report.py:build_result",
+      "target": "class:tests/test_eval_report.py:TestReport",
+      "type": "tested_by",
+      "weight": 1.0
+    },
+    {
+      "source": "function:eval/lib/report.py:summarize",
+      "target": "class:tests/test_eval_report.py:TestReport",
+      "type": "tested_by",
+      "weight": 1.0
+    },
+    {
+      "source": "function:eval/lib/report.py:write_json",
+      "target": "class:tests/test_eval_report.py:TestReport",
+      "type": "tested_by",
+      "weight": 1.0
+    },
+    {
+      "source": "function:eval/lib/report.py:write_markdown",
+      "target": "class:tests/test_eval_report.py:TestReport",
+      "type": "tested_by",
+      "weight": 1.0
+    },
+    {
+      "source": "function:tests/reservoir_profile.py:verify_output",
+      "target": "class:tests/test_judge.py:TestVerifyOutput",
+      "type": "tested_by",
+      "weight": 1.0
+    },
+    {
+      "source": "function:tests/reservoir_profile.py:_extract_numbers",
+      "target": "class:tests/test_judge.py:TestExtractNumbers",
+      "type": "tested_by",
+      "weight": 1.0
+    },
+    {
+      "source": "function:tests/reservoir_profile.py:load_reservoir",
+      "target": "class:tests/test_judge.py:TestLoadReservoir",
+      "type": "tested_by",
+      "weight": 1.0
+    },
+    {
+      "source": "file:supervisor/scripts/arbitrator.py",
+      "target": "class:tests/test_arbitrator.py:TestDamDiagnosis",
+      "type": "tested_by",
+      "weight": 1.0
+    },
+    {
+      "source": "file:supervisor/scripts/arbitrator.py",
+      "target": "class:tests/test_arbitrator.py:TestEmergency",
+      "type": "tested_by",
+      "weight": 1.0
+    },
+    {
+      "source": "file:supervisor/scripts/arbitrator.py",
+      "target": "class:tests/test_arbitrator.py:TestRiskLevels",
+      "type": "tested_by",
+      "weight": 1.0
+    },
+    {
+      "source": "file:supervisor/scripts/arbitrator.py",
+      "target": "class:tests/test_arbitrator.py:TestPlanVsSimulation",
+      "type": "tested_by",
+      "weight": 1.0
+    },
+    {
+      "source": "file:supervisor/scripts/scene_router.py",
+      "target": "class:tests/test_scene_router.py:TestSceneRouting",
+      "type": "tested_by",
+      "weight": 1.0
+    },
+    {
+      "source": "file:supervisor/scripts/scene_router.py",
+      "target": "class:tests/test_scene_router.py:TestMixedTriggerPriority",
+      "type": "tested_by",
+      "weight": 1.0
+    },
+    {
+      "source": "file:supervisor/scripts/scene_router.py",
+      "target": "class:tests/test_scene_router.py:TestEdgeCases",
+      "type": "tested_by",
+      "weight": 1.0
+    },
+    {
+      "source": "file:supervisor/scripts/supervisor_state.py",
+      "target": "class:tests/test_supervisor_state_ops.py:TestStats",
+      "type": "tested_by",
+      "weight": 1.0
+    },
+    {
+      "source": "file:supervisor/scripts/supervisor_state.py",
+      "target": "class:tests/test_supervisor_state_ops.py:TestReplay",
+      "type": "tested_by",
+      "weight": 1.0
+    },
+    {
+      "source": "file:supervisor/scripts/supervisor_state.py",
+      "target": "class:tests/test_supervisor_state_ops.py:TestHealth",
+      "type": "tested_by",
+      "weight": 1.0
+    },
+    {
+      "source": "file:supervisor/scripts/orchestrator.py",
+      "target": "class:tests/integration/test_supervisor_e2e.py:TestSceneA",
+      "type": "tested_by",
+      "weight": 1.0
+    },
+    {
+      "source": "file:supervisor/scripts/orchestrator.py",
+      "target": "class:tests/integration/test_supervisor_e2e.py:TestSceneB",
+      "type": "tested_by",
+      "weight": 1.0
+    },
+    {
+      "source": "file:supervisor/scripts/orchestrator.py",
+      "target": "class:tests/integration/test_supervisor_e2e.py:TestSceneC",
+      "type": "tested_by",
+      "weight": 1.0
+    },
+    {
+      "source": "file:supervisor/scripts/orchestrator.py",
+      "target": "class:tests/integration/test_supervisor_e2e.py:TestSceneD",
+      "type": "tested_by",
+      "weight": 1.0
+    },
+    {
+      "source": "file:supervisor/scripts/orchestrator.py",
+      "target": "class:tests/integration/test_supervisor_e2e.py:TestArbitrationReportFlow",
+      "type": "tested_by",
+      "weight": 1.0
+    },
+    {
+      "source": "file:plan-generation/scripts/query_plan_data.py",
+      "target": "class:tests/integration/test_arbitration_contract.py:TestArbitrationContract",
+      "type": "tested_by",
+      "weight": 1.0
+    },
+    {
+      "source": "file:supervisor/scripts/arbitrator.py",
+      "target": "class:tests/integration/test_arbitration_contract.py:TestArbitrationContract",
+      "type": "tested_by",
+      "weight": 1.0
+    },
+    {
+      "source": "file:plan-generation/scripts/query_plan_data.py",
+      "target": "class:tests/test_tenant_isolation.py:TestPlanDataTenantIsolation",
+      "type": "tested_by",
+      "weight": 1.0
+    },
+    {
+      "source": "file:simulation/scripts/query_simulation_data.py",
+      "target": "class:tests/test_tenant_isolation.py:TestSimulationDataTenantIsolation",
+      "type": "tested_by",
+      "weight": 1.0
+    },
+    {
+      "source": "file:early-warning/scripts/query_early_warning.py",
+      "target": "class:tests/test_tenant_isolation.py:TestEarlyWarningTenantIsolation",
+      "type": "tested_by",
+      "weight": 1.0
+    },
+    {
+      "source": "file:lib/filters.py",
+      "target": "class:tests/test_tenant_isolation.py:TestFiltersRuleTable",
+      "type": "tested_by",
+      "weight": 1.0
+    },
+    {
+      "source": "doc:eval/README.md",
+      "target": "file:eval/run.py",
+      "type": "documents",
+      "weight": 1.0
+    },
+    {
+      "source": "doc:eval/README.md",
+      "target": "file:eval/lib/schema.py",
+      "type": "documents",
+      "weight": 1.0
+    },
+    {
+      "source": "doc:eval/README.md",
+      "target": "file:eval/lib/judge.py",
+      "type": "documents",
+      "weight": 1.0
+    },
+    {
+      "source": "doc:eval/README.md",
+      "target": "file:eval/lib/transport.py",
+      "type": "documents",
+      "weight": 1.0
+    },
+    {
+      "source": "doc:eval/README.md",
+      "target": "file:eval/lib/truth.py",
+      "type": "documents",
+      "weight": 1.0
+    },
+    {
+      "source": "doc:eval/README.md",
+      "target": "file:eval/lib/report.py",
+      "type": "documents",
+      "weight": 1.0
+    },
+    {
+      "source": "doc:eval/README.md",
+      "target": "file:eval/cases/forecasting.yaml",
+      "type": "documents",
+      "weight": 1.0
+    },
+    {
+      "source": "doc:eval/README.md",
+      "target": "file:eval/cases/plan-generation.yaml",
+      "type": "documents",
+      "weight": 1.0
+    },
+    {
+      "source": "doc:eval/README.md",
+      "target": "file:eval/cases/simulation.yaml",
+      "type": "documents",
+      "weight": 1.0
+    },
+    {
+      "source": "doc:eval/README.md",
+      "target": "file:eval/cases/early-warning.yaml",
+      "type": "documents",
+      "weight": 1.0
+    },
+    {
+      "source": "doc:eval/README.md",
+      "target": "file:eval/cases/supervisor.yaml",
+      "type": "documents",
+      "weight": 1.0
+    },
+    {
+      "source": "doc:eval/README.md",
+      "target": "file:eval/cases/diagnosis-verification.yaml",
+      "type": "documents",
+      "weight": 1.0
+    },
+    {
+      "source": "doc:shared/sql-safety-rules.md",
+      "target": "file:eval/lib/truth.py",
+      "type": "documents",
+      "weight": 1.0
+    },
+    {
+      "source": "doc:shared/sql-safety-rules.md",
+      "target": "file:eval/lib/judge.py",
+      "type": "documents",
+      "weight": 1.0
+    },
+    {
+      "source": "doc:shared/tenant-filtering-rules.md",
+      "target": "file:eval/lib/schema.py",
+      "type": "documents",
+      "weight": 1.0
+    },
+    {
+      "source": "doc:shared/tenant-filtering-rules.md",
+      "target": "file:eval/lib/truth.py",
+      "type": "documents",
+      "weight": 1.0
+    },
+    {
+      "source": "doc:shared/db-connection.md",
+      "target": "file:eval/lib/truth.py",
+      "type": "documents",
+      "weight": 1.0
+    },
+    {
+      "source": "doc:shared/db-connection.md",
+      "target": "file:eval/lib/judge.py",
+      "type": "documents",
+      "weight": 1.0
+    },
+    {
+      "source": "file:eval/cases/forecasting.yaml",
+      "target": "class:eval/lib/schema.py:EvalCase",
+      "type": "related",
+      "weight": 1.0
+    },
+    {
+      "source": "file:eval/cases/forecasting.yaml",
+      "target": "function:eval/lib/schema.py:load_file",
+      "type": "related",
+      "weight": 1.0
+    },
+    {
+      "source": "file:eval/cases/plan-generation.yaml",
+      "target": "class:eval/lib/schema.py:EvalCase",
+      "type": "related",
+      "weight": 1.0
+    },
+    {
+      "source": "file:eval/cases/plan-generation.yaml",
+      "target": "function:eval/lib/schema.py:load_file",
+      "type": "related",
+      "weight": 1.0
+    },
+    {
+      "source": "file:eval/cases/forecasting.yaml",
+      "target": "file:eval/cases/plan-generation.yaml",
+      "type": "related",
+      "weight": 1.0
+    },
+    {
+      "source": "file:eval/cases/simulation.yaml",
+      "target": "class:eval/lib/schema.py:EvalCase",
+      "type": "related",
+      "weight": 1.0
+    },
+    {
+      "source": "file:eval/cases/simulation.yaml",
+      "target": "function:eval/lib/schema.py:load_file",
+      "type": "related",
+      "weight": 1.0
+    },
+    {
+      "source": "file:eval/cases/forecasting.yaml",
+      "target": "file:eval/cases/simulation.yaml",
+      "type": "related",
+      "weight": 1.0
+    },
+    {
+      "source": "file:eval/cases/early-warning.yaml",
+      "target": "class:eval/lib/schema.py:EvalCase",
+      "type": "related",
+      "weight": 1.0
+    },
+    {
+      "source": "file:eval/cases/early-warning.yaml",
+      "target": "function:eval/lib/schema.py:load_file",
+      "type": "related",
+      "weight": 1.0
+    },
+    {
+      "source": "file:eval/cases/forecasting.yaml",
+      "target": "file:eval/cases/early-warning.yaml",
+      "type": "related",
+      "weight": 1.0
+    },
+    {
+      "source": "file:eval/cases/supervisor.yaml",
+      "target": "class:eval/lib/schema.py:EvalCase",
+      "type": "related",
+      "weight": 1.0
+    },
+    {
+      "source": "file:eval/cases/supervisor.yaml",
+      "target": "function:eval/lib/schema.py:load_file",
+      "type": "related",
+      "weight": 1.0
+    },
+    {
+      "source": "file:eval/cases/forecasting.yaml",
+      "target": "file:eval/cases/supervisor.yaml",
+      "type": "related",
+      "weight": 1.0
+    },
+    {
+      "source": "file:eval/cases/diagnosis-verification.yaml",
+      "target": "class:eval/lib/schema.py:EvalCase",
+      "type": "related",
+      "weight": 1.0
+    },
+    {
+      "source": "file:eval/cases/diagnosis-verification.yaml",
+      "target": "function:eval/lib/schema.py:load_file",
+      "type": "related",
+      "weight": 1.0
+    },
+    {
+      "source": "file:eval/cases/forecasting.yaml",
+      "target": "file:eval/cases/diagnosis-verification.yaml",
+      "type": "related",
+      "weight": 1.0
+    }
+  ],
+  "layers": [
+    {
+      "id": "layer:shared-infrastructure",
+      "name": "Shared Infrastructure",
+      "description": "Cross-cutting Python utilities (lib/): tenant resolution, MySQL pool + query/write helpers, table-aware tenant/deleted-filter injection, path/skill/reservoir locators, and project-root bootstrap. Imported by every skill.",
+      "nodeIds": [
+        "file:lib/__init__.py",
+        "file:lib/bootstrap.py",
+        "file:lib/db.py",
+        "file:lib/filters.py",
+        "file:lib/paths.py",
+        "file:lib/tenant.py",
+        "function:lib/bootstrap.py:locate_lib",
+        "function:lib/bootstrap.py:locate_root",
+        "function:lib/bootstrap.py:locate_shared",
+        "function:lib/db.py:execute_query",
+        "function:lib/db.py:execute_query_list",
+        "function:lib/db.py:execute_write",
+        "function:lib/db.py:get_connection",
+        "function:lib/db.py:query_one",
+        "function:lib/db.py:require_env",
+        "function:lib/db.py:unpack",
+        "function:lib/filters.py:apply_deleted_filter",
+        "function:lib/filters.py:apply_table_filters",
+        "function:lib/filters.py:apply_tenant_filter",
+        "function:lib/filters.py:generate_where_clause",
+        "function:lib/filters.py:validate_table_filter",
+        "function:lib/paths.py:ensure_dirs",
+        "function:lib/paths.py:ensure_path",
+        "function:lib/paths.py:get_autoresearch_dir",
+        "function:lib/paths.py:get_reservoir_dir",
+        "function:lib/paths.py:get_skill_dir",
+        "function:lib/tenant.py:current_reservoir_name",
+        "function:lib/tenant.py:current_tenant_id",
+        "function:lib/tenant.py:resolve_reservoir_name",
+        "function:lib/tenant.py:resolve_tenant"
+      ]
+    },
+    {
+      "id": "layer:domain-skills",
+      "name": "Domain Skills",
+      "description": "Five 四预 domain skills — forecasting, plan-generation, simulation, early-warning, diagnosis-verification — each with a SKILL.md plus parameterized SQL scripts that wrap lib/db.py + lib/tenant.py. Plan-generation and simulation additionally ship Flask model services (XAJ, flood routing, dispatch optimization, multi-scheme orchestration).",
+      "nodeIds": [
+        "file:diagnosis-verification/scripts/check_data_quality.py",
+        "file:early-warning/SKILL.md",
+        "file:early-warning/scripts/query_early_warning.py",
+        "file:diagnosis-verification/SKILL.md",
+        "file:forecasting/SKILL.md",
+        "file:forecasting/scripts/query_forecast_analysis.py",
+        "file:forecasting/scripts/query_forecast_data.py",
+        "file:plan-generation/SKILL.md",
+        "file:plan-generation/models/dispatch_model.py",
+        "file:plan-generation/models/flood_routing.py",
+        "file:plan-generation/models/xaj_model.py",
+        "file:plan-generation/scripts/query_plan_analysis.py",
+        "file:plan-generation/scripts/query_plan_data.py",
+        "file:simulation/SKILL.md",
+        "file:simulation/models/simulation_service.py",
+        "file:simulation/scripts/query_simulation_data.py"
+      ]
+    },
+    {
+      "id": "layer:supervisor-orchestration",
+      "name": "Supervisor Orchestration",
+      "description": "DAG-based meta-orchestrator (supervisor/) that wires the five domain skills into four scene workflows (A 暴雨 / B 大坝 / C 日常 / D 应急). Comprises the scene router (keyword→DAG), persistent SQLite state (queue/stats/replay/health), the DAG executor (subprocess with timeouts), and the result arbitrator (plan-vs-simulation, emergency escalation, dam-diagnosis risk, risk-level max).",
+      "nodeIds": [
+        "file:supervisor/SKILL.md",
+        "file:supervisor/scripts/arbitrator.py",
+        "file:supervisor/scripts/orchestrator.py",
+        "file:supervisor/scripts/scene_router.py",
+        "file:supervisor/scripts/supervisor_state.py"
+      ]
+    },
+    {
+      "id": "layer:evaluation-framework",
+      "name": "Evaluation & Test Framework",
+      "description": "Unified Hermes-driven eval runner (eval/run.py) plus the eval/lib stack — schema loader/validator, Hermes subprocess transport, live-DB truth comparator with tolerance, inline/live_db/rubric judges (rule-layer AND-composed with an optional Anthropic LLM judge), and JSON+Markdown reporting — together with the 133 YAML eval cases and the unittest suite (test_arbitrator, test_scene_router, test_supervisor_state_ops, test_tenant_isolation, test_models, test_judge, test_eval_*, and integration tests).",
+      "nodeIds": [
+        "class:eval/lib/schema.py:EvalCase",
+        "class:tests/integration/test_arbitration_contract.py:TestArbitrationContract",
+        "class:tests/integration/test_supervisor_e2e.py:TestArbitrationReportFlow",
+        "class:tests/integration/test_supervisor_e2e.py:TestSceneA",
+        "class:tests/integration/test_supervisor_e2e.py:TestSceneB",
+        "class:tests/integration/test_supervisor_e2e.py:TestSceneC",
+        "class:tests/integration/test_supervisor_e2e.py:TestSceneD",
+        "class:tests/reservoir_profile.py:ReservoirProfile",
+        "class:tests/reservoir_profile.py:TestCase",
+        "class:tests/test_arbitrator.py:TestDamDiagnosis",
+        "class:tests/test_arbitrator.py:TestEmergency",
+        "class:tests/test_arbitrator.py:TestPlanVsSimulation",
+        "class:tests/test_arbitrator.py:TestRiskLevels",
+        "class:tests/test_eval_cases.py:TestCases",
+        "class:tests/test_eval_judge.py:TestInlineJudge",
+        "class:tests/test_eval_judge.py:TestLiveDbJudge",
+        "class:tests/test_eval_judge.py:TestLlmJudge",
+        "class:tests/test_eval_judge.py:TestRubricJudge",
+        "class:tests/test_eval_report.py:TestReport",
+        "class:tests/test_eval_runner.py:TestRunner",
+        "class:tests/test_eval_schema.py:TestSchema",
+        "class:tests/test_eval_transport.py:TestTransport",
+        "class:tests/test_eval_truth.py:TestTruth",
+        "class:tests/test_judge.py:TestExtractNumbers",
+        "class:tests/test_judge.py:TestLoadReservoir",
+        "class:tests/test_judge.py:TestVerifyOutput",
+        "class:tests/test_models.py:TestDischargeCurveMonotonicity",
+        "class:tests/test_models.py:TestWaterBalanceConservation",
+        "class:tests/test_models.py:TestXAJDryBasinNoRunoff",
+        "class:tests/test_scene_router.py:TestEdgeCases",
+        "class:tests/test_scene_router.py:TestMixedTriggerPriority",
+        "class:tests/test_scene_router.py:TestSceneRouting",
+        "class:tests/test_supervisor_state_ops.py:TestHealth",
+        "class:tests/test_supervisor_state_ops.py:TestReplay",
+        "class:tests/test_supervisor_state_ops.py:TestStats",
+        "class:tests/test_tenant_isolation.py:TestEarlyWarningTenantIsolation",
+        "class:tests/test_tenant_isolation.py:TestFiltersRuleTable",
+        "class:tests/test_tenant_isolation.py:TestPlanDataTenantIsolation",
+        "class:tests/test_tenant_isolation.py:TestSimulationDataTenantIsolation",
+        "file:eval/__init__.py",
+        "file:eval/cases/diagnosis-verification.yaml",
+        "file:eval/cases/early-warning.yaml",
+        "file:eval/cases/forecasting.yaml",
+        "file:eval/cases/plan-generation.yaml",
+        "file:eval/cases/simulation.yaml",
+        "file:eval/cases/supervisor.yaml",
+        "file:eval/lib/__init__.py",
+        "file:eval/lib/judge.py",
+        "file:eval/lib/report.py",
+        "file:eval/lib/schema.py",
+        "file:eval/lib/transport.py",
+        "file:eval/lib/truth.py",
+        "file:eval/run.py",
+        "file:tests/integration/test_arbitration_contract.py",
+        "file:tests/integration/test_supervisor_e2e.py",
+        "file:tests/reservoir_profile.py",
+        "file:tests/test_arbitrator.py",
+        "file:tests/test_eval_cases.py",
+        "file:tests/test_eval_judge.py",
+        "file:tests/test_eval_report.py",
+        "file:tests/test_eval_runner.py",
+        "file:tests/test_eval_schema.py",
+        "file:tests/test_eval_transport.py",
+        "file:tests/test_eval_truth.py",
+        "file:tests/test_judge.py",
+        "file:tests/test_models.py",
+        "file:tests/test_scene_router.py",
+        "file:tests/test_supervisor_state_ops.py",
+        "file:tests/test_tenant_isolation.py",
+        "function:eval/lib/judge.py:_build_prompt",
+        "function:eval/lib/judge.py:_extract_numbers",
+        "function:eval/lib/judge.py:_keyword_check",
+        "function:eval/lib/judge.py:_parse_rubric_score",
+        "function:eval/lib/judge.py:judge_inline",
+        "function:eval/lib/judge.py:judge_live_db",
+        "function:eval/lib/judge.py:judge_rubric",
+        "function:eval/lib/judge.py:llm_judge",
+        "function:eval/lib/judge.py:make_anthropic_client",
+        "function:eval/lib/report.py:build_result",
+        "function:eval/lib/report.py:summarize",
+        "function:eval/lib/report.py:write_json",
+        "function:eval/lib/report.py:write_markdown",
+        "function:eval/lib/schema.py:_case_from_dict",
+        "function:eval/lib/schema.py:_coerce_str_list",
+        "function:eval/lib/schema.py:load_all",
+        "function:eval/lib/schema.py:load_file",
+        "function:eval/lib/schema.py:validate",
+        "function:eval/lib/transport.py:run_hermes",
+        "function:eval/lib/truth.py:_connect",
+        "function:eval/lib/truth.py:compare_with_tolerance",
+        "function:eval/lib/truth.py:extract_numbers",
+        "function:eval/lib/truth.py:make_db_query_fn",
+        "function:eval/run.py:_dispatch",
+        "function:eval/run.py:filter_cases",
+        "function:eval/run.py:main",
+        "function:eval/run.py:parse_args",
+        "function:tests/reservoir_profile.py:_coerce_keywords",
+        "function:tests/reservoir_profile.py:_extract_numbers",
+        "function:tests/reservoir_profile.py:load_all_reservoirs",
+        "function:tests/reservoir_profile.py:load_reservoir",
+        "function:tests/reservoir_profile.py:verify_output"
+      ]
+    },
+    {
+      "id": "layer:documentation",
+      "name": "Shared Documentation & Conventions",
+      "description": "Cross-skill documentation and rule docs — eval/README.md (CLI usage, case schema, 133-case set, AND-combined filters, EVAL_JUDGE_MODEL override) plus shared/ rules covering SQL safety (parameterized %s, WHERE+LIMIT, no DDL, tenant filter required), tenant-filtering precedence (explicit arg > SRM_TENANT_ID > default 18), and DB-connection conventions (SRM_DB_* env, no hard-coded credentials).",
+      "nodeIds": [
+        "doc:eval/README.md",
+        "doc:shared/db-connection.md",
+        "doc:shared/sql-safety-rules.md",
+        "doc:shared/tenant-filtering-rules.md"
+      ]
+    }
+  ],
+  "tour": [
+    {
+      "order": 1,
+      "title": "Project Overview & Shared Knowledge Base",
+      "description": "SmartTwinRes Skills is a Claude Code Skill collection for water reservoir management. The repo has no single entry point — it is a constellation of skills (forecasting, plan-generation, simulation, early-warning, diagnosis-verification, supervisor) coordinated through a shared library and an evaluation harness. Start here to see the cross-cutting rules every skill follows: SQL safety, tenant filtering, and database connection conventions.",
+      "nodeIds": [
+        "doc:shared/sql-safety-rules.md",
+        "doc:shared/tenant-filtering-rules.md",
+        "doc:shared/db-connection.md"
+      ]
+    },
+    {
+      "order": 2,
+      "title": "Shared Infrastructure (lib/)",
+      "description": "The lib/ package is the backbone every skill imports. It resolves the project root (bootstrap.py), opens pooled MySQL connections (db.py), injects mandatory tenant_id and deleted filters (filters.py), manages skill / reservoir / autoresearch output paths (paths.py), and resolves the active tenant from env (tenant.py). All skills depend on these modules; none of them talk to the DB directly.",
+      "nodeIds": [
+        "file:lib/__init__.py",
+        "file:lib/bootstrap.py",
+        "file:lib/db.py",
+        "file:lib/filters.py",
+        "file:lib/paths.py",
+        "file:lib/tenant.py",
+        "function:lib/bootstrap.py:locate_root",
+        "function:lib/db.py:get_connection",
+        "function:lib/db.py:execute_query",
+        "function:lib/filters.py:apply_tenant_filter",
+        "function:lib/paths.py:get_skill_dir",
+        "function:lib/tenant.py:resolve_tenant"
+      ]
+    },
+    {
+      "order": 3,
+      "title": "Flagship Domain Skill — Simulation",
+      "description": "Simulation is the flagship skill: it runs multi-scenario 'what-if' forecasts over a dispatch plan. Its SKILL.md declares the agent contract, scripts/query_simulation_data.py pulls current state from MySQL through lib/, and models/simulation_service.py encapsulates the comparison/sensitivity logic. This mirrors the structure every other domain skill follows (SKILL.md + scripts/ + models/).",
+      "nodeIds": [
+        "file:simulation/SKILL.md",
+        "file:simulation/scripts/query_simulation_data.py",
+        "file:simulation/models/simulation_service.py"
+      ]
+    },
+    {
+      "order": 4,
+      "title": "Companion Domain Skills",
+      "description": "Five domain skills sit alongside simulation. forecasting produces rainfall / water-level / flood-limit predictions; plan-generation produces 3 dispatch schemes (A/B/C) and runs hydrologic models (XAJ, flood routing); early-warning raises 4-level alarms with correlation analysis; diagnosis-verification runs an 8-phase diagnose + 6-layer verify + 6-step auto-fix pipeline. Each has the same scripts/ + models/ shape and queries the DB via lib/.",
+      "nodeIds": [
+        "file:forecasting/SKILL.md",
+        "file:forecasting/scripts/query_forecast_data.py",
+        "file:forecasting/scripts/query_forecast_analysis.py",
+        "file:plan-generation/SKILL.md",
+        "file:plan-generation/scripts/query_plan_data.py",
+        "file:plan-generation/models/dispatch_model.py",
+        "file:plan-generation/models/xaj_model.py",
+        "file:plan-generation/models/flood_routing.py",
+        "file:early-warning/SKILL.md",
+        "file:early-warning/scripts/query_early_warning.py"
+      ]
+    },
+    {
+      "order": 5,
+      "title": "Supervisor Orchestration Layer",
+      "description": "The supervisor is the brain that routes user queries to the right skill combination. scene_router.py classifies the request, orchestrator.py drives the DAG, supervisor_state.py records replay / stats / health, and arbitrator.py resolves conflicts when multiple skills produce competing answers (e.g. plan A vs. simulation says B is safer).",
+      "nodeIds": [
+        "file:supervisor/SKILL.md",
+        "file:supervisor/scripts/scene_router.py",
+        "file:supervisor/scripts/orchestrator.py",
+        "file:supervisor/scripts/supervisor_state.py",
+        "file:supervisor/scripts/arbitrator.py"
+      ]
+    },
+    {
+      "order": 6,
+      "title": "Evaluation Framework",
+      "description": "eval/ is the unified testing harness. run.py is the CLI entry — it parses flags, filters cases, and dispatches them. lib/schema.py loads and validates YAML cases, lib/judge.py implements four judge modes (inline, live_db, rubric, llm), lib/transport.py runs Hermes, lib/truth.py compares against DB ground-truth with tolerance, and lib/report.py aggregates results into JSON and Markdown.",
+      "nodeIds": [
+        "file:eval/__init__.py",
+        "file:eval/run.py",
+        "function:eval/run.py:main",
+        "function:eval/run.py:filter_cases",
+        "file:eval/lib/schema.py",
+        "class:eval/lib/schema.py:EvalCase",
+        "file:eval/lib/judge.py",
+        "function:eval/lib/judge.py:judge_inline",
+        "function:eval/lib/judge.py:judge_live_db",
+        "function:eval/lib/judge.py:judge_rubric",
+        "function:eval/lib/judge.py:llm_judge",
+        "file:eval/lib/transport.py",
+        "file:eval/lib/truth.py",
+        "file:eval/lib/report.py",
+        "doc:eval/README.md"
+      ]
+    },
+    {
+      "order": 7,
+      "title": "Evaluation Cases per Skill",
+      "description": "Every domain skill ships with a YAML case file in eval/cases/ that defines scenarios, expected keywords / numbers, and judge mode. The six cases are: forecasting, plan-generation, simulation, early-warning, supervisor, and diagnosis-verification. Adding a new skill means dropping a new YAML here and the runner picks it up automatically.",
+      "nodeIds": [
+        "file:eval/cases/forecasting.yaml",
+        "file:eval/cases/plan-generation.yaml",
+        "file:eval/cases/simulation.yaml",
+        "file:eval/cases/early-warning.yaml",
+        "file:eval/cases/supervisor.yaml",
+        "file:eval/cases/diagnosis-verification.yaml"
+      ]
+    },
+    {
+      "order": 8,
+      "title": "Reservoir Profiles & Test Harness",
+      "description": "The reservoirs/ directory (sancha, taoqupo) holds per-reservoir configuration, but the type-safe loader lives in tests/reservoir_profile.py — the ReservoirProfile class plus load_reservoir / load_all_reservoirs functions are reused by the eval judge as the ground-truth oracle. The surrounding tests/ tree covers tenant isolation, scene routing, arbitrator, models, and the full supervisor end-to-end flow.",
+      "nodeIds": [
+        "file:tests/reservoir_profile.py",
+        "class:tests/reservoir_profile.py:ReservoirProfile",
+        "function:tests/reservoir_profile.py:load_reservoir",
+        "function:tests/reservoir_profile.py:load_all_reservoirs",
+        "file:tests/test_tenant_isolation.py",
+        "file:tests/test_scene_router.py",
+        "file:tests/test_arbitrator.py",
+        "file:tests/integration/test_supervisor_e2e.py",
+        "file:tests/integration/test_arbitration_contract.py"
+      ]
+    }
+  ]
+}

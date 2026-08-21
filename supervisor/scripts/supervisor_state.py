@@ -384,48 +384,25 @@ def cmd_replay(args) -> dict:
     return {"replay_count": len(items), "events": items}
 
 
-def cmd_health(args) -> dict:
-    """运维：cron 数据时效健康检查。
-    检查 forecasting 依赖的 st_rsvr_r（水位时效）与 f_rnfl_h（未来预报覆盖），
-    判断 cron 续写任务是否在正常运行（age 过大 → cron 异常）。
-    阈值：水位 age <= 6h（cron 每 50 分钟续写）；未来预报 >= 168h（7 天覆盖）。"""
-    import sys as _sys, os as _os
-    _SCRIPTS = _os.path.dirname(_os.path.abspath(__file__))
-    # P3-8: 改走 lib.paths.ensure_path 去重 helper，避免裸 sys.path.insert
-    from lib.paths import ensure_path
-    ensure_path(_SCRIPTS)
-    ensure_path(_os.path.join(_SCRIPTS, "..", ".."))
-    from lib.db import execute_query_list  # noqa: E402
-    from lib.tenant import current_tenant_id  # noqa: E402 -- 水库身份（SRM_TENANT_ID，默认18三岔）
+def evaluate_health(stcd, wl, rf, al):
+    """纯函数健康判定（无 DB/无 lib 依赖，可无 DB 单测——评审 T1）。
 
-    # 水位时效（st_rsvr_r master stcd）
-    stcd = _os.getenv("SRM_RSVR_MASTER", "TQP")  # 桃曲坡默认；三岔可覆盖
-    wl = execute_query_list(
-        "SELECT MAX(tm) as max_tm, TIMESTAMPDIFF(HOUR, MAX(tm), NOW()) as age_h, "
-        "COUNT(*) as cnt FROM st_rsvr_r WHERE deleted=0 AND stcd=%s",
-        (stcd,)
-    )[0]
+    输入为已查询出的三组聚合行（dict），不做任何 DB 访问：
+      stcd: 水库站码（仅用于文案）
+      wl:   st_rsvr_r 聚合 {"age_h", "max_tm", "cnt"}
+      rf:   f_rnfl_h 聚合 {"cnt", "max_ymdh"}
+      al:   ew_info_message 聚合 {"total", "high"}
+
+    返回 (checks, overall, derived)：
+      checks:  [{"item","status","msg"}]
+      overall: "ok"/"warn"/"error"
+      derived: {"wl_age","rf_cnt","al_total","al_high"}（供 detail 复用，避免重复解包）
+    """
     wl_age = float(wl["age_h"]) if wl["age_h"] is not None else None
-
-    # 未来预报覆盖（f_rnfl_h 未来预报行数，按当前水库 tenant 过滤）
-    _tid = current_tenant_id()
-    rf = execute_query_list(
-        "SELECT COUNT(*) as cnt, MAX(ymdh) as max_ymdh "
-        "FROM f_rnfl_h WHERE deleted=0 AND ymdh > NOW() AND tenant_id=%s",
-        (_tid,)
-    )[0]
     rf_cnt = int(rf["cnt"]) if rf["cnt"] is not None else 0
-
-    # 告警堆积（ew_info_message 未确认 + 高级别；跨租户可见为设计决策，见 docs/shared-tables.md）
-    al = execute_query_list(
-        "SELECT COUNT(*) as total, "
-        "SUM(CASE WHEN level_r IN ('1','2') THEN 1 ELSE 0 END) as high "
-        "FROM ew_info_message WHERE deleted=0 AND message_confirm=0"
-    )[0]
     al_total = int(al["total"] or 0)
     al_high = int(al["high"] or 0)
 
-    # 健康判定
     checks = []
     if wl_age is None:
         checks.append({"item": "st_rsvr_r", "status": "error", "msg": f"无 {stcd} 数据"})
@@ -453,6 +430,100 @@ def cmd_health(args) -> dict:
     overall = "ok" if all(c["status"] == "ok" for c in checks) else (
         "error" if any(c["status"] == "error" for c in checks) else "warn")
 
+    derived = {"wl_age": wl_age, "rf_cnt": rf_cnt,
+               "al_total": al_total, "al_high": al_high}
+    return checks, overall, derived
+
+
+def evaluate_health(stcd, wl, rf, al):
+    """纯函数健康判定（无 DB/无 lib 依赖，可无 DB 单测——评审 T1）。
+
+    Args:
+        stcd: 水位站码（用于 msg 文案）
+        wl: st_rsvr_r 聚合行（max_tm/age_h/cnt）
+        rf: f_rnfl_h 聚合行（cnt/max_ymdh）
+        al: ew_info_message 聚合行（total/high）
+
+    Returns:
+        (checks, overall, derived) — checks 为三条判定，
+        overall ∈ ok/warn/error，derived 为派生数值（供 detail 回填）。
+    """
+    wl_age = float(wl["age_h"]) if wl["age_h"] is not None else None
+    rf_cnt = int(rf["cnt"]) if rf["cnt"] is not None else 0
+    al_total = int(al["total"] or 0)
+    al_high = int(al["high"] or 0)
+
+    checks = []
+    if wl_age is None:
+        checks.append({"item": "st_rsvr_r", "status": "error",
+                        "msg": f"无 {stcd} 数据"})
+    elif wl_age > 6:
+        checks.append({"item": "st_rsvr_r", "status": "warn",
+                        "msg": f"水位数据过期 {wl_age}h（阈值 6h，cron 可能停摆）"})
+    else:
+        checks.append({"item": "st_rsvr_r", "status": "ok",
+                        "msg": f"水位新鲜（age={wl_age}h）"})
+
+    if rf_cnt < 168:
+        checks.append({"item": "f_rnfl_h", "status": "warn",
+                        "msg": f"未来预报仅 {rf_cnt}h（阈值 168h，--forecast 未跑）"})
+    else:
+        checks.append({"item": "f_rnfl_h", "status": "ok",
+                        "msg": f"未来预报 {rf_cnt}h 覆盖完整"})
+
+    if al_total > 1000:
+        checks.append({"item": "ew_info_message", "status": "warn",
+                        "msg": f"告警堆积 {al_total} 条（阈值 1000，需确认清理）"})
+    else:
+        checks.append({"item": "ew_info_message", "status": "ok",
+                        "msg": f"告警数量正常（{al_total} 条，高级别 {al_high}）"})
+
+    overall = "ok" if all(c["status"] == "ok" for c in checks) else (
+        "error" if any(c["status"] == "error" for c in checks) else "warn")
+    return checks, overall, {"wl_age": wl_age, "rf_cnt": rf_cnt,
+                             "al_total": al_total, "al_high": al_high}
+
+
+def cmd_health(args) -> dict:
+    """运维：cron 数据时效健康检查。
+    检查 forecasting 依赖的 st_rsvr_r（水位时效）与 f_rnfl_h（未来预报覆盖），
+    判断 cron 续写任务是否在正常运行（age 过大 → cron 异常）。
+    阈值：水位 age <= 6h（cron 每 50 分钟续写）；未来预报 >= 168h（7 天覆盖）。"""
+    import sys as _sys, os as _os
+    _SCRIPTS = _os.path.dirname(_os.path.abspath(__file__))
+    # P3-8: 改走 lib.paths.ensure_path 去重 helper，避免裸 sys.path.insert
+    from lib.paths import ensure_path
+    ensure_path(_SCRIPTS)
+    ensure_path(_os.path.join(_SCRIPTS, "..", ".."))
+    from lib.db import execute_query_list  # noqa: E402
+    from lib.tenant import current_tenant_id  # noqa: E402 -- 水库身份（SRM_TENANT_ID，默认18三岔）
+
+    # 水位时效（st_rsvr_r master stcd）
+    stcd = _os.getenv("SRM_RSVR_MASTER", "TQP")  # 桃曲坡默认；三岔可覆盖
+    wl = execute_query_list(
+        "SELECT MAX(tm) as max_tm, TIMESTAMPDIFF(HOUR, MAX(tm), NOW()) as age_h, "
+        "COUNT(*) as cnt FROM st_rsvr_r WHERE deleted=0 AND stcd=%s",
+        (stcd,)
+    )[0]
+
+    # 未来预报覆盖（f_rnfl_h 未来预报行数，按当前水库 tenant 过滤）
+    _tid = current_tenant_id()
+    rf = execute_query_list(
+        "SELECT COUNT(*) as cnt, MAX(ymdh) as max_ymdh "
+        "FROM f_rnfl_h WHERE deleted=0 AND ymdh > NOW() AND tenant_id=%s",
+        (_tid,)
+    )[0]
+
+    # 告警堆积（ew_info_message 未确认 + 高级别；跨租户可见为设计决策，见 docs/shared-tables.md）
+    al = execute_query_list(
+        "SELECT COUNT(*) as total, "
+        "SUM(CASE WHEN level_r IN ('1','2') THEN 1 ELSE 0 END) as high "
+        "FROM ew_info_message WHERE deleted=0 AND message_confirm=0"
+    )[0]
+
+    # 健康判定（纯函数，评审 T1——判定逻辑无 DB 依赖，可无 DB 单测）
+    checks, overall, d = evaluate_health(stcd, wl, rf, al)
+
     return {
         "overall": overall,
         "reservoir": _os.getenv("SRM_RESERVOIR_NAME", "?"),
@@ -460,9 +531,9 @@ def cmd_health(args) -> dict:
         "checks": checks,
         "detail": {
             "st_rsvr_r": {"stcd": stcd, "max_tm": wl["max_tm"],
-                          "age_h": wl_age, "rows": wl["cnt"]},
-            "f_rnfl_h": {"future_rows": rf_cnt, "max_ymdh": rf["max_ymdh"]},
-            "ew_info_message": {"unconfirmed": al_total, "high_level": al_high},
+                          "age_h": d["wl_age"], "rows": wl["cnt"]},
+            "f_rnfl_h": {"future_rows": d["rf_cnt"], "max_ymdh": rf["max_ymdh"]},
+            "ew_info_message": {"unconfirmed": d["al_total"], "high_level": d["al_high"]},
         },
     }
 
