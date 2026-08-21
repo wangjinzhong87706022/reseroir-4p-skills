@@ -8,7 +8,7 @@ query_forecast_data.py -- 预报主取数脚本(Hermes Agent 入口)。
 
 12 个 --type:
     current_water_level      实时水位(st_rsvr_r 最新一行,master stcd 取自 model_config)
-    rainfall_forecast        和风逐时降雨预报(f_rnfl_h,无 tenant)
+    rainfall_forecast        和风逐时降雨预报(f_rnfl_h,tenant 过滤)
     weather_warning          气象预警(weather_warn warn_status='1',无 tenant/无 deleted)
     flood_limit              汛限水位(att_res_flse_lim 当汛期行 → 回退 att_res_base.fl_low_lim_lev)
     model_forecast_result    模型预报结果(model_result_files ⟕ st_mx_preset_cal_r,CAST join)
@@ -23,7 +23,7 @@ query_forecast_data.py -- 预报主取数脚本(Hermes Agent 入口)。
 设计原则:
     1. master stcd 来自 config,绝不硬编码(st_rsvr_r_master/st_pptn_r_master)。
     2. 参数化用 %s 占位符,禁字符串拼接。
-    3. tenant 策略:多数表 tenant_id=18;f_rnfl_h/weather_warn/weather_info 无 tenant。
+    3. tenant 策略:多数表 tenant_id=18;weather_warn/weather_info 无 tenant;f_rnfl_h 有 tenant_id(live DESCRIBE,2026-08-10 泄漏修复对齐)。
     4. deleted 策略:st_*/srm_flood_history_base/att_res_base/model_config 加 deleted=0;
        model_result_files/weather_warn/att_res_flse_lim 无 deleted 列,不加。
     5. taskid JOIN:model_result_files.taskid(varbinary) ⟕ st_mx_preset_cal_r.taskid(varchar)
@@ -44,7 +44,7 @@ _REPO_ROOT = Path(__file__).resolve().parents[2]  # scripts/x.py → 根
 if str(_REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(_REPO_ROOT))
 from lib.db import execute_query, execute_query_list, unpack  # noqa: E402
-from lib.tenant import current_tenant_id  # noqa: E402 -- 水库身份(SRM_TENANT_ID,默认18三岔)
+from lib.tenant import current_tenant_id, resolve_tenant  # noqa: E402 -- 水库身份(SRM_TENANT_ID,默认18三岔)
 
 
 DEFAULT_TENANT = current_tenant_id()
@@ -106,17 +106,19 @@ def query_current_water_level(tenant_id=DEFAULT_TENANT, **_):
 
 # ===========================================================================
 # 2. rainfall_forecast —— 和风逐时降雨预报
-#    源:f_rnfl_h;无 tenant;deleted=0;窗口 NOW() → NOW()+hours。
+#    源:f_rnfl_h;经 live DESCRIBE 确认有 tenant_id 列(plan-generation 同款修复);
+#    deleted=0;窗口 NOW() → NOW()+hours。
 # ===========================================================================
-def query_rainfall_forecast(hours=DEFAULT_HOURS, limit=DEFAULT_LIMIT, **_):
+def query_rainfall_forecast(hours=DEFAULT_HOURS, limit=DEFAULT_LIMIT, tenant_id=None, **_):
+    tid = resolve_tenant(tenant_id)
     sql = (
         "SELECT RN, YMDH, FYMDH, UNITNAME "
         "FROM f_rnfl_h "
         "WHERE YMDH BETWEEN NOW() AND DATE_ADD(NOW(), INTERVAL %s HOUR) "
-        "  AND deleted=0 "
+        "  AND deleted=0 AND tenant_id = %s "
         "ORDER BY YMDH"
     )
-    rows = unpack(execute_query(sql, (hours,), max_rows=limit))
+    rows = unpack(execute_query(sql, (hours, tid), max_rows=limit))
     return {
         "source": "f_rnfl_h (和风天气)",
         "hours": hours,
@@ -365,18 +367,20 @@ def query_forecast_accuracy_stats(tenant_id=DEFAULT_TENANT, **_):
 # 10. multi_source_overview —— 多源降雨聚合
 #     和风 f_rnfl_h(168h) + 分区 st_pptn_re_forecast + weather_info(30d) + NMC fixture 标记
 # ===========================================================================
-def query_multi_source_overview(tenant_id=DEFAULT_TENANT, hours=DEFAULT_HOURS, **_):
-    # 和风 168h 总量
+def query_multi_source_overview(tenant_id=None, hours=DEFAULT_HOURS, **_):
+    tid = resolve_tenant(tenant_id)
+    # 和风 168h 总量（f_rnfl_h 有 tenant_id，见 rainfall_forecast 分节注释）
     he = unpack(execute_query(
         "SELECT COUNT(*) AS n, ROUND(SUM(RN),2) AS total_mm, MAX(YMDH) AS latest "
-        "FROM f_rnfl_h WHERE YMDH BETWEEN NOW() AND NOW()+INTERVAL 168 HOUR AND deleted=0"))
+        "FROM f_rnfl_h WHERE YMDH BETWEEN NOW() AND NOW()+INTERVAL 168 HOUR "
+        "  AND deleted=0 AND tenant_id=%s", (tid,)))
     he_row = he[0] if he else {}
 
     # 分区 st_pptn_re_forecast(未来 168h)
     zo = unpack(execute_query(
         "SELECT COUNT(*) AS n, ROUND(SUM(drp),2) AS total_mm, MAX(tm) AS latest "
         "FROM st_pptn_re_forecast WHERE tenant_id=%s AND deleted=0 "
-        "  AND tm BETWEEN NOW() AND NOW()+INTERVAL 168 HOUR", (tenant_id,)))
+        "  AND tm BETWEEN NOW() AND NOW()+INTERVAL 168 HOUR", (tid,)))
     zo_row = zo[0] if zo else {}
 
     # weather_info 近 30d

@@ -22,7 +22,8 @@ if _REPO_ROOT not in sys.path:
 _PLAN_SCRIPTS = os.path.join(_REPO_ROOT, "plan-generation", "scripts")
 _SIM_SCRIPTS = os.path.join(_REPO_ROOT, "simulation", "scripts")
 _EW_SCRIPTS = os.path.join(_REPO_ROOT, "early-warning", "scripts")
-for _p in (_PLAN_SCRIPTS, _SIM_SCRIPTS, _EW_SCRIPTS):
+_FC_SCRIPTS = os.path.join(_REPO_ROOT, "forecasting", "scripts")
+for _p in (_PLAN_SCRIPTS, _SIM_SCRIPTS, _EW_SCRIPTS, _FC_SCRIPTS):
     if _p not in sys.path:
         sys.path.insert(0, _p)
 
@@ -179,6 +180,41 @@ class TestFiltersRuleTable(unittest.TestCase):
         import filters
         rule = filters.TENANT_ID_FILTER_TABLES.get('ew_info_message')
         self.assertFalse(rule['filter'])
+
+
+# ===========================================================================
+# forecasting/scripts/query_forecast_data.py —— S4：f_rnfl_h 补 tenant
+# ===========================================================================
+class TestForecastingTenantIsolation(unittest.TestCase):
+
+    @patch('query_forecast_data.execute_query')
+    def test_query_rainfall_forecast_filters_by_tenant(self, mock_eq):
+        """query_rainfall_forecast (f_rnfl_h) 应含 tenant_id 过滤（S4）。"""
+        from query_forecast_data import query_rainfall_forecast
+        os.environ['SRM_TENANT_ID'] = '18'
+        mock_eq.return_value = {'data': [], 'count': 0, 'truncated': False}
+        query_rainfall_forecast(hours=48)
+        sql, params = mock_eq.call_args[0]
+        self.assertIn('tenant_id', sql)
+        self.assertIn(18, params)
+
+    @patch('query_forecast_data.execute_query')
+    def test_multi_source_overview_hewind_filters_by_tenant(self, mock_eq):
+        """multi_source_overview 的 f_rnfl_h 168h 聚合应含 tenant_id 过滤（S4 勘误第二处）。"""
+        from query_forecast_data import query_multi_source_overview
+        os.environ['SRM_TENANT_ID'] = '20'
+        mock_eq.return_value = {'data': [{}], 'count': 1, 'truncated': False}
+        query_multi_source_overview()
+        seen = []
+        for c in mock_eq.call_args_list:
+            sql = c[0][0]
+            if 'f_rnfl_h' in sql:
+                params = c[0][1] if len(c[0]) > 1 else c[1].get('params', ())
+                seen.append((sql, params))
+        self.assertTrue(seen, "f_rnfl_h 查询未被调用")
+        for sql, params in seen:
+            self.assertIn('tenant_id', sql)
+            self.assertIn(20, params)
 
 
 if __name__ == '__main__':
