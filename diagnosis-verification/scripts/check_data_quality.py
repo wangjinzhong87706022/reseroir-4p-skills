@@ -135,7 +135,7 @@ def check_rainfall_forecast():
 
 
 def check_alerts():
-    """检查告警堆积情况"""
+    """检查告警堆积情况（ew_info_message 跨租户可见为显式设计决策，见 docs/shared-tables.md）"""
     print("\n" + "=" * 70)
     print("【告警堆积检查】")
     print("=" * 70)

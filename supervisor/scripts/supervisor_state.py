@@ -416,7 +416,7 @@ def cmd_health(args) -> dict:
     )[0]
     rf_cnt = int(rf["cnt"]) if rf["cnt"] is not None else 0
 
-    # 告警堆积（ew_info_message 未确认 + 高级别）
+    # 告警堆积（ew_info_message 未确认 + 高级别；跨租户可见为设计决策，见 docs/shared-tables.md）
     al = execute_query_list(
         "SELECT COUNT(*) as total, "
         "SUM(CASE WHEN level_r IN ('1','2') THEN 1 ELSE 0 END) as high "

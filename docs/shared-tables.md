@@ -596,5 +596,26 @@ CREATE INDEX idx_rnfl_h_type_ymdh ON f_rnfl_h(type, ymdh);
 
 ---
 
+## ew_info_message：跨租户可见（显式设计决策）
+
+**决策**（2026-08-20，评审 S3 落档）：告警表 `ew_info_message` 在全部 skill 中
+不做 tenant_id 过滤，保持全库可见。
+
+**理由**：
+1. 告警由中央告警引擎写入，行内无水库归属维度可用；
+2. supervisor `cmd_health` 告警堆积探针需要全局视角；
+3. `lib/filters.py` 规则表自始标注 `ew_info_message: filter:False`（告警跨租户，不强制）。
+
+**已知影响面（接受）**：
+- early-warning 的告警查询与 diagnosis-verification `check_alerts` 会看到
+  其他水库的告警；
+- supervisor 场景 D 仲裁（`arbitrate_emergency`）消费 `query_high_level` 输出，
+  A 库高级告警可能抬高 B 库应急风险判定——按"防洪优先、宁高勿低"原则接受。
+
+**变更条件**：若告警表将来增加水库/租户归属列，须重评本决策并补
+`tenant_id = %s` 过滤。
+
+---
+
 *维护: SmartTwinRes Team*  
 *来源: forecasting/references/table-schema.md + plan-generation/references/table-schema.md*

@@ -5,6 +5,7 @@
 
 共享库: SmartTwinRes-skills/lib/db.py
 标准文档: docs/db-credential-config.md
+ew_info_message 跨租户可见为显式设计决策，见 docs/shared-tables.md
 """
 
 import argparse
