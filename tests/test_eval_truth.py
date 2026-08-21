@@ -37,5 +37,19 @@ class TestTruth(unittest.TestCase):
         self.assertEqual(rows, [{"v": 7}])
         self.assertEqual(called["sql"], "SELECT 1")
 
+    def test_connect_delegates_to_lib_db(self):
+        # C1：_connect 应复用 lib.db 连接（同 env 解析/超时/fail-loud），
+        # 而非自带 root/空密码弱默认。CI 无 pymysql 时跳过。
+        try:
+            import pymysql  # noqa: F401
+        except ImportError:
+            self.skipTest("pymysql 未安装（CI 环境）")
+        from unittest.mock import patch
+        from eval.lib import truth
+        sentinel = object()
+        with patch('lib.db.get_connection', return_value=sentinel) as m:
+            self.assertIs(truth._connect({}), sentinel)
+        m.assert_called_once_with()
+
 if __name__ == "__main__":
     unittest.main()

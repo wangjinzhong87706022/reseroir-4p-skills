@@ -15,17 +15,11 @@ def compare_with_tolerance(numbers, truth, tolerance):
 
 
 def _connect(env):
-    """延迟导入 pymysql；连接参数读 SRM_DB_* env。可被测试替换。"""
-    import pymysql  # 延迟导入：CI 无需安装
-    return pymysql.connect(
-        host=os.environ.get("SRM_DB_HOST", "127.0.0.1"),
-        port=int(os.environ.get("SRM_DB_PORT", "3306")),
-        user=os.environ.get("SRM_DB_USER", "root"),
-        password=os.environ.get("SRM_DB_PASSWORD", ""),
-        database=os.environ.get("SRM_DB_NAME", "powerelf_srm_yml"),
-        charset="utf8mb4",
-        cursorclass=pymysql.cursors.DictCursor,
-    )
+    """复用 lib.db 连接：env 解析(SRM_DB_*→POWERELF_DB_*→fail-loud)、
+    连接/读取超时、DictCursor 与只读通道完全一致（评审 C1：消除双份连接
+    逻辑与 root/空密码弱默认）。保留本函数作为测试接缝。"""
+    from lib.db import get_connection  # 延迟导入：CI 无 DB/未装 pymysql 时不必引入
+    return get_connection()
 
 
 def make_db_query_fn(env):
