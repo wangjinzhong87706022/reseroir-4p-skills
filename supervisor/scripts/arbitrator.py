@@ -22,16 +22,11 @@ import sys
 from dataclasses import dataclass, field, asdict
 from typing import Optional
 
-# 让脚本能被 import（上级目录加入 path，读取 references）。
-# 内联去重 helper：不 import lib.paths——lib 包初始化会触发 lib.db 凭据检查，
-# 而本脚本在测试（无凭据环境）中也会被 import
-def _ensure_path(*paths):
-    for p in paths:
-        p = os.path.abspath(p)
-        if p not in sys.path:
-            sys.path.insert(0, p)
-
-_ensure_path(os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
+# 让脚本能被 import（上级目录加入 path，读取 references）。复用 lib.paths.ensure_path
+# （lib.db 已惰性 _ensure_db_config，import 不触发凭据检查——旧内联理由失效，评审 C3）。
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))  # 仓库根
+from lib.paths import ensure_path  # noqa: E402
+ensure_path(os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
 
 
 @dataclass

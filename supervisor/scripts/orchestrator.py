@@ -31,21 +31,18 @@ import subprocess
 import sys
 from pathlib import Path
 
-# 让脚本能被 import：去重插入脚本目录与仓库根，避免 reload/反复 import 造成 sys.path 膨胀。
-# 注意：不 import lib.paths——lib 包初始化会触发 lib.db 的模块级凭据检查（无 SRM_DB_* 时退出），
-# 而本脚本在测试（无凭据环境）中也会被 import。
-def _ensure_path(*paths):
-    for p in paths:
-        p = os.path.abspath(p)
-        if p not in sys.path:
-            sys.path.insert(0, p)
-
+# 让脚本能被 import：去重插入脚本目录与仓库根（复用 lib.paths.ensure_path；
+# lib.db 已惰性 _ensure_db_config，import 不再触发凭据检查——旧内联理由失效，评审 C3）。
 _REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-_ensure_path(os.path.dirname(os.path.abspath(__file__)), _REPO_ROOT)
+sys.path.insert(0, _REPO_ROOT)  # 先保证 lib 可导入
+from lib.paths import ensure_path  # noqa: E402
+ensure_path(os.path.dirname(os.path.abspath(__file__)), _REPO_ROOT)
+_ensure_path = ensure_path  # 旧内联 helper 的别名，保留 :180/:523 两处调用语句不变（C3）
 from supervisor_state import _connect, _state_dir  # noqa: E402
 from scene_router import route  # noqa: E402
 from arbitrator import (arbitrate_plan_vs_simulation, arbitrate_dam_diagnosis,
-                        arbitrate_emergency, arbitrate_risk_levels, asdict)  # noqa: E402
+                        arbitrate_emergency, arbitrate_risk_levels)  # noqa: E402
+from dataclasses import asdict  # noqa: E402 -- 直连标准库，不再经 arbitrator 再导出（C3）
 from supervisor_state import cmd_new  # noqa: E402
 
 # 场景默认优先级映射（D应急=高、A暴雨/B诊断=中、C日常=低；CLI --priority 可覆盖）
@@ -184,7 +181,6 @@ def load_reservoir_params() -> dict:
     _ensure_path(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", ".."))
     from lib.tenant import current_tenant_id
     from lib.db import execute_query_list
-
     tenant = current_tenant_id()
     out = {}
     try:
