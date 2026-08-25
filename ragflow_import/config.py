@@ -3,8 +3,8 @@ import pathlib
 
 # API
 API_BASE = "http://localhost:9380/api/v1"
-RAGFLOW_EMAIL = os.environ["RAGFLOW_EMAIL"]
-RAGFLOW_PASSWORD = os.environ["RAGFLOW_PASSWORD"]
+RAGFLOW_EMAIL = os.getenv("RAGFLOW_EMAIL", "placeholder@example.com")
+RAGFLOW_PASSWORD = os.getenv("RAGFLOW_PASSWORD", "placeholder")
 PUBLIC_PEM = "/opt/git/ragflow/conf/public.pem"
 
 # Corpus roots (read-only)
