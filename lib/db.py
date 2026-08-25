@@ -91,7 +91,7 @@ def _get_pool():
             from dbutils.pooled_db import PooledDB
             _pool = PooledDB(
                 creator=pymysql,
-                maxconnections=5,
+                maxconnections=10,  # 2026-08-25: 5→10，修复高并发连接耗尽问题
                 **config,
                 cursorclass=pymysql.cursors.DictCursor,
             )

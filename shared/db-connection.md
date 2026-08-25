@@ -55,7 +55,7 @@ from tenant import current_tenant_id
 
 ## 四、连接池
 
-`lib/db.py` 自动尝试 `dbutils.pooled_db.PooledDB`（maxconnections=5）；若 `dbutils` 未安装，回退到单连接模式。skill 脚本无需关心。
+`lib/db.py` 自动尝试 `dbutils.pooled_db.PooledDB`（maxconnections=10）；若 `dbutils` 未安装，回退到单连接模式。skill 脚本无需关心。
 
 ## 五、超时配置
 
