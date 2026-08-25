@@ -1,0 +1,26 @@
+# 根因解决方案知识库
+# 诊断 → 修复 → 沉淀，避免同类问题重复排查
+# 格式: problem_type / root_cause / evidence / solution / fix_time / tags / success_rate / last_used
+
+solutions:
+  - problem_type: 连接池耗尽导致查询超时
+    root_cause: 基础设施问题
+    evidence: "lib/db.py PooledDB maxconnections=5 过小，高并发时连接耗尽"
+    solution: "调整 maxconnections 5 → 10"
+    affected_files:
+      - lib/db.py:94
+      - shared/db-connection.md:58
+    fix_time: "首次 48 分钟 → 有知识库 15 分钟"
+    tags: [连接池, 超时, 基础设施, maxconnections, PooledDB]
+    success_rate: 0.95
+    last_used: "2026-08-25"
+    commit: "e28fc4d"
+    notes: |
+      PooledDB(maxconnections=10) 已验证：
+      - 126 单测通过
+      - 10 并发全部成功 (0.075s)
+      - 性能 0.003s << 5s 阈值
+      若后续并发 >10 仍超时，可考虑:
+      1. 继续增大 maxconnections (注意 MySQL max_connections 上限)
+      2. 加连接池健康检查
+      3. 检查是否有连接泄漏 (未 close)
