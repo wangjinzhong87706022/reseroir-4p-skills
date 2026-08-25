@@ -1,0 +1,59 @@
+"""
+Controlled vocabulary for the 桃曲坡 Reservoir KB RAGFlow import.
+13 TAB-separated (description, tags) rows covering knowledge types,
+flood event layers, and one filler/example row.
+"""
+
+from pathlib import Path
+
+VOCAB_ROWS = [
+    ("规程预案", "规程预案"),
+    ("基础数据", "基础数据"),
+    ("洪水资料", "洪水资料"),
+    ("组织管理", "组织管理"),
+    ("工程资料", "工程资料"),
+    ("2021-10", "2021-10"),
+    ("2020-8", "2020-8"),
+    ("2019-7", "2019-7"),
+    ("2013-7", "2013-7"),
+    ("2008-8", "2008-8"),
+    ("其他", "其他"),
+    ("历年统计", "历年统计"),
+    # filler / example row
+    ("规程预案", "规程预案"),
+]
+
+
+def write_vocab_txt(path: Path) -> None:
+    """Write VOCAB_ROWS as UTF-8 TAB-separated lines. Creates parent dirs."""
+    path = Path(path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with open(path, "w", encoding="utf-8") as f:
+        for desc, tags in VOCAB_ROWS:
+            # Mirror tag.py: tags column replaces '.' with '_' (no-op here — no dots)
+            f.write(f"{desc}\t{tags}\n")
+
+
+def parse_vocab_txt(path: Path) -> list[tuple[str, str]]:
+    """
+    Parse a vocab txt file and return list of (description, tags) tuples.
+    Mirrors tag.py chunk() delimiter detection:
+      - count TAB vs comma delimiters across all lines
+      - use TAB if tab_count >= comma_count, else comma
+    """
+    path = Path(path)
+    with open(path, encoding="utf-8") as f:
+        lines = f.read().splitlines()
+
+    comma_count = sum(1 for line in lines if len(line.split(",")) == 2)
+    tab_count = sum(1 for line in lines if "\t" in line)
+    delimiter = "\t" if tab_count >= comma_count else ","
+
+    result = []
+    for line in lines:
+        if not line.strip():
+            continue
+        parts = line.split(delimiter)
+        if len(parts) == 2:
+            result.append((parts[0].strip(), parts[1].strip()))
+    return result
