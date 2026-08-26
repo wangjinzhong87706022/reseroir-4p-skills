@@ -9,7 +9,9 @@ from __future__ import annotations
 
 import base64
 import json
+import os
 import sys
+import time
 from pathlib import Path
 
 # 放在 ragflow_import/ 下，config.py 在同一级目录
@@ -189,13 +191,13 @@ def main() -> None:
             endpoint = getattr(sys.modules[__name__], "API_BASE", "http://localhost:9380/api/v1")
             # 从 config 拿 API_BASE（config 模块已经在上面 import 时加载）
             from config import API_BASE as _cfg_endpoint
-            endpoint = _cfg_endpoint
+            endpoint = os.environ.get("LLM_API_ENDPOINT", "https://llm.openagp.top:9080/v1")
 
-            api_key = getattr(sys.modules[__name__], "RAGFLOW_API_KEY", "placeholder")
-            from config import RAGFLOW_EMAIL, RAGFLOW_PASSWORD
-            import hashlib, time
-            # 简单 token：email:password 的 SHA1 前16位作为占位 api_key
-            api_key = hashlib.sha1(f"{RAGFLOW_EMAIL}:{RAGFLOW_PASSWORD}".encode()).hexdigest()[:16]
+            api_key = os.environ.get("LLM_API_KEY", "")
+            if not api_key:
+                print("[ERROR] LLM_API_KEY environment variable is not set")
+                fail_path.write_text("LLM_API_KEY not set", encoding="utf-8")
+                continue
 
             vlm_text = ""
             for attempt in range(3):  # 0,1,2 → 最多 3 次（原始+2次重试）

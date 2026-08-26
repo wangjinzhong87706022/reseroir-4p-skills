@@ -7,7 +7,7 @@ import time
 from dataclasses import asdict, dataclass
 from pathlib import Path
 
-from config import DERIVED_ROOT, OUT_DIR
+from config import DERIVED_ROOT, OUT_DIR, RAGFLOW_EMAIL, RAGFLOW_PASSWORD, PUBLIC_PEM
 from corpus import read_mapping_csv
 from ragflow_client import RAGFlowClient
 
@@ -83,7 +83,7 @@ class ImportStateMachine:
                 for k, v in raw.items():
                     self._state[k] = v  # already dict (from JSON)
             except (json.JSONDecodeError, OSError):
-                pass
+                print("[WARN] import_state.json corrupt, starting fresh")
 
     def get(self, rel: str) -> str | None:
         return self._state.get(rel, {}).get("status")
@@ -162,7 +162,7 @@ def run_import(
 
     # Order: ds1..ds5 (ds0 tag KB is already done)
     ds_order = ["ds1", "ds2", "ds3", "ds4", "ds5"]
-    pending.sort(key=lambda r: ds_order.index(r.get("dataset_key", "ds1")))
+    pending.sort(key=lambda r: ds_order.index(r.get("dataset_key", "ds1")) if r.get("dataset_key", "ds1") in ds_order else len(ds_order))
 
     if limit:
         pending = pending[:limit]
@@ -176,9 +176,9 @@ def run_import(
 
     # ── Real import ─────────────────────────────────────────────────────────
     client = RAGFlowClient(
-        email=open(DERIVED_ROOT.parent / "ragflow_import" / ".email").read().strip(),
-        password=open(DERIVED_ROOT.parent / "ragflow_import" / ".password").read().strip(),
-        public_pem_path=str(DERIVED_ROOT.parent / "ragflow_import" / "conf" / "public.pem"),
+        email=RAGFLOW_EMAIL,
+        password=RAGFLOW_PASSWORD,
+        public_pem_path=PUBLIC_PEM,
     )
 
     done = 0
