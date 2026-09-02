@@ -9,7 +9,8 @@ cases:
     skill: supervisor
     category: 场景A_汛期暴雨研判
     description: A 场景完整七步研判（正常，超汛限）
-    question: "桃曲坡水库当前水位 786.95m 超过汛限 786.8m，气象预报未来有暴雨，请走完整的汛期暴雨研判调度流程。"
+    question: "桃曲坡水库当前水位 786.95m 超过汛限 786.8m，气象预报未来有暴雨，请做汛期暴雨研判和调度。"
+    question_v2: true
     env: {SRM_TENANT_ID: 20, SRM_RESERVOIR_NAME: taoqupo}
     timeout: 1500
     tags: [slow]
@@ -39,7 +40,8 @@ cases:
     skill: supervisor
     category: 场景B_大坝安全诊断
     description: B 场景大坝诊断链（正常，数据质量异常 escalate）
-    question: "桃曲坡水库近期渗流和水位数据存在质量问题，请启动大坝安全智能诊断全流程。"
+    question: "桃曲坡水库近期渗流和水位数据存在质量问题，请对大坝安全做一次诊断。"
+    question_v2: true
     env: {SRM_TENANT_ID: 20, SRM_RESERVOIR_NAME: taoqupo}
     timeout: 480
     source: supervisor/demo-output/B-20260805-192723.json
@@ -68,16 +70,19 @@ cases:
     skill: supervisor
     category: 场景C_日常管控
     description: C 场景日常水情汇报（正常）
-    question: "今天是工作日早晨，请生成桃曲坡水库的日常水情管控研判报告。"
+    question: "今天是工作日早晨，请出一份桃曲坡水库的日常水情研判报告。"
+    question_v2: true
     env: {SRM_TENANT_ID: 20, SRM_RESERVOIR_NAME: taoqupo}
     timeout: 300
     source: supervisor/demo-output/C-20260805-192723.json
     truth_source: rubric
     expected_keywords: ["日常", "报告"]
+    # 2026-08-27 改双路径：demo 数据静止导致运行日数据必然陈旧(>24h)，
+    # 按仲裁规则升级是正确安全行为，旧 rubric 第三条会误杀正常升级路径。
     rubric:
-      - 完成 forecasting→simulation→报告 三步
+      - 完成 C 场景 DAG：水情核查→蓄水节律推演→报告（推演确不可行时给出跳过原因并说明依据）
       - 报告含当前水位/入库/出库/蓄水量四要素
-      - 不触发应急流程（C 场景 priority=低）
+      - 数据正常时不触发应急流程；若监测数据陈旧（>24h）或超汛限，按仲裁规则升级处置并在报告中标注 HITL 待确认（两条路径均判满足）
   - id: SUP6
     skill: supervisor
     category: 场景C_日常管控
@@ -93,7 +98,8 @@ cases:
     skill: supervisor
     category: 场景D_应急响应
     description: D 场景应急响应链（正常，险情上报）
-    question: "桃曲坡水库发生险情，I级响应触发，请启动应急响应流程。"
+    question: "桃曲坡水库发生险情，I 级响应触发，请做应急响应。"
+    question_v2: true
     env: {SRM_TENANT_ID: 20, SRM_RESERVOIR_NAME: taoqupo}
     timeout: 480
     source: supervisor/demo-output/D-20260805-192723.json
@@ -122,7 +128,8 @@ cases:
     skill: supervisor
     category: 场景路由
     description: 触发信号→场景路由（正常）
-    question: "用户输入'暴雨预警，水位超汛限，需要研判调度'，应识别为哪个场景？对应 DAG 是什么？"
+    question: "用户输入'暴雨预警，水位超汛限，需要研判调度'，这应该走哪个场景？具体步骤是什么？"
+    question_v2: true
     env: {SRM_TENANT_ID: 20, SRM_RESERVOIR_NAME: taoqupo}
     timeout: 60
     source: supervisor/SKILL.md::§一 场景识别入口 scene_router.py
@@ -139,6 +146,6 @@ cases:
     truth_source: rubric
     expected_keywords: ["续跑", "step"]
     rubric:
-      - 通过 supervisor_state.py resume 列出未完成阶段
+      - 通过状态持久化模块列出未完成阶段（定位续跑入口即可，不绑死特定脚本名）
       - 从 Step4 续跑而非从头开始
       - 保留已完成阶段结果（pending/ok/skipped/error）
