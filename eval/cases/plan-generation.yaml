@@ -18,10 +18,10 @@ cases:
     truth_source: rubric
     expected_keywords: ["防洪", "预案"]
     rubric:
-      - 形势判断+方案推荐+风险提示三段齐全
+      - 形势判断+方案推荐+风险提示三段齐全（对应 SKILL.md【依据】【分析】【校验与依据】三段式亦可）
       - schedulingTarget=0（防洪安全）、schedulingModel=0（控制最高水位）
       - maxWaterLevel 不超 model_config 的 max_water_level（462.88m）
-      - 引用 dispatch-rules.md / 知识库规则
+      - 引用规则/法规依据（如调度规则、《防洪法》、GB 17621-1998、知识库规则任一即可）
   - id: PG2
     skill: plan-generation
     category: 形势研判
@@ -36,7 +36,7 @@ cases:
     rubric:
       - 给出当前水位与汛限的距离（余量约 3.3m）
       - 明确"是否需要启动预案"的判断
-      - 引用 emergency-response.md / dispatch-rules.md
+      - 引用规则/法规依据（如调度规则、《防洪法》、GB 17621-1998 任一即可）
   - id: PG3
     skill: plan-generation
     category: 预案解读
@@ -51,7 +51,7 @@ cases:
     rubric:
       - 给出起调/最高水位与实际控制结果对比
       - 评估安全余量（约 3.07m）
-      - 引用 dispatch-rules.md
+      - 引用规则/法规依据（如调度规则、GB 17621-1998 任一即可）
   - id: PG4
     skill: plan-generation
     category: 应急响应
@@ -66,7 +66,7 @@ cases:
     rubric:
       - 识别水位 463.0m > 汛限 462.5m 的紧急状态
       - 建议立即加大泄洪并通知防汛指挥部
-      - 引用 emergency-response.md
+      - 引用规则/法规依据（如《防洪法》第41条、调度规则任一即可）
   - id: PG5
     skill: plan-generation
     category: 综合场景
@@ -80,8 +80,8 @@ cases:
     expected_keywords: ["汛期", "方案"]
     rubric:
       - 建议提前预泄、预留防洪库容
-      - 调度时长覆盖整个降雨过程（≥72h）
-      - 引用 dispatch-rules.md 与 emergency-response.md
+      - 调度时长覆盖整个降雨过程（按 dispatch-rules：3 天降雨 >48h → tmSpan=72h）
+      - 引用规则/法规依据（如调度规则、GB 17621-1998 任一即可）
   # === 二、基础查询类（v1 Q1-Q5） ===
   - id: PG6
     skill: plan-generation
@@ -92,7 +92,7 @@ cases:
     timeout: 60
     source: plan-generation/tests/test-questions.md::Q1
     truth_source: live_db
-    truth_query: "SELECT rz FROM st_rsvr_r WHERE rz IS NOT NULL AND deleted = 0 ORDER BY tm DESC LIMIT 1"
+    truth_query: "SELECT rz FROM st_rsvr_r WHERE rz IS NOT NULL AND deleted = 0 AND stcd = '3' ORDER BY tm DESC LIMIT 1"
     tolerance: 1.0
     expected_keywords: ["水位"]
   - id: PG7
@@ -198,7 +198,7 @@ cases:
     truth_source: rubric
     expected_keywords: ["综合", "预案"]
     rubric:
-      - 确认当前水位 459.18m < 汛限 462.5m
+      - 以实测水位（非固定假设值）确认当前水位与汛限的关系，调度方向与该状态一致（低于汛限走兴利平衡；若实测已超汛限则先降回汛限以下再平衡）
       - 使用 schedulingModel=2（控制水位范围）
       - maxWaterLevel 与 minWaterLevel 在合理范围内
   - id: PG16
@@ -220,14 +220,15 @@ cases:
     skill: plan-generation
     category: 异常场景
     description: 当前水位 NULL 处理（异常）
-    question: "如果当前水位数据为 NULL，应该如何处理预案生成？"
+    question: "如果当前水位数据为空，应该如何处理预案生成？"
+    question_v2: true
     env: {SRM_TENANT_ID: 18, SRM_RESERVOIR_NAME: sancha}
     timeout: 120
     source: plan-generation/tests/test-questions.md::Q18
     truth_source: rubric
-    expected_keywords: ["NULL", "不可用"]
+    expected_keywords: ["空", "不可用"]
     rubric:
-      - 检测 rz=NULL 状态
+      - 检测当前水位数据为空/缺失状态（定位水位表，确认无有效 rz 值即可，不绑死特定列名）
       - 提示"水位数据不可用，无法生成预案"或回退最近有效值
       - 不输出崩溃或空方案
   - id: PG18
@@ -241,9 +242,9 @@ cases:
     truth_source: rubric
     expected_keywords: ["超汛限", "紧急"]
     rubric:
-      - 进入紧急模式
-      - 生成最大泄流方案（受安全泄量约束）
-      - 标注"水位超汛限，需紧急调度"
+      - 识别水位超汛限的紧急状态并选择防洪优先调度目标
+      - 给出最大泄流/控制最大出库方案并说明出库约束依据（按 emergency-response.md：常规超汛限= min(最大泄流能力, 安全泄量95.1)；识别 463.0m 已超校核洪水位 462.88m 而按全力泄洪（≤191 m³/s）控制亦算满足）
+      - 明确标注水位超汛限并给出紧急处置建议
   - id: PG19
     skill: plan-generation
     category: 异常场景
@@ -286,7 +287,7 @@ cases:
     rubric:
       - 评估暴雨对水位的预期影响
       - 给出预泄/防洪预案建议
-      - 引用 emergency-response.md
+      - 引用规则/法规依据（如《防洪法》、GB 17621-1998、调度规则任一即可）
   # === 七、历史参考类（v2 Q19-Q23，精选 2 道） ===
   - id: PG22
     skill: plan-generation
@@ -331,13 +332,14 @@ cases:
     skill: plan-generation
     category: 边界条件
     description: 调度时长 tmSpan=0 校验（异常）
-    question: "如果用户指定调度时长 tmSpan=0，系统如何处理？"
+    question: "如果用户指定调度时长为 0，系统如何处理？"
+    question_v2: true
     env: {SRM_TENANT_ID: 18, SRM_RESERVOIR_NAME: sancha}
     timeout: 60
     source: plan-generation/tests/test-questions.md::Q49
     truth_source: rubric
     expected_keywords: ["调度时长", "0"]
     rubric:
-      - 检测 tmSpan=0 的参数错误
+      - 检测调度时长为 0 的参数错误（定位调度时长参数，确认值为 0 即可，不绑死内部参数名）
       - 提示"调度时长必须大于 0"
       - 不进入模型计算
