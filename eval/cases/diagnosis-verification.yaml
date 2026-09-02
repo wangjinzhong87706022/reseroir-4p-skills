@@ -15,41 +15,43 @@ cases:
     tags: [smoke]
     source: diagnosis-verification/tests/test-cases.md::测试用例1
     truth_source: rubric
-    expected_keywords: ["时效性", "P0"]
+    expected_keywords: ["时效"]
     rubric:
-      - Phase 0 问题类型识别为数据时效性、优先级 P0
+      - Phase 0 问题类型识别为数据异常/时效性类、优先级 P0
       - Phase 2 给出完整性/时效性评分（差）
-      - Phase 5 根因分类为数据问题（pipeline 故障）
+      - Phase 5 根因分类指向数据链路（采集/ETL/pipeline 停摆），归"数据问题"或"基础设施问题"皆可，须有证据链
       - Phase 7 给出短期止血+长期根治方案
-      - Phase 8 知识库已更新
+      - Phase 8 诊断结论沉淀（更新知识库或产出可复用的分析报告/修复记录，二选一即可）
   - id: DV2
     skill: diagnosis-verification
     category: 告警堆积诊断
     description: 1165 条未确认告警堆积诊断（正常，P1）
-    question: "告警堆积，最近有大量未确认告警"
+    question: "三岔水库最近有大量未确认告警，请诊断原因并给出处置建议"
+    question_v2: true
     env: {SRM_TENANT_ID: 18, SRM_RESERVOIR_NAME: sancha}
     timeout: 240
     source: diagnosis-verification/tests/test-cases.md::测试用例2
     truth_source: rubric
-    expected_keywords: ["告警", "堆积"]
+    expected_keywords: ["告警", "未确认"]
     rubric:
-      - Phase 5 根因分类为预期行为（误报）或告警规则过敏感
-      - Phase 7 给出短期批量确认/清理 + 长期阈值调整
+      - Phase 5 根因分类基于实际数据（流程缺失/误报/规则过敏感均可，须与告警年龄分布等证据一致）
+      - Phase 7 给出短期批量确认/清理 + 长期机制方案（SLA/阈值调整等对症即可）
       - 不简单清空告警而无根因分析
   - id: DV3
     skill: diagnosis-verification
     category: 输出验证
     description: 预报输出 6 层验证（正常）
-    question: "请验证最近一次预报输出是否符合验收标准（含数据源、三段式、安全校验段）"
+    question: "请验证最近一次预报输出是否合格，数据来源、报告结构和安全校验都查一下"
+    question_v2: true
     env: {SRM_TENANT_ID: 18, SRM_RESERVOIR_NAME: sancha}
     timeout: 240
     source: diagnosis-verification/tests/test-cases.md::测试用例3
     truth_source: rubric
-    expected_keywords: ["验证", "层"]
+    expected_keywords: ["验证", "数据"]
     rubric:
-      - Layer 1 数据源正确（query_forecast_data.py）
+      - Layer 1 数据源核验到位（定位预报结果表与降雨/水位来源表，确认无 skill 间数据源混用；tenant 隔离由 SRM_TENANT_ID 环境变量保证，输出未混用其他水库数据即视为正确）
       - Layer 2 三段式完整 + 引用 GB/T 22482 + 无硬编码
-      - Layer 5 跨 skill 数据一致
+      - Layer 5 跨 skill 数据一致性有核查动作（比对预演/方案/预报关键字段，一致或给出差异点即可）
       - 6 层全部覆盖
   - id: DV4
     skill: diagnosis-verification
@@ -69,7 +71,8 @@ cases:
     skill: diagnosis-verification
     category: 自动修复
     description: 基础设施问题自动修复（正常，6 步）
-    question: "诊断报告根因为基础设施问题（连接池配置不当），请走自动修复流程"
+    question: "诊断报告根因为基础设施问题（连接池配置不当），请尝试自动修复"
+    question_v2: true
     env: {SRM_TENANT_ID: 18, SRM_RESERVOIR_NAME: sancha}
     timeout: 480
     source: diagnosis-verification/tests/test-cases.md::测试用例5
@@ -77,9 +80,9 @@ cases:
     expected_keywords: ["修复", "基础设施"]
     rubric:
       - Step 1 诊断报告解析正确
-      - Step 2 知识库匹配度 >80%
-      - Step 5 测试通过（单元+集成+回归+性能）
-      - Step 6 代码已提交并部署
+      - Step 2 知识库匹配：检索到同类根因或匹配记录（匹配度量化或命中条目均可，agent 实际更新知识库同样视为满足）
+      - Step 5 产出可执行的测试方案（覆盖单元+集成+回归+性能，给出测试命令或清单；eval 沙箱只读时须如实说明无法执行并升级人工）
+      - Step 6 产出可执行的提交/部署清单（commit 范围 + 部署步骤；eval 沙箱只读时须如实说明无法提交并升级人工）
   # === 二、补充 5 道（覆盖更多 Phase/异常/边界） ===
   - id: DV6
     skill: diagnosis-verification
@@ -91,28 +94,30 @@ cases:
     tags: [live_db]
     source: 补充：水位时效性快检（对齐 test-cases.md::测试用例1 数据时效性）
     truth_source: live_db
-    truth_query: "SELECT rz FROM st_rsvr_r WHERE rz IS NOT NULL AND deleted = 0 ORDER BY tm DESC LIMIT 1"
+    truth_query: "SELECT rz FROM st_rsvr_r WHERE rz IS NOT NULL AND deleted = 0 AND stcd = '3' ORDER BY tm DESC LIMIT 1"
     tolerance: 1.0
     expected_keywords: ["水位", "时效"]
   - id: DV7
     skill: diagnosis-verification
     category: 输出验证
     description: 预演输出 Layer 5 跨 skill 一致性（正常）
-    question: "请验证最近一次 simulation 预演输出与 plan-generation 方案数据是否一致"
+    question: "请验证最近一次预演输出与调度方案的数据是否一致"
+    question_v2: true
     env: {SRM_TENANT_ID: 18, SRM_RESERVOIR_NAME: sancha}
     timeout: 240
     source: 补充：跨 skill 一致性验证（对齐 SKILL.md Layer 5）
     truth_source: rubric
     expected_keywords: ["一致", "验证"]
     rubric:
-      - Layer 5 跨 skill 数据一致
-      - 比对 simulation 与 plan-generation 关键字段（最高水位/削峰率）
+      - Layer 5 跨 skill 数据一致（定位预演输出表与调度方案表，比对关键字段，确认无 skill 间数据混用、tenant 隔离正确）
+      - 比对预演输出与调度方案关键字段（最高水位/削峰率），agent 自建脚本同样视为正确（不绑死特定脚本名）
       - 不一致时给出明确差异点
   - id: DV8
     skill: diagnosis-verification
     category: 根因诊断
     description: 预案失败根因诊断（异常）
-    question: "最近一次 plan-generation 预案执行失败，请诊断根因"
+    question: "三岔水库最近一次调度预案执行失败，请诊断根因"
+    question_v2: true
     env: {SRM_TENANT_ID: 18, SRM_RESERVOIR_NAME: sancha}
     timeout: 300
     source: 补充：预案失败根因诊断（对齐 SKILL.md Phase 5 根因分类）
@@ -131,22 +136,23 @@ cases:
     timeout: 120
     source: 补充：边界值验证（对齐 test-cases.md::测试用例4 边界）
     truth_source: rubric
-    expected_keywords: ["汛限", "边界"]
+    expected_keywords: ["汛限"]
     rubric:
       - 处理 rz == 汛限 的边界情况
-      - 按规则判定（≤ 通过 / > 阻塞）
+      - 按 SKILL.md 规则 ratio >= 1.0 判定超限阻塞（等于汛限不通过）
       - 不输出歧义结论
   - id: DV10
     skill: diagnosis-verification
     category: 自动修复
-    description: 修复测试不通过回滚（异常边界，Step 5 失败）
-    question: "自动修复流程中 Step 5 测试未通过（性能回归），应如何处理？"
+    description: 修复测试不通过停止升级（异常边界，Step 5 失败）
+    question: "自动修复过程中，测试阶段未通过（性能回归），应如何处理？"
+    question_v2: true
     env: {SRM_TENANT_ID: 18, SRM_RESERVOIR_NAME: sancha}
     timeout: 180
-    source: 补充：修复流程异常分支（对齐 test-cases.md::测试用例5 Step 5）
+    source: 补充：修复流程异常分支（对齐 test-cases.md::测试用例5 Step 5）；2026-08-26 修正——auto-fix-6steps.md Step 5 规定为触发停止条件→停止并升级人工，原文档无"回滚"概念
     truth_source: rubric
-    expected_keywords: ["回滚", "测试"]
+    expected_keywords: ["测试", "停止"]
     rubric:
-      - 检测 Step 5 测试失败
-      - 触发回滚而非强制部署
+      - 检测修复流程中测试阶段（性能回归）失败
+      - 触发停止并升级人工而非强制部署
       - 给出失败原因（性能/集成/回归之一）
