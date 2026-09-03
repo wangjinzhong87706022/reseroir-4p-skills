@@ -38,8 +38,26 @@ class TestRunner(unittest.TestCase):
                 return {"output": "当前水位 462 m", "answer": "当前水位 462 m",
                         "stderr": "", "exit_code": 0, "timed_out": False}
             rc = _quiet_main(["--skill", "forecasting", "--cases-dir", d,
-                              "--report-dir", d], transport_fn=fake_transport)
+                              "--report-dir", d, "--keywords-mode", "hard"],
+                             transport_fn=fake_transport)
             self.assertEqual(rc, 1)  # F2 FAIL（缺"不存在词"）→ 有 FAIL → 退出码 1
+            # T4 起 expected_keywords 默认 advisory（只报告不判分），本用例锁的是旧 hard 语义 → 显式传 hard
+
+    def test_default_keywords_mode_advisory_end_to_end(self):
+        """T4 端到端：默认 advisory 下关键词未命中不再 FAIL，且报告 meta 记录 keywords_mode。"""
+        import json
+        import tempfile
+        with tempfile.TemporaryDirectory() as d:
+            self._cases_yaml(d)
+            def fake_transport(question, skill_id, env, timeout, skill_dir=None, _runner=None):
+                return {"output": "当前水位 462 m", "answer": "当前水位 462 m",
+                        "stderr": "", "exit_code": 0, "timed_out": False}
+            rc = _quiet_main(["--skill", "forecasting", "--cases-dir", d,
+                              "--report-dir", d], transport_fn=fake_transport)
+            self.assertEqual(rc, 0)  # F2 缺"不存在词" → advisory 下不参与判分
+            jp = sorted(pathlib.Path(d).glob("eval-*.json"))[-1]
+            summary = json.loads(jp.read_text())["summary"]
+            self.assertEqual(summary["meta"]["keywords_mode"], "advisory")
 
     def test_all_pass_exit_zero(self):
         import tempfile
