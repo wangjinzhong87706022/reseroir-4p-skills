@@ -66,12 +66,15 @@ def judge_live_db(case, output: str, query_fn, keywords_mode: str = "advisory") 
 def judge_rubric(case, output: str, llm_fn=None, keywords_mode: str = "advisory") -> dict:
     forb = [w for w in case.forbidden if str(w).lower() in (output or "").lower()]
     kw = _keyword_check(output, case.expected_keywords)
-    kw_hard = kw["all_found"] if keywords_mode == "hard" else True
+    # advisory 的前提是存在语义考官；无考官时回退硬门——否则 rule_pass 恒真，
+    # 垃圾答案静默 PASS（终审复核 I-1）。显式传 hard 不受影响。
+    mode = keywords_mode if llm_fn is not None else "hard"
+    kw_hard = kw["all_found"] if mode == "hard" else True
     rule_pass = kw_hard and not forb
-    detail = {"keywords_mode": keywords_mode,
+    detail = {"keywords_mode": mode,
               "keywords_advisory": kw["keyword_checks"], "all_found_advisory": kw["all_found"],
               "forbidden_hits": forb}
-    if keywords_mode == "hard":
+    if mode == "hard":
         detail.update(kw)
     if llm_fn is None:
         return {"verdict": "PASS" if rule_pass else "FAIL",

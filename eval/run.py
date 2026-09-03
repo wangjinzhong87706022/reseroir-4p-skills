@@ -50,7 +50,7 @@ def parse_args(argv):
     p.add_argument("--list", action="store_true", help="仅列出用例")
     p.add_argument("--keywords-mode", choices=["hard", "advisory"], default="advisory",
                    help="expected_keywords 语义：advisory=只报告不判分（默认）；hard=一票否决（旧版）。"
-                        "forbidden_keywords 恒为硬门")
+                        "forbidden_keywords 恒为硬门；无 LLM 考官的 rubric 题自动回退 hard")
     return p.parse_args(argv)
 
 

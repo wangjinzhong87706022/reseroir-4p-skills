@@ -122,6 +122,14 @@ class TestKeywordsAdvisory(unittest.TestCase):
         r = judge.judge_inline(c, "当前 462.5 m", keywords_mode="hard")
         self.assertEqual(r["verdict"], "FAIL")
 
+    def test_no_llm_rubric_keeps_keywords_hard_even_in_advisory(self):
+        # 终审 I-1：advisory 默认 × 无考官曾是零质量门（垃圾答案静默 PASS）
+        c = _case(truth_source="rubric", rubric=["正确处理"],
+                  expected_keywords=["未找到", "测站"])
+        r = judge.judge_rubric(c, "完全无关的垃圾内容。" * 10)
+        self.assertEqual(r["verdict"], "FAIL")
+        self.assertEqual(r["detail"]["keywords_mode"], "hard")
+
 
 class TestLlmJudge(unittest.TestCase):
     def test_parses_strict_json(self):

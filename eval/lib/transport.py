@@ -15,8 +15,11 @@ def run_hermes(question, skill_id, env, timeout, skill_dir=None, _runner=subproc
         return {"output": output, "answer": answer, "answer_extracted": extracted,
                 "stderr": (r.stderr or "").strip(),
                 "exit_code": r.returncode, "timed_out": False}
-    except subprocess.TimeoutExpired:
-        return {"output": "", "answer": "", "answer_extracted": False,
+    except subprocess.TimeoutExpired as e:
+        partial = getattr(e, "stdout", "") or ""
+        if isinstance(partial, bytes):
+            partial = partial.decode("utf-8", "replace")
+        return {"output": partial.strip(), "answer": "", "answer_extracted": False,
                 "stderr": "", "exit_code": None, "timed_out": True}
 
 

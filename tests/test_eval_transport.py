@@ -160,6 +160,15 @@ class TestRunHermesAnswer(unittest.TestCase):
         self.assertTrue(r["timed_out"])
         self.assertEqual(r["answer"], "")
 
+    def test_timeout_keeps_partial_output(self):
+        def fake(cmd, capture_output, text, timeout, cwd, env):
+            raise subprocess.TimeoutExpired(cmd=cmd, timeout=timeout,
+                                            output="┊ review diff\n部分输出…")
+        r = run_hermes("q", "s", {}, 60, _runner=fake)
+        self.assertTrue(r["timed_out"])
+        self.assertEqual(r["answer"], "")
+        self.assertIn("部分输出", r["output"])
+
 
 if __name__ == "__main__":
     unittest.main()
