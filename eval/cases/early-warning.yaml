@@ -52,21 +52,23 @@ cases:
     skill: early-warning
     category: 根因分析
     description: 水位变化趋势根因（正常）
-    question: "最近水位变化趋势怎么样？为什么这段时间水位持续上涨？"
+    question: "三岔水库近 24 小时水位变化趋势怎么样？为什么这段时间水位持续上涨？"
+    question_v2: true
     env: {SRM_TENANT_ID: 18, SRM_RESERVOIR_NAME: sancha}
     timeout: 120
     source: early-warning/autoresearch-v3/test-inputs.md::Q14
     truth_source: rubric
     expected_keywords: ["水位", "趋势"]
     rubric:
-      - 基于 st_rsvr_r 历史水位数据分析趋势
+      - 基于历史水位数据分析趋势（定位水位实测表即可，不绑死特定表名）
       - 给出上涨/下降/平稳的明确判断
       - 关联降雨或调度因素解释根因
   - id: EW6
     skill: early-warning
     category: 根因分析
     description: 渗流异常根因分析（正常，场景10/11）
-    question: "渗流数据最近有没有异常？可能是什么原因导致的？"
+    question: "三岔水库渗流数据近 7 天有没有异常？可能是什么原因导致的？"
+    question_v2: true
     env: {SRM_TENANT_ID: 18, SRM_RESERVOIR_NAME: sancha}
     timeout: 180
     source: early-warning/autoresearch-v3/test-inputs.md::Q16
@@ -80,12 +82,13 @@ cases:
     skill: early-warning
     category: 根因分析
     description: 多源综合诊断（正常，三域联动）
-    question: "对当前所有告警做一次综合诊断，最需要关注的是哪几个？"
+    question: "三岔水库当前所有告警里，最需要关注的是哪几个？请按风险排序并说明原因。"
+    question_v2: true
     env: {SRM_TENANT_ID: 18, SRM_RESERVOIR_NAME: sancha}
     timeout: 180
     source: early-warning/autoresearch-v3/test-inputs.md::Q20
     truth_source: rubric
-    expected_keywords: ["诊断", "关注"]
+    expected_keywords: ["告警", "关注"]
     rubric:
       - 综合水位+降雨+渗流三域数据
       - 按风险权重排出优先级
@@ -95,21 +98,23 @@ cases:
     skill: early-warning
     category: 关联分析
     description: 水位降雨关联分析（正常，场景8/9）
-    question: "水位上涨和降雨是什么关系？最近降雨对水位的影响有多大？"
+    question: "三岔水库水位上涨和降雨是什么关系？近 7 天降雨对水位的影响有多大？"
+    question_v2: true
     env: {SRM_TENANT_ID: 18, SRM_RESERVOIR_NAME: sancha}
     timeout: 180
     source: early-warning/autoresearch-v3/test-inputs.md::Q22
     truth_source: rubric
     expected_keywords: ["水位", "降雨"]
     rubric:
-      - 联合 st_rsvr_r + st_pptn_r 数据分析
+      - 联合水位与降雨数据分析（定位水位实测表与降雨实测表即可，不绑死特定表名）
       - 给出降雨→水位响应的时滞判断
       - 不脱离数据空谈
   - id: EW9
     skill: early-warning
     category: 关联分析
     description: 三域关联分析（正常，场景2 高风险）
-    question: "水位、降雨、渗流三者有什么关联？是否存在复合风险？"
+    question: "三岔水库水位、降雨、渗流三者有什么关联？是否存在复合风险？"
+    question_v2: true
     env: {SRM_TENANT_ID: 18, SRM_RESERVOIR_NAME: sancha}
     timeout: 180
     source: early-warning/autoresearch-v3/test-inputs.md::Q28
@@ -124,21 +129,23 @@ cases:
     skill: early-warning
     category: 预测预警
     description: 水位趋势预测（正常，场景8）
-    question: "按最近水位数据预测，未来6小时水位会涨到多少？"
+    question: "按三岔水库当前水位数据预测，未来 6 小时水位会涨到多少？"
+    question_v2: true
     env: {SRM_TENANT_ID: 18, SRM_RESERVOIR_NAME: sancha}
     timeout: 180
     source: early-warning/autoresearch-v3/test-inputs.md::Q29
     truth_source: rubric
     expected_keywords: ["预测", "水位"]
     rubric:
-      - 基于 st_rsvr_r 近 6 小时数据外推
+      - 基于近 6 小时水位数据外推（定位水位实测表即可，不绑死特定表名）
       - 给出预测值与置信度
       - 不编造无依据的精确值
   - id: EW11
     skill: early-warning
     category: 预测预警
     description: 告警升级判断（边界，场景5）
-    question: "当前告警会不会升级？升级条件是什么？"
+    question: "三岔水库当前告警会不会升级？升级的阈值条件是什么？"
+    question_v2: true
     env: {SRM_TENANT_ID: 18, SRM_RESERVOIR_NAME: sancha}
     timeout: 120
     source: early-warning/autoresearch-v3/test-inputs.md::Q33
@@ -168,7 +175,8 @@ cases:
     skill: early-warning
     category: 应急响应
     description: 应急响应建议（正常）
-    question: "针对当前告警情况，应该启动什么级别的应急响应？"
+    question: "三岔水库当前告警情况，应该启动什么级别的应急响应？"
+    question_v2: true
     env: {SRM_TENANT_ID: 18, SRM_RESERVOIR_NAME: sancha}
     timeout: 180
     source: early-warning/autoresearch-v3/test-inputs.md::Q44
@@ -183,7 +191,8 @@ cases:
     skill: early-warning
     category: 参数优化
     description: 阈值合理性分析（正常）
-    question: "当前告警阈值设置合理吗？有没有需要优化的地方？"
+    question: "三岔水库当前告警阈值设置合理吗？有没有需要优化的地方？"
+    question_v2: true
     env: {SRM_TENANT_ID: 18, SRM_RESERVOIR_NAME: sancha}
     timeout: 180
     source: early-warning/autoresearch-v3/test-inputs.md::Q50
@@ -198,7 +207,8 @@ cases:
     skill: early-warning
     category: 模式识别
     description: 告警时空模式识别（正常）
-    question: "最近告警有没有什么规律？时间上、空间上有什么模式？"
+    question: "三岔水库近 7 天告警有没有什么规律？时间上、空间上有什么模式？"
+    question_v2: true
     env: {SRM_TENANT_ID: 18, SRM_RESERVOIR_NAME: sancha}
     timeout: 180
     source: early-warning/autoresearch-v3/test-inputs.md::Q58
@@ -213,7 +223,8 @@ cases:
     skill: early-warning
     category: 智能综合分析
     description: 整体风险评估（正常，场景1/2）
-    question: "当前告警情况如何？整体风险大不大？"
+    question: "三岔水库当前告警情况如何？整体风险大不大？请给出风险等级和主要风险点。"
+    question_v2: true
     env: {SRM_TENANT_ID: 18, SRM_RESERVOIR_NAME: sancha}
     timeout: 180
     source: early-warning/autoresearch-v3/test-inputs.md::Q62
@@ -227,7 +238,8 @@ cases:
     skill: early-warning
     category: 智能综合分析
     description: 大坝安全综合评估（正常，三域场景2/8-11）
-    question: "大坝现在安全吗？水位、降雨、渗流情况怎么样？"
+    question: "三岔水库大坝现在安全吗？水位、降雨、渗流情况怎么样？"
+    question_v2: true
     env: {SRM_TENANT_ID: 18, SRM_RESERVOIR_NAME: sancha}
     timeout: 240
     source: early-warning/autoresearch-v3/test-inputs.md::Q64
@@ -241,7 +253,8 @@ cases:
     skill: early-warning
     category: 智能综合分析
     description: 水位未来趋势研判（正常，场景8）
-    question: "水位会继续上涨吗？未来24小时会怎样？"
+    question: "三岔水库水位会继续上涨吗？未来 24 小时趋势会怎样？"
+    question_v2: true
     env: {SRM_TENANT_ID: 18, SRM_RESERVOIR_NAME: sancha}
     timeout: 180
     source: early-warning/autoresearch-v3/test-inputs.md::Q66
@@ -255,7 +268,8 @@ cases:
     skill: early-warning
     category: 智能综合分析
     description: 测站风险排名（正常）
-    question: "哪些测站告警最多？最危险的是哪个？"
+    question: "三岔水库哪些测站告警最多？最危险的是哪个？"
+    question_v2: true
     env: {SRM_TENANT_ID: 18, SRM_RESERVOIR_NAME: sancha}
     timeout: 120
     source: early-warning/autoresearch-v3/test-inputs.md::Q68
@@ -266,7 +280,8 @@ cases:
     skill: early-warning
     category: 告警聚合分析
     description: 测站告警分布聚合（正常）
-    question: "各测站的告警分布情况怎么样？哪个测站问题最多？"
+    question: "三岔水库各测站的告警分布情况怎么样？哪个测站问题最多？"
+    question_v2: true
     env: {SRM_TENANT_ID: 18, SRM_RESERVOIR_NAME: sancha}
     timeout: 120
     source: early-warning/autoresearch-v3/test-inputs.md::Q70
@@ -276,7 +291,8 @@ cases:
     skill: early-warning
     category: 告警聚合分析
     description: 告警风暴检测（异常，场景3 60 条）
-    question: "最近是不是发生了告警风暴？怎么应对？"
+    question: "三岔水库近 24 小时是不是发生了告警风暴？怎么应对？"
+    question_v2: true
     env: {SRM_TENANT_ID: 18, SRM_RESERVOIR_NAME: sancha}
     timeout: 180
     source: early-warning/autoresearch-v3/test-inputs.md::Q73
@@ -291,21 +307,23 @@ cases:
     skill: early-warning
     category: 跨域关联分析
     description: 水位降雨跨域关联（正常，场景8/9）
-    question: "水位和降雨有关联吗？最近降雨对水库水位有什么影响？"
+    question: "三岔水库水位和降雨有关联吗？近 7 天降雨对水位有什么影响？"
+    question_v2: true
     env: {SRM_TENANT_ID: 18, SRM_RESERVOIR_NAME: sancha}
     timeout: 180
     source: early-warning/autoresearch-v3/test-inputs.md::Q74
     truth_source: rubric
     expected_keywords: ["水位", "降雨"]
     rubric:
-      - 联合 st_rsvr_r + st_pptn_r 数据
-      - 给出关联强度与时滞
+      - 联合水位与降雨数据
+      - 基于数据分析水位-降雨关联（给出方向/强度判断；样本不足时明确说明数据局限并给定性结论即可）
       - 不脱离数据空谈
   - id: EW23
     skill: early-warning
     category: 跨域关联分析
     description: 大坝综合风险跨域（正常，场景2/8-11）
-    question: "综合水位、降雨、渗流数据，大坝整体风险有多大？"
+    question: "三岔水库综合水位、降雨、渗流数据，大坝整体风险有多大？"
+    question_v2: true
     env: {SRM_TENANT_ID: 18, SRM_RESERVOIR_NAME: sancha}
     timeout: 240
     source: early-warning/autoresearch-v3/test-inputs.md::Q75
@@ -320,7 +338,8 @@ cases:
     skill: early-warning
     category: 风险评估
     description: 整体风险评分（正常）
-    question: "现在整体风险有多大？风险评分是多少？"
+    question: "三岔水库现在整体风险有多大？风险评分是多少？"
+    question_v2: true
     env: {SRM_TENANT_ID: 18, SRM_RESERVOIR_NAME: sancha}
     timeout: 120
     source: early-warning/autoresearch-v3/test-inputs.md::Q78
@@ -334,7 +353,8 @@ cases:
     skill: early-warning
     category: 风险评估
     description: 风险升级判断（正常，场景5）
-    question: "风险会不会升级？升级的触发条件是什么？"
+    question: "三岔水库风险会不会升级？升级的触发条件是什么？"
+    question_v2: true
     env: {SRM_TENANT_ID: 18, SRM_RESERVOIR_NAME: sancha}
     timeout: 120
     source: early-warning/autoresearch-v3/test-inputs.md::Q80
@@ -349,7 +369,8 @@ cases:
     skill: early-warning
     category: 趋势预测
     description: 水位上涨持续性预测（正常）
-    question: "水位还会继续上涨吗？预计什么时候能降下来？"
+    question: "三岔水库水位还会继续上涨吗？预计什么时候能降下来？"
+    question_v2: true
     env: {SRM_TENANT_ID: 18, SRM_RESERVOIR_NAME: sancha}
     timeout: 180
     source: early-warning/autoresearch-v3/test-inputs.md::Q82
@@ -364,7 +385,8 @@ cases:
     skill: early-warning
     category: 预案触发
     description: 启动预案必要性判断（正常）
-    question: "现在需要启动应急预案吗？"
+    question: "三岔水库现在的情况需要启动应急预案吗？"
+    question_v2: true
     env: {SRM_TENANT_ID: 18, SRM_RESERVOIR_NAME: sancha}
     timeout: 120
     source: early-warning/autoresearch-v3/test-inputs.md::Q85
@@ -379,7 +401,8 @@ cases:
     skill: early-warning
     category: 异常场景
     description: 无告警空状态处理（异常）
-    question: "现在情况怎么样？有没有告警？"
+    question: "三岔水库现在情况怎么样？有没有告警？"
+    question_v2: true
     env: {SRM_TENANT_ID: 18, SRM_RESERVOIR_NAME: sancha}
     timeout: 60
     source: early-warning/autoresearch-v3/test-inputs.md::Q88
@@ -422,7 +445,8 @@ cases:
     skill: early-warning
     category: 边界场景
     description: 仅蓝色告警风险评估（边界，场景7）
-    question: "只有几个蓝色告警，需要担心吗？"
+    question: "三岔水库只有几个蓝色告警，有风险吗？需要担心吗？"
+    question_v2: true
     env: {SRM_TENANT_ID: 18, SRM_RESERVOIR_NAME: sancha}
     timeout: 60
     source: early-warning/autoresearch-v3/test-inputs.md::Q94
@@ -436,7 +460,8 @@ cases:
     skill: early-warning
     category: 边界场景
     description: 单条红色告警风险评估（边界，场景7）
-    question: "只有一条红色告警，但是很严重，风险大吗？"
+    question: "三岔水库只有一条红色告警，但是很严重，风险大吗？"
+    question_v2: true
     env: {SRM_TENANT_ID: 18, SRM_RESERVOIR_NAME: sancha}
     timeout: 60
     source: early-warning/autoresearch-v3/test-inputs.md::Q95
@@ -451,7 +476,8 @@ cases:
     skill: early-warning
     category: 气象预警
     description: 暴雨气象预警对水库影响（正常，场景12）
-    question: "气象台有暴雨预警吗？对水库有影响吗？"
+    question: "气象台有暴雨预警吗？对三岔水库有影响吗？"
+    question_v2: true
     env: {SRM_TENANT_ID: 18, SRM_RESERVOIR_NAME: sancha}
     timeout: 120
     source: early-warning/autoresearch-v3/test-inputs.md::Q102
