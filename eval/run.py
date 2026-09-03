@@ -146,14 +146,20 @@ def main(argv=None, transport_fn=None, query_fn=None, llm_on=False, report_dir=N
             elapsed = time.time() - t0
             v = {"verdict": "ERROR", "detail": {"reason": f"用例异常(重试后仍失败): {exc}"}}
             out_preview = ""
-            report.write_transcript(transcripts_dir / f"{c.id}.txt", "", f"runner exception: {exc}")
+            transcript_path = transcripts_dir / f"{c.id}.txt"
+            report.write_transcript(transcript_path, "", f"runner exception: {exc}")
         status = {"PASS": "PASS", "FAIL": "FAIL", "ERROR": "ERROR", "TIMEOUT": "TIMEOUT"}.get(v["verdict"], "ERROR")
-        results.append(report.build_result(c, status, elapsed, out_preview, v["detail"]))
+        results.append(report.build_result(c, status, elapsed, out_preview, v["detail"],
+                                           transcript=str(transcript_path)
+                                           if r is not None else None))
         print(f"   -> {status}", flush=True)
         if i < len(selected):
             time.sleep(args.sleep)
 
     summary = report.summarize(results)
+    # 运行元数据：judge_model 取环境（未设则 default）；keywords_mode 旗标 T4 才加，getattr 兜底
+    summary["meta"] = {"judge_model": os.environ.get("EVAL_JUDGE_MODEL", "default"),
+                       "keywords_mode": getattr(args, "keywords_mode", "advisory")}
     ensure_dirs()
     ts = time.strftime("%Y%m%d-%H%M%S")
     report.write_json(results, summary, out_dir / f"eval-{ts}.json")

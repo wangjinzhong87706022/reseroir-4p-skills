@@ -50,5 +50,21 @@ class TestReport(unittest.TestCase):
             self.assertIn("- [x] 1 ", md)
             self.assertIn("- [ ] 2 ", md)
 
+class TestTranscriptPointer(unittest.TestCase):
+    def test_result_carries_transcript_path(self):
+        from eval.lib.report import build_result
+        c = _c("X1", "f", "c")
+        r = build_result(c, "FAIL", 1.0, "预览", {"reason": "x"},
+                         transcript="results/transcripts/X1.txt")
+        self.assertEqual(r["transcript"], "results/transcripts/X1.txt")
+        self.assertLessEqual(len(r["output"]), 504)   # 500 + "..."
+
+    def test_transcript_optional(self):
+        from eval.lib.report import build_result
+        c = _c("X1", "f", "c")
+        r = build_result(c, "PASS", 1.0, "ok", {})
+        self.assertIsNone(r["transcript"])
+
+
 if __name__ == "__main__":
     unittest.main()

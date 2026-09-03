@@ -14,13 +14,15 @@ def write_transcript(path, output, stderr=""):
     Path(path).write_text(body, encoding="utf-8")
 
 
-def build_result(case, status, elapsed, output, verdict_detail):
+def build_result(case, status, elapsed, output, verdict_detail, transcript=None):
+    """output 语义：最终回复预览（≤500 字符，噪声 stdout 头部不进主报告）；
+    transcript：全文留档路径指针（transcripts/<id>.txt），无留档时为 None。"""
     out = output or ""
     out = (out[:500] + "...") if len(out) > 500 else out
     return {"id": case.id, "skill": case.skill, "category": case.category,
             "description": case.description, "question": case.question,
             "status": status, "elapsed_seconds": round(elapsed, 2),
-            "output": out, "verdict": verdict_detail}
+            "output": out, "transcript": transcript, "verdict": verdict_detail}
 
 
 def summarize(results):
