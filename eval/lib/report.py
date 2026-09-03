@@ -4,6 +4,16 @@ from collections import defaultdict
 from pathlib import Path
 
 
+def write_transcript(path, output, stderr=""):
+    """单题全文留档（transcripts/<id>.txt）：主报告只存 500 字符预览，
+    FAIL/TIMEOUT 归因需要全文。output 全文在前，stderr 有值时附后。"""
+    Path(path).parent.mkdir(parents=True, exist_ok=True)
+    body = (output or "")
+    if stderr:
+        body += "\n\n===== STDERR =====\n" + stderr
+    Path(path).write_text(body, encoding="utf-8")
+
+
 def build_result(case, status, elapsed, output, verdict_detail):
     out = output or ""
     out = (out[:500] + "...") if len(out) > 500 else out

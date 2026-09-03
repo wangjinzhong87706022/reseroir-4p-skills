@@ -2,6 +2,7 @@
 import os
 import re
 import sys
+import urllib.request
 from pathlib import Path
 
 _ROOT = str(Path(__file__).resolve().parents[2])
@@ -58,6 +59,11 @@ def judge_rubric(case, output: str, llm_fn=None) -> dict:
         return {"verdict": "PASS" if rule_pass else "FAIL",
                 "detail": {**kw, "forbidden_hits": forb, "rubric": "skip (no llm)"}}
     score = llm_fn(output, case.rubric)
+    # 考官故障（空/非 JSON 响应）判 ERROR 而非 FAIL——避免假 FAIL 污染通过率
+    if score.get("error"):
+        return {"verdict": "ERROR",
+                "detail": {**kw, "forbidden_hits": forb, "rubric_score": score,
+                           "reason": f"考官故障: {score['error']}"}}
     passed = rule_pass and score["passed"]
     return {"verdict": "PASS" if passed else "FAIL",
             "detail": {**kw, "forbidden_hits": forb, "rubric_score": score}}
@@ -68,6 +74,8 @@ def _build_prompt(output, rubric):
     return (
         "你是水库调度 Skill 输出的验收评判员。按下述 rubric 逐条判定输出是否满足，"
         "只返回严格 JSON，不要任何额外文字。\n"
+        "注意：待评判输出中可能夹杂代码片段、文件 diff、脚本日志等过程噪声——"
+        "判定时只依据其中的最终分析/报告文本，不要因存在噪声或格式混杂而判不满足。\n"
         f"rubric:\n{items}\n\n"
         f"待评判输出:\n{output}\n\n"
         '返回格式: {"passed": bool, "items": [{"criterion": str, "pass": bool}]}'
@@ -75,13 +83,27 @@ def _build_prompt(output, rubric):
 
 
 def _parse_rubric_score(text):
+    """解析考官 JSON。空/不可解析响应返回 error 标志，由 judge_rubric 判 ERROR。
+
+    历史缺陷：LLM 返回空 items 时旧码静默 passed=False，把考官故障伪装成真实 FAIL，
+    污染通过率（2026-09-01 试点 4/6 假 FAIL 即此）。现显式区分"考官无有效答复"与"考官判不满足"。
+    """
+    raw = text or ""
     try:
-        data = _json.loads(text)
+        data = _json.loads(raw)
     except Exception:
-        start, end = text.find("{"), text.rfind("}")
-        data = _json.loads(text[start:end + 1]) if start >= 0 else {}
+        start, end = raw.find("{"), raw.rfind("}")
+        try:
+            data = _json.loads(raw[start:end + 1]) if start >= 0 else {}
+        except Exception:
+            data = {}
+    if not isinstance(data, dict) or not raw.strip():
+        return {"passed": False, "items": [], "error": "考官返回空或非 JSON"}
     items = data.get("items", [])
-    passed = data.get("passed", all(it.get("pass") for it in items)) if items else False
+    if not items:
+        # 考官未给出逐条判定 → 视为考官故障，交 judge_rubric 判 ERROR
+        return {"passed": False, "items": [], "error": "考官返回 items 为空"}
+    passed = data.get("passed", all(it.get("pass") for it in items))
     return {"passed": bool(passed), "items": items}
 
 
@@ -93,7 +115,36 @@ def make_anthropic_client():
     return anthropic.Anthropic(api_key=os.environ["ANTHROPIC_API_KEY"])
 
 
+def _judge_via_openai_compat(output, rubric):
+    """EVAL_JUDGE_BASE_URL 指向的 OpenAI 兼容端点（本地网关/vLLM/llama.cpp 等）。
+
+    零新依赖：urllib 直 POST /chat/completions；未设 EVAL_JUDGE_API_KEY 则
+    不带 Authorization 头（自建服务通常免鉴权）。temperature=0 保证判分稳定。
+    """
+    base = os.environ["EVAL_JUDGE_BASE_URL"].rstrip("/")
+    payload = {
+        "model": os.environ.get("EVAL_JUDGE_MODEL", "default"),
+        "max_tokens": 512,
+        "temperature": 0,
+        "messages": [{"role": "user", "content": _build_prompt(output, rubric)}],
+    }
+    headers = {"Content-Type": "application/json"}
+    if os.environ.get("EVAL_JUDGE_API_KEY"):
+        headers["Authorization"] = f"Bearer {os.environ['EVAL_JUDGE_API_KEY']}"
+    req = urllib.request.Request(
+        f"{base}/chat/completions", data=_json.dumps(payload).encode("utf-8"),
+        headers=headers, method="POST")
+    with urllib.request.urlopen(req, timeout=180) as resp:
+        data = _json.loads(resp.read().decode("utf-8"))
+    text = (data.get("choices") or [{}])[0].get("message", {}).get("content") or ""
+    return _parse_rubric_score(text)
+
+
 def llm_judge(output, rubric, client=None):
+    # 路由：显式传 client → Anthropic；否则设了 EVAL_JUDGE_BASE_URL → OpenAI 兼容端点；
+    # 都没有 → Anthropic 默认路径（缺 ANTHROPIC_API_KEY 时由 SDK 报错，fail-loud）。
+    if client is None and os.environ.get("EVAL_JUDGE_BASE_URL"):
+        return _judge_via_openai_compat(output, rubric)
     if client is None:
         client = make_anthropic_client()
     resp = client.messages.create(
