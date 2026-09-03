@@ -755,3 +755,22 @@ bash logs/run-eval-detached.sh --id EW10,EW21,EW29,EW30,DV1,DV3,DV5,PG3,PG4,PG23
 依据：`-Q`、`-Q --ignore-user-config`、以及已带 `display.tool_preview_length: 0` 的用户配置三种形态下 review diff 块均照常输出；`hermes chat` 无相关 flag，仓库/用户配置无相关键，源码调用点无任何 quiet/config 条件。
 
 补充（不改变结论）：Step 3 观测到 `/root/.hermes/state.db` 的 `messages.content`（role='assistant' 最后一条）是**不含任何噪声标记的独立最终回复字段**，可作为 Task 1 之外更优先的备选集成点；Task 1 提取器按计划照常实施（纵深防御）。
+
+---
+
+## Task 6 验证结论（2026-09-03）
+
+有界重跑 11 道历史受害题：`results/eval-20260903-142211.json`（detached tag `ids-…-131015`，judge GLM-5.1，keywords_mode=advisory——meta 由 T3 落地的新字段记录）。**9/11 PASS（0.818）**，0 TIMEOUT，0 ERROR，0 假 FAIL 形态。
+
+| 题 | 修复前 | 本次 | 裁定 |
+|---|---|---|---|
+| EW29 / EW30 | 关键词假 FAIL | **PASS** | 与验收预期一致：advisory 消除"未找到/不存在""缺失/不存在"措辞张力（两题 `all_found_advisory=False` 未参与判分） |
+| EW10 | rubric"置信度"严格 FAIL | **PASS** | 干净答案上转绿 |
+| EW21 | 关键词假 FAIL | FAIL（可归因） | rubric 第 3 条"给出聚合/抑制建议"实质未过——答案结论是"未发生风暴"，抑制建议前提不成立，属 rubric 措辞张力（第 3 条应条件化），留待 Stage 5 改题；关键词层已不再否决 |
+| DV1 / DV5 | 噪声干扰波动 | **PASS** | 判分输入已是干净答案 |
+| DV3 | 噪声干扰波动 | FAIL（可归因） | rubric 两条实质未过（Layer 1 核验、Layer 2 三段式+GB/T 22482）；答案自身亦判"❌ 不通过"，判分与答案自评一致，属真实质量信号，留待 Stage 5 |
+| PG3 / PG4 / PG23 / PG24 | 噪声干扰波动 | **PASS** | 同上 |
+
+**提取器有效性**：11/11 transcript 头部 `answer_extracted=True`，无 `┊` 泄漏、无 `[exited with code]` 残留——验收红线（任一题 `answer_extracted=false` 且 output 以 `┊` 开头）未触发，无需回 Task 1。
+
+**结论**：四类基建缺陷的修复全部按预期生效——P0-A（判分不再吃噪声）、P0-B（FAIL 题从 JSON 即可归因，本轮裁定未开过一次全文 transcript）、P1-A（EW29/30 假 FAIL 消除）、P1-B（0 TIMEOUT）。剩余 2 个 FAIL 均为实质 rubric 张力（EW21 抑制建议前提、DV3 两层核验），属改题范畴，列入 Stage 5 清单；基建侧无遗留动作。全量 133 题重跑（Stage 4'）可放行。
