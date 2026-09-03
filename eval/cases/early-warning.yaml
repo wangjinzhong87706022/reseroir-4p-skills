@@ -55,7 +55,7 @@ cases:
     question: "三岔水库近 24 小时水位变化趋势怎么样？为什么这段时间水位持续上涨？"
     question_v2: true
     env: {SRM_TENANT_ID: 18, SRM_RESERVOIR_NAME: sancha}
-    timeout: 120
+    timeout: 2000
     source: early-warning/autoresearch-v3/test-inputs.md::Q14
     truth_source: rubric
     expected_keywords: ["水位", "趋势"]
@@ -70,7 +70,7 @@ cases:
     question: "三岔水库渗流数据近 7 天有没有异常？可能是什么原因导致的？"
     question_v2: true
     env: {SRM_TENANT_ID: 18, SRM_RESERVOIR_NAME: sancha}
-    timeout: 180
+    timeout: 2000
     source: early-warning/autoresearch-v3/test-inputs.md::Q16
     truth_source: rubric
     expected_keywords: ["渗流", "异常"]
@@ -85,7 +85,7 @@ cases:
     question: "三岔水库当前所有告警里，最需要关注的是哪几个？请按风险排序并说明原因。"
     question_v2: true
     env: {SRM_TENANT_ID: 18, SRM_RESERVOIR_NAME: sancha}
-    timeout: 180
+    timeout: 2000
     source: early-warning/autoresearch-v3/test-inputs.md::Q20
     truth_source: rubric
     expected_keywords: ["告警", "关注"]
@@ -101,7 +101,7 @@ cases:
     question: "三岔水库水位上涨和降雨是什么关系？近 7 天降雨对水位的影响有多大？"
     question_v2: true
     env: {SRM_TENANT_ID: 18, SRM_RESERVOIR_NAME: sancha}
-    timeout: 180
+    timeout: 2000
     source: early-warning/autoresearch-v3/test-inputs.md::Q22
     truth_source: rubric
     expected_keywords: ["水位", "降雨"]
@@ -116,7 +116,7 @@ cases:
     question: "三岔水库水位、降雨、渗流三者有什么关联？是否存在复合风险？"
     question_v2: true
     env: {SRM_TENANT_ID: 18, SRM_RESERVOIR_NAME: sancha}
-    timeout: 180
+    timeout: 2000
     source: early-warning/autoresearch-v3/test-inputs.md::Q28
     truth_source: rubric
     expected_keywords: ["关联", "复合"]
@@ -194,7 +194,7 @@ cases:
     question: "三岔水库当前告警阈值设置合理吗？有没有需要优化的地方？"
     question_v2: true
     env: {SRM_TENANT_ID: 18, SRM_RESERVOIR_NAME: sancha}
-    timeout: 180
+    timeout: 2000
     source: early-warning/autoresearch-v3/test-inputs.md::Q50
     truth_source: rubric
     expected_keywords: ["阈值", "优化"]

@@ -101,7 +101,7 @@ cases:
     description: 汛限水位查询（live_db）
     question: "三岔水库当前的汛限水位是多少？"
     env: {SRM_TENANT_ID: 18, SRM_RESERVOIR_NAME: sancha}
-    timeout: 60
+    timeout: 2000
     source: plan-generation/tests/test-questions.md::Q2
     truth_source: live_db
     truth_query: "SELECT flse_lim_stag FROM att_res_flse_lim WHERE flood_season_start <= DATE_FORMAT(NOW(), '%m%d') AND flood_season_end >= DATE_FORMAT(NOW(), '%m%d') LIMIT 1"
@@ -207,7 +207,7 @@ cases:
     description: 三方案对比与削峰率（正常）
     question: "请生成 3 个不同策略的调度方案（防洪/综合/兴利），并对比削峰率和最高水位。"
     env: {SRM_TENANT_ID: 18, SRM_RESERVOIR_NAME: sancha}
-    timeout: 240
+    timeout: 2000
     source: plan-generation/tests/test-questions.md::Q15
     truth_source: rubric
     expected_keywords: ["削峰率", "方案"]

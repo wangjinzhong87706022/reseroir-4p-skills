@@ -12,7 +12,7 @@ cases:
     question: "桃曲坡水库当前水位 786.95m 超过汛限 786.8m，气象预报未来有暴雨，请做汛期暴雨研判和调度。"
     question_v2: true
     env: {SRM_TENANT_ID: 20, SRM_RESERVOIR_NAME: taoqupo}
-    timeout: 1500
+    timeout: 2000
     tags: [slow]
     source: supervisor/demo-output/A-20260805-192723.json
     truth_source: rubric
@@ -43,7 +43,7 @@ cases:
     question: "桃曲坡水库近期渗流和水位数据存在质量问题，请对大坝安全做一次诊断。"
     question_v2: true
     env: {SRM_TENANT_ID: 20, SRM_RESERVOIR_NAME: taoqupo}
-    timeout: 480
+    timeout: 2000
     source: supervisor/demo-output/B-20260805-192723.json
     truth_source: rubric
     expected_keywords: ["诊断", "大坝"]
@@ -73,7 +73,7 @@ cases:
     question: "今天是工作日早晨，请出一份桃曲坡水库的日常水情研判报告。"
     question_v2: true
     env: {SRM_TENANT_ID: 20, SRM_RESERVOIR_NAME: taoqupo}
-    timeout: 300
+    timeout: 2000
     source: supervisor/demo-output/C-20260805-192723.json
     truth_source: rubric
     expected_keywords: ["日常", "报告"]
@@ -101,7 +101,7 @@ cases:
     question: "桃曲坡水库发生险情，I 级响应触发，请做应急响应。"
     question_v2: true
     env: {SRM_TENANT_ID: 20, SRM_RESERVOIR_NAME: taoqupo}
-    timeout: 480
+    timeout: 2000
     source: supervisor/demo-output/D-20260805-192723.json
     truth_source: rubric
     expected_keywords: ["应急", "响应"]

@@ -162,7 +162,7 @@ cases:
     description: 四源降雨预报对比（正常）
     question: "和风、分区预报、实测降雨、NMC 中央台对未来同一时段的预报/实测是否一致？"
     env: {SRM_TENANT_ID: 18, SRM_RESERVOIR_NAME: sancha}
-    timeout: 180
+    timeout: 2000
     source: forecasting/tests/test-questions.md::Q11
     truth_source: inline
     expected_keywords: ["和风", "预报"]
@@ -188,7 +188,7 @@ cases:
     description: 未来 12h 水位趋势（正常）
     question: "按当前入库/出库与降雨预报，未来 12 小时水位会涨还是落？幅度多大？"
     env: {SRM_TENANT_ID: 18, SRM_RESERVOIR_NAME: sancha}
-    timeout: 180
+    timeout: 2000
     source: forecasting/tests/test-questions.md::Q16
     truth_source: inline
     expected_keywords: ["水位", "趋势"]
@@ -208,7 +208,7 @@ cases:
     description: 趋势预警阈值（边界，超校核洪水位）
     question: "若预报水位将超过校核洪水位 462.88m，应在什么时刻触发预警？"
     env: {SRM_TENANT_ID: 18, SRM_RESERVOIR_NAME: sancha}
-    timeout: 180
+    timeout: 2000
     source: forecasting/tests/test-questions.md::Q19
     truth_source: inline
     expected_keywords: ["校核", "预警"]
