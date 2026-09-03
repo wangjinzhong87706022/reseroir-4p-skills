@@ -48,6 +48,9 @@ def parse_args(argv):
                    help="每题超时下限抬到该值（秒）：取 max(case 自带 timeout, set)，只抬不压，"
                         "避免把 SUP1 等原生长超时题压短。与 --timeout-cap 互斥，--timeout-set 优先")
     p.add_argument("--list", action="store_true", help="仅列出用例")
+    p.add_argument("--keywords-mode", choices=["hard", "advisory"], default="advisory",
+                   help="expected_keywords 语义：advisory=只报告不判分（默认）；hard=一票否决（旧版）。"
+                        "forbidden_keywords 恒为硬门")
     return p.parse_args(argv)
 
 
@@ -67,18 +70,18 @@ def filter_cases(cases, args):
     return out
 
 
-def _dispatch(case, out, query_fn, llm_on):
+def _dispatch(case, out, query_fn, llm_on, keywords_mode="advisory"):
     if case.truth_source == "inline":
-        return judge.judge_inline(case, out)
+        return judge.judge_inline(case, out, keywords_mode)
     if case.truth_source == "live_db":
         if query_fn is None:
             return {"verdict": "ERROR", "detail": {"reason": "无 DB 连接"}}
-        return judge.judge_live_db(case, out, query_fn)
+        return judge.judge_live_db(case, out, query_fn, keywords_mode)
     # rubric
     llm_fn = None
     if llm_on and (os.environ.get("ANTHROPIC_API_KEY") or os.environ.get("EVAL_JUDGE_BASE_URL")):
         llm_fn = lambda o, r: judge.llm_judge(o, r)  # Anthropic 或 EVAL_JUDGE_BASE_URL（OpenAI 兼容）
-    return judge.judge_rubric(case, out, llm_fn)
+    return judge.judge_rubric(case, out, llm_fn, keywords_mode)
 
 
 def main(argv=None, transport_fn=None, query_fn=None, llm_on=False, report_dir=None):
@@ -136,7 +139,7 @@ def main(argv=None, transport_fn=None, query_fn=None, llm_on=False, report_dir=N
                 # 未超时但无最终回复 = infra 故障（hermes 崩溃/空 stdout），判 ERROR 防假 FAIL
                 v = {"verdict": "ERROR", "detail": {"reason": "transport 未超时但返回空输出"}}
             else:
-                v = _dispatch(c, r["answer"], query_fn, llm_on)
+                v = _dispatch(c, r["answer"], query_fn, llm_on, args.keywords_mode)
             out_preview = r.get("answer", "")
             transcript_path = transcripts_dir / f"{c.id}.txt"
             meta = (f"[answer_extracted={r.get('answer_extracted')}] "
@@ -150,14 +153,13 @@ def main(argv=None, transport_fn=None, query_fn=None, llm_on=False, report_dir=N
             report.write_transcript(transcript_path, "", f"runner exception: {exc}")
         status = {"PASS": "PASS", "FAIL": "FAIL", "ERROR": "ERROR", "TIMEOUT": "TIMEOUT"}.get(v["verdict"], "ERROR")
         results.append(report.build_result(c, status, elapsed, out_preview, v["detail"],
-                                           transcript=str(transcript_path)
-                                           if r is not None else None))
+                                           transcript=str(transcript_path.resolve())))
         print(f"   -> {status}", flush=True)
         if i < len(selected):
             time.sleep(args.sleep)
 
     summary = report.summarize(results)
-    # 运行元数据：judge_model 取环境（未设则 default）；keywords_mode 旗标 T4 才加，getattr 兜底
+    # 运行元数据：judge_model 取环境（未设则 default）；keywords_mode 用 getattr 兜底（直接调 main 的旧测试未传旗标）
     summary["meta"] = {"judge_model": os.environ.get("EVAL_JUDGE_MODEL", "default"),
                        "keywords_mode": getattr(args, "keywords_mode", "advisory")}
     ensure_dirs()

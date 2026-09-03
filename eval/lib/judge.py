@@ -26,16 +26,23 @@ def _keyword_check(output, keywords):
     return {"keyword_checks": checks, "all_found": all(c["found"] for c in checks)}
 
 
-def judge_inline(case, output: str) -> dict:
-    """规则三判定：keywords + range + forbidden（顶层与题级已在 load 时并集进 case.forbidden）。"""
+def judge_inline(case, output: str, keywords_mode: str = "advisory") -> dict:
+    """规则三判定：range + forbidden 硬门；keywords 按 keywords_mode。
+    advisory 下 verify_output 收空 keywords，真实关键词命中另记 keywords_advisory。"""
+    kws = case.expected_keywords if keywords_mode == "hard" else []
     rp = RPCase(id=case.id, skill=case.skill, description=case.description,
-                question=case.question, expected_keywords=case.expected_keywords,
+                question=case.question, expected_keywords=kws,
                 expected_range=case.expected_range, timeout=case.timeout)
     v = verify_output(rp, output, case.forbidden)
-    return {"verdict": "PASS" if v["all_passed"] else "FAIL", "detail": v}
+    kw = _keyword_check(output, case.expected_keywords)
+    detail = {**v, "keywords_mode": keywords_mode}
+    if keywords_mode == "advisory":
+        detail["keywords_advisory"] = kw["keyword_checks"]
+        detail["all_found_advisory"] = kw["all_found"]
+    return {"verdict": "PASS" if v["all_passed"] else "FAIL", "detail": detail}
 
 
-def judge_live_db(case, output: str, query_fn) -> dict:
+def judge_live_db(case, output: str, query_fn, keywords_mode: str = "advisory") -> dict:
     rows = query_fn(case.truth_query)
     if not rows:
         return {"verdict": "ERROR", "detail": {"reason": "truth_query 无结果"}}
@@ -47,26 +54,35 @@ def judge_live_db(case, output: str, query_fn) -> dict:
         return {"verdict": "ERROR", "detail": {"reason": f"真值非数值: {first!r}"}}
     cmp = compare_with_tolerance(_extract_numbers(output), truth, case.tolerance)
     kw = _keyword_check(output, case.expected_keywords)
-    passed = cmp["passed"] and kw["all_found"]
-    return {"verdict": "PASS" if passed else "FAIL", "detail": {"truth": truth, **cmp, **kw}}
+    kw_hard = kw["all_found"] if keywords_mode == "hard" else True
+    passed = cmp["passed"] and kw_hard
+    detail = {"truth": truth, **cmp, "keywords_mode": keywords_mode,
+              "keywords_advisory": kw["keyword_checks"], "all_found_advisory": kw["all_found"]}
+    if keywords_mode == "hard":
+        detail.update(kw)
+    return {"verdict": "PASS" if passed else "FAIL", "detail": detail}
 
 
-def judge_rubric(case, output: str, llm_fn=None) -> dict:
+def judge_rubric(case, output: str, llm_fn=None, keywords_mode: str = "advisory") -> dict:
     forb = [w for w in case.forbidden if str(w).lower() in (output or "").lower()]
     kw = _keyword_check(output, case.expected_keywords)
-    rule_pass = kw["all_found"] and not forb
+    kw_hard = kw["all_found"] if keywords_mode == "hard" else True
+    rule_pass = kw_hard and not forb
+    detail = {"keywords_mode": keywords_mode,
+              "keywords_advisory": kw["keyword_checks"], "all_found_advisory": kw["all_found"],
+              "forbidden_hits": forb}
+    if keywords_mode == "hard":
+        detail.update(kw)
     if llm_fn is None:
         return {"verdict": "PASS" if rule_pass else "FAIL",
-                "detail": {**kw, "forbidden_hits": forb, "rubric": "skip (no llm)"}}
+                "detail": {**detail, "rubric": "skip (no llm)"}}
     score = llm_fn(output, case.rubric)
     # 考官故障（空/非 JSON 响应）判 ERROR 而非 FAIL——避免假 FAIL 污染通过率
     if score.get("error"):
-        return {"verdict": "ERROR",
-                "detail": {**kw, "forbidden_hits": forb, "rubric_score": score,
-                           "reason": f"考官故障: {score['error']}"}}
+        return {"verdict": "ERROR", "detail": {**detail, "rubric_score": score,
+                                               "reason": f"考官故障: {score['error']}"}}
     passed = rule_pass and score["passed"]
-    return {"verdict": "PASS" if passed else "FAIL",
-            "detail": {**kw, "forbidden_hits": forb, "rubric_score": score}}
+    return {"verdict": "PASS" if passed else "FAIL", "detail": {**detail, "rubric_score": score}}
 
 
 def _build_prompt(output, rubric):

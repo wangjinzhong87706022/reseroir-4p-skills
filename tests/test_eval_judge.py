@@ -78,6 +78,51 @@ class TestRubricJudge(unittest.TestCase):
         self.assertEqual(r["verdict"], "FAIL")
 
 
+class TestKeywordsAdvisory(unittest.TestCase):
+    def test_rubric_keyword_miss_still_passes_when_advisory(self):
+        # EW29 实例：rubric 全过、答案说"不存在"而非"未找到" → advisory 下应 PASS
+        c = _case(truth_source="rubric", rubric=["正确处理不存在测站"],
+                  expected_keywords=["未找到", "测站"])
+        llm = lambda o, r: {"passed": True, "items": [{"criterion": r[0], "pass": True}]}
+        r = judge.judge_rubric(c, "该测站不存在，已查询 6 张表均无记录，" * 3, llm)
+        self.assertEqual(r["verdict"], "PASS")
+        self.assertFalse(r["detail"]["all_found_advisory"])
+        self.assertEqual(r["detail"]["keywords_mode"], "advisory")
+
+    def test_rubric_keyword_miss_fails_when_hard(self):
+        c = _case(truth_source="rubric", rubric=["正确处理不存在测站"],
+                  expected_keywords=["未找到", "测站"])
+        llm = lambda o, r: {"passed": True, "items": [{"criterion": r[0], "pass": True}]}
+        r = judge.judge_rubric(c, "该测站不存在。" * 10, llm, keywords_mode="hard")
+        self.assertEqual(r["verdict"], "FAIL")
+
+    def test_forbidden_hard_in_advisory(self):
+        c = _case(truth_source="rubric", rubric=["正常作答"], expected_keywords=["水位"],
+                  forbidden=["桃曲坡"])
+        llm = lambda o, r: {"passed": True, "items": [{"criterion": r[0], "pass": True}]}
+        r = judge.judge_rubric(c, "桃曲坡水位正常。" * 10, llm, keywords_mode="advisory")
+        self.assertEqual(r["verdict"], "FAIL")
+        self.assertIn("桃曲坡", r["detail"]["forbidden_hits"])
+
+    def test_live_db_advisory_ignores_keyword(self):
+        c = _case(truth_source="live_db", truth_query="SELECT rz FROM st_rsvr_r LIMIT 1",
+                  tolerance=1.0, expected_keywords=["水位"])
+        r = judge.judge_live_db(c, "462.4 m", lambda sql: [{"rz": 462.5}])
+        self.assertEqual(r["verdict"], "PASS")
+        self.assertFalse(r["detail"]["all_found_advisory"])
+
+    def test_inline_advisory_ignores_keyword(self):
+        c = _case(expected_keywords=["水位"], expected_range={"min": 459, "max": 463})
+        r = judge.judge_inline(c, "当前 462.5 m")   # 无"水位"字样
+        self.assertEqual(r["verdict"], "PASS")
+        self.assertFalse(r["detail"]["all_found_advisory"])
+
+    def test_inline_hard_still_fails_on_keyword(self):
+        c = _case(expected_keywords=["水位"], expected_range={"min": 459, "max": 463})
+        r = judge.judge_inline(c, "当前 462.5 m", keywords_mode="hard")
+        self.assertEqual(r["verdict"], "FAIL")
+
+
 class TestLlmJudge(unittest.TestCase):
     def test_parses_strict_json(self):
         class B:
