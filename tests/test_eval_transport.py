@@ -1,6 +1,8 @@
+import subprocess
 import unittest
 from eval.lib import transport
 from eval.lib.transport import extract_final_answer
+from eval.lib.transport import run_hermes
 
 
 class FakeCompleted:
@@ -32,6 +34,7 @@ class TestTransport(unittest.TestCase):
         r = transport.run_hermes("Q", "s", {}, 1, _runner=boom)
         self.assertTrue(r["timed_out"])
         self.assertIsNone(r["exit_code"])
+
 
 class TestExtractFinalAnswer(unittest.TestCase):
     def test_plain_output_untouched(self):
@@ -85,7 +88,7 @@ class TestExtractFinalAnswer(unittest.TestCase):
     def test_too_short_extraction_falls_back(self):
         out = "┊ review diff\na/x.py → b/x.py\n@@ -1 +1 @@\n+print(1)\n\n好的。"
         ans, extracted = extract_final_answer(out)
-        self.assertFalse(extracted)   # 提取结果 <80 字符 → 原样返回
+        self.assertFalse(extracted)   # 提取结果过短（_MIN_ANSWER_CHARS=20）→ 原样返回
         self.assertEqual(ans, out)
 
     def test_indented_marker_found(self):
@@ -117,6 +120,45 @@ class TestExtractFinalAnswer(unittest.TestCase):
         self.assertTrue(extracted)
         self.assertNotIn("[exited with code", ans)
         self.assertTrue(ans.rstrip().endswith("无需干预。"))
+
+    def test_trailer_negative_exit_code_stripped(self):
+        out = ("┊ review diff\na/x.py → b/x.py\n@@ -1 +1 @@\n+print(1)\n\n"
+               "**当前状态**\n水位 462.65 m，未来 6 小时维持平稳，涨幅不超过 0.01 m，无需干预。\n"
+               "[exited with code -9]")
+        ans, extracted = extract_final_answer(out)
+        self.assertTrue(extracted)
+        self.assertNotIn("[exited with code", ans)
+
+
+class TestRunHermesAnswer(unittest.TestCase):
+    def _fake_runner(self, stdout):
+        def fake(cmd, capture_output, text, timeout, cwd, env):
+            class R:
+                stderr = ""
+                returncode = 0
+            R.stdout = stdout   # 类体里写 "stdout = stdout" 会 NameError（RHS 解析到类体局部名）
+            return R()
+        return fake
+
+    def test_answer_key_present_when_clean(self):
+        r = run_hermes("q", "s", {}, 60, _runner=self._fake_runner("当前水位 462.5 m，运行正常无告警。" * 2))
+        self.assertEqual(r["answer"], r["output"])
+        self.assertFalse(r["answer_extracted"])
+
+    def test_answer_key_present_when_noisy(self):
+        noisy = ("┊ review diff\na/x.py → b/x.py\n@@ -1 +1 @@\n+print(1)\n\n"
+                 "**当前状态**\n" + "水位 462.65 m，未来 6 小时维持平稳，涨幅不超过 0.01 m，无需干预。\n" * 2)
+        r = run_hermes("q", "s", {}, 60, _runner=self._fake_runner(noisy))
+        self.assertTrue(r["answer_extracted"])
+        self.assertTrue(r["answer"].startswith("**当前状态**"))
+        self.assertEqual(r["output"], noisy.strip())   # output 恒为全文
+
+    def test_timeout_has_empty_answer(self):
+        def fake(cmd, capture_output, text, timeout, cwd, env):
+            raise subprocess.TimeoutExpired(cmd=cmd, timeout=timeout)
+        r = run_hermes("q", "s", {}, 60, _runner=fake)
+        self.assertTrue(r["timed_out"])
+        self.assertEqual(r["answer"], "")
 
 
 if __name__ == "__main__":

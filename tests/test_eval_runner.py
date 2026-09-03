@@ -35,7 +35,8 @@ class TestRunner(unittest.TestCase):
         with tempfile.TemporaryDirectory() as d:
             self._cases_yaml(d)
             def fake_transport(question, skill_id, env, timeout, skill_dir=None, _runner=None):
-                return {"output": "当前水位 462 m", "stderr": "", "exit_code": 0, "timed_out": False}
+                return {"output": "当前水位 462 m", "answer": "当前水位 462 m",
+                        "stderr": "", "exit_code": 0, "timed_out": False}
             rc = _quiet_main(["--skill", "forecasting", "--cases-dir", d,
                               "--report-dir", d], transport_fn=fake_transport)
             self.assertEqual(rc, 1)  # F2 FAIL（缺"不存在词"）→ 有 FAIL → 退出码 1
@@ -46,7 +47,8 @@ class TestRunner(unittest.TestCase):
             self._cases_yaml(d)
             def fake_transport(question, skill_id, env, timeout, skill_dir=None, _runner=None):
                 # 让两题都过：输出含两题的关键词
-                return {"output": "水位 不存在词 都在", "stderr": "", "exit_code": 0, "timed_out": False}
+                return {"output": "水位 不存在词 都在", "answer": "水位 不存在词 都在",
+                        "stderr": "", "exit_code": 0, "timed_out": False}
             rc = _quiet_main(["--cases-dir", d, "--report-dir", d], transport_fn=fake_transport)
             self.assertEqual(rc, 0)
 
@@ -75,7 +77,8 @@ class TestRunner(unittest.TestCase):
                 "     env: {SRM_TENANT_ID: 18}, source: t, truth_source: inline,\n"
                 "     expected_keywords: [水位]}\n", encoding="utf-8")
             def fake_transport(question, skill_id, env, timeout, skill_dir=None, _runner=None):
-                return {"output": "水位 462 m", "stderr": "", "exit_code": 0, "timed_out": False}
+                return {"output": "水位 462 m", "answer": "水位 462 m",
+                        "stderr": "", "exit_code": 0, "timed_out": False}
             orig = truth.make_db_query_fn
             truth.make_db_query_fn = lambda env: (_ for _ in ()).throw(RuntimeError("DB down"))
             try:

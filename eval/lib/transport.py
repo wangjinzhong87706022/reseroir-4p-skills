@@ -10,13 +10,17 @@ def run_hermes(question, skill_id, env, timeout, skill_dir=None, _runner=subproc
     try:
         r = _runner(cmd, capture_output=True, text=True, timeout=timeout,
                     cwd=str(skill_dir) if skill_dir else None, env=full_env)
-        return {"output": (r.stdout or "").strip(), "stderr": (r.stderr or "").strip(),
+        output = (r.stdout or "").strip()
+        answer, extracted = extract_final_answer(output)
+        return {"output": output, "answer": answer, "answer_extracted": extracted,
+                "stderr": (r.stderr or "").strip(),
                 "exit_code": r.returncode, "timed_out": False}
     except subprocess.TimeoutExpired:
-        return {"output": "", "stderr": "", "exit_code": None, "timed_out": True}
+        return {"output": "", "answer": "", "answer_extracted": False,
+                "stderr": "", "exit_code": None, "timed_out": True}
 
 
-_TRAILER_RE = re.compile(r"\[exited with code \d+\]\s*$")
+_TRAILER_RE = re.compile(r"\[exited with code -?\d+\]\s*$")
 
 
 def _strip_trailer(text: str) -> str:

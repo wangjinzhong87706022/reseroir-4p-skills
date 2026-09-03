@@ -35,11 +35,18 @@ def parse_args(argv):
     p.add_argument("--tag")
     p.add_argument("--id")
     p.add_argument("--truth", choices=["inline", "live_db", "rubric"])
-    p.add_argument("--llm", action="store_true", help="启用 LLM-judge（rubric 题）")
+    p.add_argument("--llm", action="store_true",
+                   help="启用 LLM-judge（rubric 题）。考官二选一：ANTHROPIC_API_KEY（Anthropic）"
+                        "或 EVAL_JUDGE_BASE_URL+EVAL_JUDGE_MODEL（OpenAI 兼容端点，如本地网关/vLLM）")
     p.add_argument("--sleep", type=float, default=2.0,
                    help="每题之间休眠秒数（限流退避），默认 2，批量跑可设 0")
     p.add_argument("--mode", choices=["gate", "report"], default="gate",
                    help="gate=any non-PASS exit 1（CI 门禁）；report=永远 exit 0（只出报告）")
+    p.add_argument("--timeout-cap", type=int, default=None,
+                   help="每题超时上限（秒）：取 min(case.timeout, cap)，只压不抬。不传则用 case 原值")
+    p.add_argument("--timeout-set", type=int, default=None,
+                   help="每题超时下限抬到该值（秒）：取 max(case 自带 timeout, set)，只抬不压，"
+                        "避免把 SUP1 等原生长超时题压短。与 --timeout-cap 互斥，--timeout-set 优先")
     p.add_argument("--list", action="store_true", help="仅列出用例")
     return p.parse_args(argv)
 
@@ -53,7 +60,8 @@ def filter_cases(cases, args):
     if args.tag:
         out = [c for c in out if args.tag in c.tags]
     if args.id:
-        out = [c for c in out if c.id == args.id]
+        wanted = {x.strip() for x in args.id.split(",") if x.strip()}
+        out = [c for c in out if c.id in wanted]
     if args.truth:
         out = [c for c in out if c.truth_source == args.truth]
     return out
@@ -68,8 +76,8 @@ def _dispatch(case, out, query_fn, llm_on):
         return judge.judge_live_db(case, out, query_fn)
     # rubric
     llm_fn = None
-    if llm_on and os.environ.get("ANTHROPIC_API_KEY"):
-        llm_fn = lambda o, r: judge.llm_judge(o, r)  # 真实客户端
+    if llm_on and (os.environ.get("ANTHROPIC_API_KEY") or os.environ.get("EVAL_JUDGE_BASE_URL")):
+        llm_fn = lambda o, r: judge.llm_judge(o, r)  # Anthropic 或 EVAL_JUDGE_BASE_URL（OpenAI 兼容）
     return judge.judge_rubric(case, out, llm_fn)
 
 
@@ -92,22 +100,53 @@ def main(argv=None, transport_fn=None, query_fn=None, llm_on=False, report_dir=N
             # query_fn 保持 None → _dispatch 逐题返回 ERROR，run 继续且照写报告
     llm_on = llm_on or args.llm
 
+    out_dir = Path(report_dir or args.report_dir)
+    out_dir.mkdir(parents=True, exist_ok=True)
+    transcripts_dir = out_dir / "transcripts"
+
     results = []
     for i, c in enumerate(selected, 1):
-        print(f"[{i}/{len(selected)}] {c.id} ({c.skill}/{c.category})", flush=True)
+        # 超时口径：--timeout-set 只抬不压 max(case 原值, set) > --timeout-cap 封顶 min() > case 原值
+        # 2026-08-27 修正：旧实现直接覆盖，会把 SUP1 这类原生 1500s 的慢题压到 1000s → TIMEOUT 伪影
+        if args.timeout_set:
+            eff_timeout = max(c.timeout, args.timeout_set)
+        elif args.timeout_cap:
+            eff_timeout = min(c.timeout, args.timeout_cap)
+        else:
+            eff_timeout = c.timeout
+        print(f"[{i}/{len(selected)}] {c.id} ({c.skill}/{c.category}) [timeout={eff_timeout}s]", flush=True)
         t0 = time.time()
-        try:
-            r = transport_fn(c.question, c.skill, c.env, c.timeout, skill_dir=str(get_skill_dir(c.skill)))
+        # 2026-08-27：transport 偶发基础设施异常（如 "read operation timed out"）重试一次，
+        # 避免单点网络/IO 抖动毁掉一道题（SUP2 实例）。TIMEOUT 不重试（重试只是双倍耗时）。
+        r, exc = None, None
+        for attempt in (1, 2):
+            try:
+                r = transport_fn(c.question, c.skill, c.env, eff_timeout, skill_dir=str(get_skill_dir(c.skill)))
+                break
+            except Exception as e:
+                exc = e
+                if attempt == 1:
+                    print(f"   .. transport 异常（{e}），重试 1 次", flush=True)
+                    time.sleep(3)
+        if r is not None:
             elapsed = time.time() - t0
             if r.get("timed_out"):
-                v = {"verdict": "TIMEOUT", "detail": {"reason": f"超时 {c.timeout}s"}}
+                v = {"verdict": "TIMEOUT", "detail": {"reason": f"超时 {eff_timeout}s"}}
+            elif not (r.get("answer") or "").strip():
+                # 未超时但无最终回复 = infra 故障（hermes 崩溃/空 stdout），判 ERROR 防假 FAIL
+                v = {"verdict": "ERROR", "detail": {"reason": "transport 未超时但返回空输出"}}
             else:
-                v = _dispatch(c, r.get("output", ""), query_fn, llm_on)
-            out_preview = r.get("output", "")
-        except Exception as exc:
+                v = _dispatch(c, r["answer"], query_fn, llm_on)
+            out_preview = r.get("answer", "")
+            transcript_path = transcripts_dir / f"{c.id}.txt"
+            meta = (f"[answer_extracted={r.get('answer_extracted')}] "
+                    f"[answer_chars={len(r.get('answer') or '')}]\n")
+            report.write_transcript(transcript_path, meta + r.get("output", ""), r.get("stderr", ""))
+        else:
             elapsed = time.time() - t0
-            v = {"verdict": "ERROR", "detail": {"reason": f"用例异常: {exc}"}}
+            v = {"verdict": "ERROR", "detail": {"reason": f"用例异常(重试后仍失败): {exc}"}}
             out_preview = ""
+            report.write_transcript(transcripts_dir / f"{c.id}.txt", "", f"runner exception: {exc}")
         status = {"PASS": "PASS", "FAIL": "FAIL", "ERROR": "ERROR", "TIMEOUT": "TIMEOUT"}.get(v["verdict"], "ERROR")
         results.append(report.build_result(c, status, elapsed, out_preview, v["detail"]))
         print(f"   -> {status}", flush=True)
@@ -116,8 +155,6 @@ def main(argv=None, transport_fn=None, query_fn=None, llm_on=False, report_dir=N
 
     summary = report.summarize(results)
     ensure_dirs()
-    out_dir = Path(report_dir or args.report_dir)
-    out_dir.mkdir(parents=True, exist_ok=True)
     ts = time.strftime("%Y%m%d-%H%M%S")
     report.write_json(results, summary, out_dir / f"eval-{ts}.json")
     report.write_markdown(results, summary, out_dir / f"eval-{ts}.md")
