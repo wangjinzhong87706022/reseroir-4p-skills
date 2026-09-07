@@ -38,5 +38,10 @@ screenshots/
 
 # 评审 H2：临时排障脚本不进版本库（docs/superpowers/plans/2026-08-20-review-remediation.md Task 3）
 tmp_*.py
+
+# 下划线前缀排查脚本（_tmp_*/_alarm_*/_diag_*/_ew_* 等，评测战役排障产物，不入库）
+# 例外：__init__.py 是包标识，必须入库
+_*.py
+!__init__.py
 .env
 output/
