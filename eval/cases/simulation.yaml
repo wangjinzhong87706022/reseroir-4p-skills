@@ -141,7 +141,8 @@ cases:
     timeout: 240
     source: simulation/tests/test-questions.md::Q25
     truth_source: inline
-    expected_keywords: ["水位", "mm"]
+    expected_keywords: ["最高水位", "mm"]
+    expected_range: {min: 455, max: 470}
   - id: SIM12
     skill: simulation
     category: 虚拟场景
@@ -151,7 +152,8 @@ cases:
     timeout: 240
     source: simulation/tests/test-questions.md::Q26
     truth_source: inline
-    expected_keywords: ["水位", "预演"]
+    expected_keywords: ["最高水位", "预演"]
+    expected_range: {min: 455, max: 470}
   - id: SIM13
     skill: simulation
     category: 虚拟场景
@@ -162,6 +164,7 @@ cases:
     source: simulation/tests/test-questions.md::Q27
     truth_source: inline
     expected_keywords: ["汛限", "水位"]
+    expected_range: {min: 455, max: 470}
   - id: SIM14
     skill: simulation
     category: 虚拟场景_异常
@@ -185,7 +188,8 @@ cases:
     timeout: 120
     source: simulation/tests/test-questions.md::Q35
     truth_source: inline
-    expected_keywords: ["水位", "变化"]
+    expected_keywords: ["最高水位", "变化"]
+    expected_range: {min: 455, max: 470}
   # === 四、预演报告生成（能力4） ===
   - id: SIM16
     skill: simulation
@@ -224,7 +228,7 @@ cases:
     timeout: 120
     source: simulation/tests/test-questions.md::Q42
     truth_source: rubric
-    expected_keywords: ["无", "结果"]
+    expected_keywords: ["无", "预演结果"]
     rubric:
       - 检测该洪水无预演结果数据
       - 不编造报告内容
@@ -254,6 +258,7 @@ cases:
     source: simulation/tests/test-questions.md::Q46
     truth_source: inline
     expected_keywords: ["敏感性", "水位"]
+    expected_range: {min: 455, max: 470}
   - id: SIM21
     skill: simulation
     category: 敏感性分析
@@ -264,6 +269,7 @@ cases:
     source: simulation/tests/test-questions.md::Q47
     truth_source: inline
     expected_keywords: ["敏感性", "起调"]
+    expected_range: {min: 455, max: 470}
   - id: SIM22
     skill: simulation
     category: 敏感性分析_异常
@@ -288,6 +294,7 @@ cases:
     source: simulation/tests/test-questions.md::Q54
     truth_source: inline
     expected_keywords: ["敏感性", "水位"]
+    expected_range: {min: 455, max: 470}
   # === 六、历史经验提取（能力6） ===
   - id: SIM24
     skill: simulation
@@ -319,7 +326,9 @@ cases:
     tags: [live_db]
     source: simulation/tests/test-questions.md::Q65
     truth_source: live_db
-    truth_query: "SELECT COUNT(*) AS cnt FROM srm_flood_history_base WHERE deleted = 0"
+    # 2026-08-27 修正：问"有几场有完整预演结果"，旧 SQL 数的是 base 全部洪水（语义错位），且漏 tenant 过滤。
+    # 有预演结果 = result 表存在 type=7 统计摘要；tenant 过滤走 base 表（result 表无 tenant 列）。
+    truth_query: "SELECT COUNT(*) AS cnt FROM srm_flood_history_base b WHERE b.deleted = 0 AND b.tenant_id = 18 AND EXISTS (SELECT 1 FROM srm_flood_history_result r WHERE r.flood_id = b.id AND r.deleted = 0 AND r.type = 7)"
     tolerance: 50.0
     expected_keywords: ["历史", "洪水"]
   - id: SIM27
@@ -332,7 +341,7 @@ cases:
     tags: [live_db]
     source: simulation/tests/test-questions.md::Q91
     truth_source: live_db
-    truth_query: "SELECT rz FROM st_rsvr_r WHERE rz IS NOT NULL AND deleted = 0 ORDER BY tm DESC LIMIT 1"
+    truth_query: "SELECT rz FROM st_rsvr_r WHERE rz IS NOT NULL AND deleted = 0 AND stcd = '3' ORDER BY tm DESC LIMIT 1"
     tolerance: 1.0
     expected_keywords: ["水位"]
   # === 七、综合场景（多能力联动） ===
@@ -375,8 +384,8 @@ cases:
     timeout: 120
     source: simulation/tests/test-questions.md::Q82
     truth_source: rubric
-    expected_keywords: ["无效", "id"]
+    expected_keywords: ["不存在", "id"]
     rubric:
-      - 检测 id=0 为无效洪水 ID
-      - 返回明确"无效参数"提示而非崩溃
+      - 检测 id=0 为无效洪水 ID（数据库中不存在）
+      - 返回明确"无效参数/未找到"提示而非崩溃
       - 不编造预演结果

@@ -224,6 +224,12 @@ def run_multi_scheme(inflow, initial_wl, flood_limit_level, schemes,
     :param max_drainage_capacity: max discharge capacity (m3/s)
     :return: dict with 'schemes' results and 'comparison' analysis
     """
+    # 入参归一化：inflow 支持两种格式
+    #   [{"time": "...", "value": 123.4}, ...]  （历史洪水入库过程原始格式）
+    #   [123.4, 56.7, ...]                      （纯流量序列）
+    if inflow and isinstance(inflow[0], dict):
+        inflow = [float(item["value"]) for item in inflow]
+    inflow = [float(v) for v in inflow]
     scheme_results = []
 
     for scheme in schemes:
