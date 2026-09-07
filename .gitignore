@@ -43,5 +43,17 @@ tmp_*.py
 # 例外：__init__.py 是包标识，必须入库
 _*.py
 !__init__.py
+
+# 运行时状态库与会话目录（可重新生成，不入库）
+.hermes/
+state/supervisor.db
+diagnosis-verification/state/
+simulation/data/
+simulation/reports/
+
+# 排查过程产物（json 数据快照 / 图表，不入库）
+early-warning/correlation_result*.json
+early-warning/rain_water_data.json
+early-warning/rain_water_analysis.png
 .env
 output/
