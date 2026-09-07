@@ -1,7 +1,7 @@
 ---
 name: supervisor
 description: "四预智能体协同编排层（Supervisor）：场景识别、任务拆解、DAG 编排、跨 skill 调度、结果仲裁、全局 State 持久化与断点续跑。把 forecasting / early-warning / plan-generation / simulation / diagnosis-verification 等专业 skill 组织成自动化闭环。"
-version: 0.4.0
+version: 0.5.0
 author: SmartTwinRes Team
 license: MIT
 platforms: [linux, windows, macos]
@@ -16,7 +16,7 @@ prerequisites:
   env_vars: [SRM_DB_HOST, SRM_DB_PORT, SRM_DB_NAME, SRM_DB_USER, SRM_DB_PASSWORD, SRM_TENANT_ID, SRM_RESERVOIR_NAME]
 ---
 
-# 四预智能体 Supervisor 协同编排层 v0.4（速查卡）
+# 四预智能体 Supervisor 协同编排层 v0.5（速查卡）
 
 > **定位**：本 skill 是四预智能体集群的**编排层**，不是新专业能力。它把已有的
 > `forecasting`（预知/预报）、`early-warning`（预警）、`simulation`（预演/仿真）、
@@ -132,6 +132,11 @@ python3 scripts/supervisor_state.py queue
 Supervisor 本身**无水库特定逻辑**——子 skill 已全部接入 reservoir profile
 （`SRM_RESERVOIR_NAME`），编排层只透传环境变量。桃曲坡用 `SRM_RESERVOIR_NAME=taoqupo`
 （tenant 20），三岔默认（tenant 18）。
+
+> ⛔ **编排过程临场 SQL 的租户纪律（v0.5 新增）**：诊断/排查类临时查询也必须带 `tenant_id = <当前租户>`
+> （st_rsvr_r / st_pptn_r / srm_flood_history_base / model_result_files / model_config / **f_rnfl_h** 等含该列的表一律过滤；
+> 仅 weather_warn / weather_info 这类确认无 tenant_id 列的表除外，以 docs/shared-tables.md 最新口径为准）。
+> 排查 Tenant 分布属例外，仅限只读聚合且须在结论里声明"含全租户行"。SUP5 实测：f_rnfl_h 漏加过滤会把外库预报当"本库为空"得出错误研判。
 
 ## 六、输出蓝图（回答必须包含 3 段）
 

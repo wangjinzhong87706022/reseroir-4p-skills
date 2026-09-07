@@ -60,9 +60,9 @@
 | srm_flood_history_base | ✅ 有 | `tenant_id = 18` | 三岔水库 |
 | model_result_files | ✅ 有 | `tenant_id = 18` | 三岔水库 |
 | ew_info_message | ✅ 有 | 不强制 (告警跨租户) | - |
-| f_rnfl_h | ❌ **无** | ⚠️ **不要加 tenant 过滤** | - |
-| weather_warn | ❌ **无** | ⚠️ **不要加 tenant 过滤** | - |
-| weather_info | ❌ **无** | ⚠️ **不要加 tenant 过滤** | - |
+| f_rnfl_h | ✅ 有（2026-08-27 实库核验，2026-08-10 曾修跨租户泄漏） | `tenant_id = <当前租户>`（18=三岔/20=桃曲坡），**必加**；旧文档"无此列/不要过滤"已证伪 | - |
+| weather_warn | ❌ **无**（实库核验一致） | ⚠️ **不要加 tenant 过滤** | - |
+| weather_info | ❌ **无**（实库核验一致） | ⚠️ **不要加 tenant 过滤** | - |
 | model_config | ✅ 有 | `tenant_id = 18` | 三岔水库 |
 
 #### 2.2 deleted 过滤规则
@@ -328,21 +328,23 @@ SELECT * FROM ew_info_message WHERE deleted = 0;
 | **FYMDH** | datetime | 预报发布时间 | **列名大写** |
 | UNITNAME | varchar(50) | 发布单位 | 1=和风天气 |
 | deleted | bit(1) | 是否删除 | - |
-| **tenant_id** | — | **无此列** | ⚠️ **不要加 tenant 过滤** |
+| **tenant_id** | bigint | 租户 ID | ⚠️ **必加过滤**（18=三岔 / 20=桃曲坡）。2026-08-10 曾因漏加发生跨租户预报泄漏；旧文档"无此列"系错误描述，已于 2026-08-27 实库核验纠正 |
 
 #### 查询规则
 
 ```sql
--- ✅ 正确: 无 tenant 过滤 + 按 FYMDH 取最新批次
+-- ✅ 正确: tenant 过滤 + 按 FYMDH 取最新批次
 SELECT RN, YMDH, FYMDH, UNITNAME
 FROM f_rnfl_h
 WHERE YMDH BETWEEN NOW() AND DATE_ADD(NOW(), INTERVAL 48 HOUR)
-  AND FYMDH = (SELECT MAX(FYMDH) FROM f_rnfl_h WHERE type = 1 AND deleted = 0)
+  AND FYMDH = (SELECT MAX(FYMDH) FROM f_rnfl_h
+               WHERE type = 1 AND deleted = 0 AND tenant_id = 18)
+  AND tenant_id = 18
   AND deleted = 0
 ORDER BY YMDH;
 
--- ❌ 错误: 加了不存在的 tenant_id
-SELECT * FROM f_rnfl_h WHERE tenant_id = 18 AND deleted = 0;
+-- ❌ 错误: 漏掉 tenant 过滤 → 会读到其他水库的降雨预报（2026-08-10 泄漏同类）
+SELECT * FROM f_rnfl_h WHERE deleted = 0 AND YMDH BETWEEN NOW() AND DATE_ADD(NOW(), INTERVAL 48 HOUR);
 ```
 
 #### 特殊注意
