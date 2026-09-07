@@ -97,6 +97,14 @@ def _get_pool():
             )
         except ImportError:
             # dbutils not available -- fall back to single-connection mode
+            # 静默回退是隐患，必须显式告警（2026-09-01 DV5 修复）：
+            # 否则运维无法感知 maxconnections=10 配置从未生效，
+            # 并发查询性能受限/高并发连接耗尽问题难以定位。
+            import logging
+            logging.getLogger('srm.db').warning(
+                "[DB] DBUtils 未安装，回退到单连接模式（maxconnections 配置未生效）。"
+                "并发查询性能将受限，建议执行: pip install DBUtils"
+            )
             _pool = 'single'
         return _pool
 

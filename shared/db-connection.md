@@ -57,6 +57,17 @@ from tenant import current_tenant_id
 
 `lib/db.py` 自动尝试 `dbutils.pooled_db.PooledDB`（maxconnections=10）；若 `dbutils` 未安装，回退到单连接模式。skill 脚本无需关心。
 
+> **注意**：DBUtils 缺失时系统仍可运行，但并发查询性能将受限（maxconnections=10 配置不生效）。
+> 生产环境建议始终安装：`pip install DBUtils`
+> 回退时 `srm.db` logger 会输出 WARNING，运维可据此定位。
+
+## 依赖清单
+
+| 依赖 | 版本要求 | 用途 | 缺失时行为 |
+|------|---------|------|-----------|
+| pymysql | >=1.0 | MySQL 驱动 | 系统不可用 |
+| DBUtils | >=1.0 | 连接池 | 降级到单连接模式（性能受限，启动时 logging.warning 告警） |
+
 ## 五、超时配置
 
 | 超时 | 值 | 配置位置 |

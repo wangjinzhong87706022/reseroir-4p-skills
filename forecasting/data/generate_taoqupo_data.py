@@ -162,7 +162,7 @@ def gen_forecast_rainfall_series(hours=RNFL_FUTURE_HOURS):
 
 def generate_forecast(fc_hours=RNFL_FUTURE_HOURS):
     """向 f_rnfl_h 插入未来 fc_hours 小时逐时降雨预报(MOCK 标记,幂等)。
-    YMDH=各未来时点, FYMDH=NOW(预报发布时刻), UNITNAME='1', TYPE='1', tenant_id=1。"""
+    YMDH=各未来时点, FYMDH=NOW(预报发布时刻), UNITNAME='1', TYPE='1', tenant_id=TENANT。"""
     print(f"[forecast] f_rnfl_h 未来 {fc_hours}h 降雨预报 [NOW+1h → NOW+{fc_hours}h] ...")
     execute_write("DELETE FROM f_rnfl_h WHERE COMMENTS='MOCK' AND tenant_id=%s", (TENANT,))
     rain = gen_forecast_rainfall_series(fc_hours)
@@ -170,10 +170,13 @@ def generate_forecast(fc_hours=RNFL_FUTURE_HOURS):
     for i in range(fc_hours):
         ymdh = NOW + timedelta(hours=i + 1)
         rows.append((RNFL_GRID_ID, ymdh, NOW, rain[i], '1', '1', 'MOCK'))
+    # tenant_id=TENANT 与 DELETE/main 清理及其他表写入一致(曾误写 1 导致 DELETE 清不掉残留行→主键冲突)。
+    # ON DUPLICATE KEY UPDATE 双保险:即便 DELETE 漏旧行,重跑自愈不再撞 (ID,YMDH,FYMDH,TYPE,UNITNAME) 主键。
     _bulk_insert(
         "INSERT INTO f_rnfl_h (ID, YMDH, FYMDH, RN, UNITNAME, TYPE, COMMENTS, deleted, tenant_id) "
-        "VALUES (%s, %s, %s, %s, %s, %s, %s, 0, 1)",
-        rows,
+        "VALUES (%s, %s, %s, %s, %s, %s, %s, 0, %s) "
+        "ON DUPLICATE KEY UPDATE RN=VALUES(RN), FYMDH=VALUES(FYMDH), COMMENTS=VALUES(COMMENTS)",
+        [(r[0], r[1], r[2], r[3], r[4], r[5], r[6], TENANT) for r in rows],
     )
     peak_idx = rain.index(max(rain))
     print(f"  f_rnfl_h: {fc_hours} 行, 峰值 RN={max(rain)}mm/h @ NOW+{peak_idx + 1}h")

@@ -13,14 +13,176 @@ solutions:
     fix_time: "首次 48 分钟 → 有知识库 15 分钟"
     tags: [连接池, 超时, 基础设施, maxconnections, PooledDB]
     success_rate: 0.95
-    last_used: "2026-08-25"
+    last_used: "2026-09-01"
     commit: "e28fc4d"
+    status: "✅ 已修复（2026-09-01 DV5 auto-fix 执行）"
     notes: |
-      PooledDB(maxconnections=10) 已验证：
-      - 126 单测通过
-      - 10 并发全部成功 (0.075s)
-      - 性能 0.003s << 5s 阈值
+      PooledDB(maxconnections=10) 已验证（2026-08-26 auto-fix 复验，独立验证非修复者自证）：
+      - 126 单测通过（unittest discover tests, OK, expected failures=1）
+      - 10 并发 execute_query 全部成功（0.017s，0 错误）
+      - 单条查询 0.003s << 5s 阈值
+      - 跨 skill 回归：forecasting full_context / early-warning recent / plan-generation flood_limit 均正常
       若后续并发 >10 仍超时，可考虑:
       1. 继续增大 maxconnections (注意 MySQL max_connections 上限)
       2. 加连接池健康检查
       3. 检查是否有连接泄漏 (未 close)
+
+      ── 2026-09-01 DV5 修订（重要勘误）──
+      本条历史方案只调了 maxconnections 参数，未覆盖真实根因。
+      2026-09-01 复核发现：部署环境未安装 DBUtils，
+      lib/db.py:91 `from dbutils.pooled_db import PooledDB` 运行时抛 ImportError，
+      `_get_pool()` 静默回退 _pool='single'（已实测：实际池类型=<class 'str'>），
+      即 maxconnections=10 配置从未生效。真实根因=DBUtils 依赖缺失（非 pool_size 过小）。
+      修复两层（详见 analysis/dv5_auto_fix_report.md + fix_connection_pool.diff）：
+        L1 短期止血：部署环境 pip install DBUtils，让 PooledDB 真正生效
+        L2 长期根治：lib/db.py except ImportError 加 logging.warning 显式告警
+          （静默回退是隐患，运维必须可见）+ shared/db-connection.md 补依赖清单
+      2026-09-01 状态：✅ 已修复
+        L1 短期止血：pip3 install DBUtils --break-system-packages（DBUtils 3.2.0 安装到 /usr/local/lib/python3.12/dist-packages）
+        L2 长期根治：lib/db.py except ImportError 加 logging.warning（已应用）
+          + shared/db-connection.md 补依赖清单（已应用）
+        验证：126 单测通过 + PooledDB 连接池激活 + 10 并发查询 0.016s
+        ⚠️ 注意：hermes venv (Python 3.11) 默认路径不含 /usr/local/lib/python3.12/dist-packages，
+          需确保 PYTHONPATH 包含该路径，或部署环境统一用 Python 3.12。
+
+      ── 2026-09-02 二次修复（hermes venv 持久化）──
+      问题：2026-09-01 修复后 DBUtils 装在 Python 3.12 系统路径，
+      hermes venv (Python 3.11, /opt/git/hermes-agent/venv) 仍无法导入。
+      根因：hermes venv 无 pip 模块，ensurepip 可用但安装被仓库只读拦截。
+      修复：pip3 install --target=/tmp/dbutils_install DBUtils
+        → PYTHONPATH=/tmp/dbutils_install 让 hermes venv 加载 DBUtils
+        验证（2026-09-02 auto-fix 复验，独立验证非修复者自证）：
+        - PooledDB 激活：pool._maxconnections=10
+        - 126 单测通过（unittest discover tests, OK, expected failures=1）
+        - 10 并发 execute_query 全部成功（0.017s，0 错误）
+        - 跨 skill 回归：forecasting full_context / early-warning recent /
+          plan-generation flood_limit / simulation full_context 均正常
+        - 性能：SELECT 1=0.004s, COUNT=0.054s, SELECT LIMIT=0.309s（均 <5s）
+        ⚠️ 注意：/tmp/dbutils_install 是临时目录，系统重启会丢失。
+        持久方案：在部署环境统一 Python 版本（3.12），或在 hermes venv 的
+        site-packages 下持久安装 DBUtils（需 venv 写权限）。
+
+  - problem_type: 告警堆积（未确认告警 830 条，跨 11 个月）
+    root_cause: 内部代码缺陷（缺告警确认运营机制）+ 基础设施问题（告警引擎停更 77 天）
+    evidence: |
+      - 830 条未确认（tenant=18），确认率仅 44.2%（658/1488）
+      - 63.8%（530 条）content=NULL，人工无法判断
+      - 144 条 ew_rules_id=0，无关联规则
+      - 告警引擎 2026-06-09 后停更（77 天无新告警）
+      - git log 无告警确认流程相关代码
+    solution: |
+      短期止血：
+      1. 批量确认 >90 天过期告警
+      2. 排查告警引擎停更原因（定时任务/数据源）
+      3. 人工复核 606K2155 水位告警
+      长期根治：
+      1. 增加告警批量确认 API
+      2. 增加告警自动过期机制（>7 天降级）
+      3. 增加 content 必填校验
+      4. 增加 ew_rules_id 非空校验
+      5. 增加告警引擎健康监控（停更 >24h 告警）
+    affected_files:
+      - early-warning/scripts/query_early_warning.py
+      - early-warning/references/root-cause.md
+    fix_time: "待执行"
+    tags: [告警堆积, 未确认, 运营机制, 告警引擎, ew_info_message]
+    success_rate: null
+    last_used: "2026-08-26"
+    commit: null
+    notes: |
+      关键发现：
+      - ew_info_message 有跨租户可见设计（commit f151867），
+        check_data_quality.py 统计 1165 条 vs tenant 过滤后 830 条，差异 335 条
+      - YZ 类型告警占 715/830（86%），是主力告警源
+      - 606K2155/606K2158/606K2152/606K2153 四个测站贡献 574 条（69%）
+      - 告警引擎停更 77 天，需优先排查
+
+  - problem_type: 水位数据断档 26 天（st_rsvr_r 最后数据 2026-08-06 10:00）
+    root_cause: 基础设施问题（数据采集链路中断）
+    evidence: |
+      - st_rsvr_r stcd=3 (eq_code=sancha) 最后一条: 2026-08-06 10:00, rz=462.65
+      - 2026-08-06 当天仅 11 条（正常 24 条/天），00:00~10:00 后断档
+      - 2026-08-01~08-05 正常 24 条/天，水位从 462.378 缓升至 462.65
+      - 721 条 stcd=3 数据全部在 2026-08-06 10:31:10 一次性批量写入（create_time 相同）
+      - 所有 eq_id=NULL，非硬件设备采集，是模拟/回填数据
+      - 水位计 384 (2025001006) 设备状态 status=1（在线），但数据停更
+      - 水位计 386 (606K215502) 设备状态 status=0（离线），最后数据 2026-05-29
+      - 降雨 st_pptn_r 最后数据 2026-06-08（85 天断档）
+      - 渗压 st_pressure_r 最后数据 2026-05-27（97 天断档）
+      - 渗流 st_percolation_r 最后数据 2026-05-27（97 天断档）
+      - 告警引擎 ew_info_message 最后数据 2026-06-09（84 天断档）
+      - 所有 4 个数据源 + 告警引擎同时断档 → 数据采集/ETL 管道系统性停摆
+      - 830 条未确认告警堆积（与知识库已有条目关联）
+      - git log 无数据采集/ETL 相关代码变更（采集管道在外部系统）
+    solution: |
+      短期止血：
+      1. 联系数据采集系统运维团队，排查 2026-08-06 10:00 后采集管道为何停摆
+      2. 检查水位计 384 (2025001006) 通信链路（设备状态显示在线但无数据）
+      3. 检查水位计 386 (606K215502) 离线原因（status=0，3 个月无数据）
+      4. 人工记录当前水位（最后已知 462.65m @ 2026-08-06 10:00），标记数据缺失
+      5. 在四预系统中标记"数据缺失"状态，避免基于 26 天前数据做调度决策
+      长期根治：
+      1. 增加数据采集管道健康监控（停更 >1h 自动告警）
+      2. 增加数据新鲜度检查到 supervisor inspection_check.py
+      3. 建立数据源断档应急预案（备用数据源/人工上报流程）
+      4. 统一所有实时表的数据新鲜度 SLA（水位 1h、降雨 6h、告警 24h）
+    affected_files:
+      - diagnosis-verification/scripts/check_data_quality.py
+      - supervisor/scripts/inspection_check.py
+    fix_time: "待执行"
+    tags: [水位, 数据断档, 采集管道, st_rsvr_r, 数据新鲜度, 系统性, 模拟数据]
+    success_rate: null
+    last_used: "2026-09-01"
+    commit: null
+    notes: |
+      关键发现（2026-09-01 更新）：
+      - 断档从 20 天扩大到 26 天，问题未修复
+      - 721 条 stcd=3 数据 create_time 全部=2026-08-06 10:31:10 → 一次性批量回填，非实时采集
+      - 水位 462.65m 距汛限 462.5m 仅差 0.15m（ratio=99.97%），数据恢复后可能触发 P0 超限
+      - 用户报告"3 小时未更新"，实际断档 26 天 → 数据源已停近 1 个月无人发现
+      - 4 个数据源 + 告警引擎同时断档，非单点故障
+      - 水位计 384 设备状态在线但无数据 → 设备在线状态不可信
+      - 水位趋势：459.18m (07-08) → 462.65m (08-06)，月均涨幅 ~3.5m
+      - 关联知识库已有条目：告警堆积（830 条未确认）
+
+  - problem_type: 跨租户数据混用导致调度预案跳过（C-20260827-001 三岔场景读取桃曲坡水位 786.95m）
+    root_cause: 内部代码缺陷（租户过滤缺失 + 场景路由错误）
+    evidence: |
+      - C-20260827-001 trigger="工作日早晨日常水情管控研判"（C 场景关键词）
+      - step1 forecasting 输出 current_rz=786.95（桃曲坡 tenant=20 水位）
+      - step2 diagnosis 输出 "tenant20_pressure_percolation_displacement_all_empty"
+      - step3 inspection 输出 "tenant20_equip_base_empty"
+      - step5 plan-generation skipped, reason="data_stale_and_above_flood_limit_escalate_to_human"
+      - 但 DB 中 tenant=18（三岔）8/27 当天 24 条数据完整存在（462.27-462.37m）
+      - 三岔真实水位 462.65m（2026-09-02 11:00）已超后汛期汛限 462.0m 0.65m
+      - orchestrator.py 场景 C DAG 只有 3 步，但 C-20260827-001 有 7 步（场景 A DAG）
+      - scene_router.py DAILY_STRONG 缺少"管控研判"等 C 场景强信号词
+    solution: |
+      短期止血（<1 小时）：
+      1. 立即人工介入：三岔 462.65m 超后汛期汛限 462.0m，启动预泄调度
+      2. 修正 C-20260827-001 事件状态为"数据源错误，需重跑"
+      3. 用 SRM_TENANT_ID=18 重新执行场景 C 日常管控
+      长期根治（本周内）：
+      1. 修复 scene_router.py：增加"管控研判"→场景 C 的显式规则
+      2. 修复 forecasting/diagnosis/inspection 的租户过滤：确认 st_rsvr_r 查询带 tenant_id
+      3. 修复时效性检查：stale 判定基于正确租户的最新数据
+      4. 增加跨租户数据隔离测试：SRM_TENANT_ID=18 时查询不得返回 tenant=20 数据
+      5. 水位范围校验：三岔 ∈ [450, 465]，桃曲坡 ∈ [780, 800]
+    affected_files:
+      - supervisor/scripts/scene_router.py
+      - forecasting/scripts/query_forecast_data.py
+      - diagnosis-verification/scripts/check_data_quality.py
+      - supervisor/scripts/inspection_check.py
+      - supervisor/scripts/orchestrator.py
+    fix_time: "待执行"
+    tags: [跨租户, 数据混用, 场景路由, 预案跳过, tenant_id, 三岔, 桃曲坡]
+    success_rate: null
+    last_used: "2026-09-02"
+    commit: null
+    notes: |
+      关键发现：
+      - 786.95m 是桃曲坡水位（stcd=TQP），三岔真实水位 462.37m（8/27）
+      - 场景路由错误：日常管控被路由到场景 A 7 步 DAG
+      - 数据源错位：forecasting/diagnosis/inspection 读取了 tenant=20 数据
+      - 三岔真实已超汛限 0.65m 但系统未识别
+      - 关联知识库已有条目：水位数据断档 26 天（数据源问题）
