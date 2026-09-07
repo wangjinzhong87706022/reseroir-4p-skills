@@ -34,7 +34,19 @@ python3 eval/run.py                               # 全跑
 
 报告输出到 `results/eval-<ts>.{json,md}`。退出码：全 PASS=0，否则=1。
 过滤条件 `--subset` / `--tag` / `--skill` / `--id` / `--truth` 同时给出时为 **AND** 组合过滤。
-LLM-judge 模型默认 `claude-sonnet-5`，可用 `EVAL_JUDGE_MODEL` 覆盖（如换更便宜的模型）。
+
+LLM-judge 考官二选一（`--llm` 时生效）：
+
+| 方式 | 环境变量 | 说明 |
+|---|---|---|
+| Anthropic | `ANTHROPIC_API_KEY` | 模型默认 `claude-sonnet-5`，可用 `EVAL_JUDGE_MODEL` 覆盖 |
+| OpenAI 兼容端点 | `EVAL_JUDGE_BASE_URL`（必）+ `EVAL_JUDGE_MODEL` + `EVAL_JUDGE_API_KEY`（可选） | 指向本地网关/vLLM 等 `/v1` 地址；未设 key 则不带鉴权头 |
+
+例：考官用 hermes 同款自建 Qwen——
+```bash
+export EVAL_JUDGE_BASE_URL=https://llm.iagp.top:9080/v1 EVAL_JUDGE_MODEL=Qwen3.8-27B-Q4_K_M.gguf
+python3 eval/run.py --llm ...
+```
 
 ## 加题
 
