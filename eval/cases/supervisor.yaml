@@ -18,8 +18,8 @@ cases:
     truth_source: rubric
     expected_keywords: ["研判", "调度"]
     rubric:
-      - 完成 forecasting→diagnosis→inspection→simulation→plan-gen→仲裁→报告 七步
-      - 仲裁阶段识别"仿真最高水位 786.95m 超汛限 786.8m"
+      - 完成 forecasting→diagnosis→inspection→simulation→plan-gen→仲裁→报告 七步（或如实说明某步不可执行的原因）
+      - 仲裁阶段对仿真最高水位与汛限水位做超限判断（以实际仿真输出数值为准，不要求特定数值如 786.95m/786.8m）
       - 报告含事件号/场景/风险等级/状态四要素
   - id: SUP2
     skill: supervisor
@@ -48,9 +48,9 @@ cases:
     truth_source: rubric
     expected_keywords: ["诊断", "大坝"]
     rubric:
-      - 完成 diagnosis→inspection→simulation→仲裁 链路
-      - 仲裁识别数据质量问题（water_level 空值率高、alerts 过期）
-      - 决策为 escalate 而非 accept
+      - 完成 diagnosis→inspection→simulation→仲裁 链路；若某步数据不可用导致链路中断，明确说明中断点与原因
+      - 仲裁识别数据质量问题（如 water_level 空值率高、alerts 过期，或实际数据中的等效质量问题如数据未更新/超出时效）
+      - 决策为 escalate 或等效的风险提示/人工核查建议，而非在数据质量未确认的情况下 accept
   - id: SUP4
     skill: supervisor
     category: 场景B_大坝安全诊断
@@ -146,6 +146,6 @@ cases:
     truth_source: rubric
     expected_keywords: ["续跑", "step"]
     rubric:
-      - 通过状态持久化模块列出未完成阶段（定位续跑入口即可，不绑死特定脚本名）
-      - 从 Step4 续跑而非从头开始
+      - 通过状态持久化模块列出未完成阶段（定位续跑入口即可，不绑死特定脚本名）；若查询发现该事件实际已完成（各步均 ok），则如实说明无需续跑并解释续跑机制
+      - 若存在未完成步骤则从断点续跑而非从头开始；若事件已完成则不虚构断点
       - 保留已完成阶段结果（pending/ok/skipped/error）

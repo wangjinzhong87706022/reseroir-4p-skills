@@ -144,7 +144,7 @@ cases:
   - id: F13
     skill: forecasting
     category: 水库影响
-    description: 死水位逼近与干旱应对（异常）
+    description: 死水位逼近与干旱应对（异常，错误前提须反驳）
     question: "过去 7 天几乎无降雨、水位逼近死水位 451m，应如何调度保供水？"
     env: {SRM_TENANT_ID: 18, SRM_RESERVOIR_NAME: sancha}
     timeout: 180
@@ -152,8 +152,8 @@ cases:
     truth_source: rubric
     expected_keywords: ["死水位", "供水"]
     rubric:
-      - 识别低水位风险（接近死水位 451m）
-      - 给出兴利保供建议（减少下泄/节水）
+      - 核实真实水位并与死水位 451m 对比：若实际水位（约 462.65m）距死水位尚有余量（>10m），须明确指出"水位逼近死水位"的前提与实际数据不符，而非顺着错误前提给保供方案
+      - 若前提确实成立（低水位）才给兴利保供建议（减少下泄/节水）；前提不成立时可简要说明何种情况下需要保供调度
       - 不编造与工况无关的操作
   # === 三、多源融合类（正常/异常） ===
   - id: F14

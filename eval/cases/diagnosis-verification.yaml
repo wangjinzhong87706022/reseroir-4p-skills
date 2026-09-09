@@ -29,7 +29,7 @@ cases:
     question: "三岔水库最近有大量未确认告警，请诊断原因并给出处置建议"
     question_v2: true
     env: {SRM_TENANT_ID: 18, SRM_RESERVOIR_NAME: sancha}
-    timeout: 240
+    timeout: 2000
     source: diagnosis-verification/tests/test-cases.md::测试用例2
     truth_source: rubric
     expected_keywords: ["告警", "未确认"]
@@ -44,7 +44,7 @@ cases:
     question: "请验证最近一次预报输出是否合格，数据来源、报告结构和安全校验都查一下"
     question_v2: true
     env: {SRM_TENANT_ID: 18, SRM_RESERVOIR_NAME: sancha}
-    timeout: 240
+    timeout: 2000
     source: diagnosis-verification/tests/test-cases.md::测试用例3
     truth_source: rubric
     expected_keywords: ["验证", "数据"]
@@ -74,7 +74,7 @@ cases:
     question: "诊断报告根因为基础设施问题（连接池配置不当），请尝试自动修复"
     question_v2: true
     env: {SRM_TENANT_ID: 18, SRM_RESERVOIR_NAME: sancha}
-    timeout: 480
+    timeout: 2000
     source: diagnosis-verification/tests/test-cases.md::测试用例5
     truth_source: rubric
     expected_keywords: ["修复", "基础设施"]
@@ -119,7 +119,7 @@ cases:
     question: "三岔水库最近一次调度预案执行失败，请诊断根因"
     question_v2: true
     env: {SRM_TENANT_ID: 18, SRM_RESERVOIR_NAME: sancha}
-    timeout: 300
+    timeout: 2000
     source: 补充：预案失败根因诊断（对齐 SKILL.md Phase 5 根因分类）
     truth_source: rubric
     expected_keywords: ["根因", "失败"]

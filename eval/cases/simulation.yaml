@@ -52,8 +52,8 @@ cases:
     expected_keywords: ["失败", "status"]
     rubric:
       - 识别 status=3（失败）状态
+      - 如实执行/尝试多方案预演并报告真实结果：若结果存在，基于真实输出解读并标注"该洪水 status=3、结果可能低质量"的背景；若结果不存在，如实说明预演失败或返回空
       - 不编造预演结果数据
-      - 提示该洪水预演失败或返回空
   - id: SIM5
     skill: simulation
     category: 多方案对比_边界
@@ -106,17 +106,17 @@ cases:
   - id: SIM9
     skill: simulation
     category: 结果解读_异常
-    description: 解读无结果洪水（异常，id=17 无预演）
+    description: 解读失败洪水结果（异常，id=17 数据质量存疑）
     question: "帮我解读2023年7月典型暴雨洪水（id=17）的预演结果"
     env: {SRM_TENANT_ID: 18, SRM_RESERVOIR_NAME: sancha}
     timeout: 120
     source: simulation/tests/test-questions.md::Q20
     truth_source: rubric
-    expected_keywords: ["无", "结果"]
+    expected_keywords: ["预演", "结果"]
     rubric:
-      - 检测该洪水无预演结果数据
+      - 如实核查该洪水的预演结果数据：若结果存在，基于真实数据解读且不编造数值（削峰率/最高水位等须与真实输出一致）；若结果不存在，给出"无可解读结果"提示
       - 不编造削峰率/最高水位数值
-      - 给出"无可解读结果"提示
+      - 对结果数据的来源/质量有明确交代（如标注数据为失败洪水低质量结果或历史残留）
   - id: SIM10
     skill: simulation
     category: 结果解读_边界
@@ -222,17 +222,17 @@ cases:
   - id: SIM18
     skill: simulation
     category: 预演报告_异常
-    description: 无结果洪水报告（异常）
+    description: 失败洪水结果报告（异常，id=17 数据质量存疑）
     question: "帮我生成2023年7月典型暴雨洪水（id=17）的预演报告"
     env: {SRM_TENANT_ID: 18, SRM_RESERVOIR_NAME: sancha}
     timeout: 120
     source: simulation/tests/test-questions.md::Q42
     truth_source: rubric
-    expected_keywords: ["无", "预演结果"]
+    expected_keywords: ["预演", "结果"]
     rubric:
-      - 检测该洪水无预演结果数据
+      - 如实核查该洪水的预演结果数据：若结果存在，基于真实数据生成报告且不编造内容（指标须与真实输出一致）；若结果不存在，给出"无可生成报告的数据"提示
       - 不编造报告内容
-      - 给出"无可生成报告的数据"提示
+      - 对数据来源/质量有明确交代（如标注失败洪水低质量结果或历史残留）
   - id: SIM19
     skill: simulation
     category: 预演报告_边界
