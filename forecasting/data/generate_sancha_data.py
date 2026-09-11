@@ -58,6 +58,9 @@ RNFL_GRID_ID = 2            # 三岔网格 ID(与桃曲坡 ID=1 区隔)
 
 NOW = datetime.now().replace(minute=0, second=0, microsecond=0)
 
+# 波形相位基准（确定性：同 tm 同值，roll 分段续写幂等可复算）
+_EPOCH = datetime(2026, 8, 1)
+
 
 # ===========================================================================
 # st_rsvr_r: 水位/入库/出库/蓄水量
@@ -102,11 +105,18 @@ def gen_observation_series(start, end, stcd=RSVR_MASTER):
     total_h = int((end - start).total_seconds() // 3600)
     for i in range(total_h + 1):
         tm = start + timedelta(hours=i)
-        # 水位：正弦波动 + 缓上涨（汛期逼近汛限）
-        phase = i / max(total_h, 1) * math.pi
-        wl = BASE_WL + (PEAK_WL - BASE_WL) * (1 - math.cos(phase)) / 2
-        # 入库：基流 + 汛期脉冲
-        inq = 15.0 + 40.0 * max(0, math.sin(phase - math.pi / 4))
+        # 水位：绝对时钟相位（72h 主周期 + 24h 日周期 + 确定性伪噪声）。
+        # 旧实现相位相对本次调用起点（i/total_h），每次 roll 都从正弦起点走两个点
+        # → 时序上退化为 BASE/PEAK 两值方波（2026-09-02 起）。改绝对相位后续写无缝。
+        hours = (tm - _EPOCH).total_seconds() / 3600.0
+        phase72 = hours / 72.0 * 2 * math.pi
+        phase24 = hours / 24.0 * 2 * math.pi
+        wl = (BASE_WL
+              + (PEAK_WL - BASE_WL) * 0.5 * (1 + math.sin(phase72))
+              + 0.05 * math.sin(phase24)
+              + 0.03 * math.sin(hours * 2.7))
+        # 入库：基流 + 随主周期的汛期脉冲
+        inq = 15.0 + 40.0 * max(0, math.sin(phase72 - math.pi / 4))
         # 出库：按泄流曲线 + 人工调控（超汛限加大泄）
         otq = _discharge_from_wl(wl)
         if wl > FLOOD_LIM:
@@ -165,17 +175,20 @@ def generate_forecast(fc_hours=RNFL_FUTURE_HOURS):
 # ===========================================================================
 
 def roll_forward(stcd=RSVR_MASTER):
-    """读 st_rsvr_r 断点(MAX(tm)非 MOCK),从断点+1h 续写到 NOW。
-    数据已最新(断点 >= NOW-1h)则跳过(幂等)。"""
+    """读 st_rsvr_r 断点,从断点+1h 续写到 NOW。
+    数据已最新(断点 >= NOW-1h)则跳过(幂等)。
+    断点取全表 MAX(tm):本库模拟数据 creator 均为 'MOCK',按 creator<>'MOCK'
+    找断点会永远查不到 → 每次跳过 → 数据冻结陈旧(2026-09-02 起 145h+,DV1 假超时根因)。
+    桃曲坡(generate_taoqupo_data.py)即按含 MOCK 的 MAX(tm) 续写,此处对齐其口径。"""
     r = execute_query_list(
         "SELECT MAX(tm) as max_tm FROM st_rsvr_r "
-        "WHERE deleted=0 AND stcd=%s AND tenant_id=%s AND creator <> 'MOCK'",
+        "WHERE deleted=0 AND stcd=%s AND tenant_id=%s",
         (stcd, TENANT)
     )[0]
     last = r["max_tm"]
     if not last:
-        print("[roll] 无真实断点,跳过续写(用 --clean + --days 重建)")
-        return {"skipped": True, "reason": "no_real_breakpoint"}
+        print("[roll] 无任何断点,跳过续写(用 --clean + --days 初始重建)")
+        return {"skipped": True, "reason": "no_breakpoint"}
     last_dt = last if isinstance(last, datetime) else datetime.strptime(str(last), "%Y-%m-%d %H:%M:%S")
     gap_h = int((NOW - last_dt).total_seconds() // 3600)
     if gap_h <= 1:
