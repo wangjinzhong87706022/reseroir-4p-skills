@@ -42,3 +42,26 @@
 
 All 6 case yamls have `forbidden_keywords: []`. Zero deployment changes required.  
 Tenant map: 123 cases @ tenant 18 (sancha), 10 cases @ tenant 20 (taoqupo) — no cross-tenant forbidden leakage.
+
+---
+
+## 2026-09-11 处置清账
+
+对照 9/8、9/10 两轮全量后逐条核销（方案：`docs/eval/2026-09-11-fix-execution-plan.md`）：
+
+| id | 2026-09-11 处置 | 落点 |
+|----|----------------|------|
+| F22 | **补修落地**——truth_query 加 `AND tenant_id = 18`（691dcb6 只收紧了 tolerance，truth 未修是本条遗留主因） | `eval/cases/forecasting.yaml` |
+| PG2 | **补修落地**——c1 双汛期口径条件化（主汛 3.3m / 后汛 2.8m 任一，±0.2m 容差） | `eval/cases/plan-generation.yaml` |
+| SIM4 | 双分支 rubric 已在 691dcb6 落地；本轮补 SKILL 前置 status 检查（v1.9.5） | `simulation/SKILL.md` |
+| SIM9 / SIM18 | 691dcb6 双分支已落地，9/10 全量两题已 PASS，**销账** | — |
+| DV2 / SIM2 | timeout 已提至 2000s（691dcb6），9/10 全量零 TIMEOUT，**销账** | — |
+| SUP3 / SUP10 | 691dcb6 条件化已落地，9/10 全量两题已 PASS，**销账** | — |
+| F24 | c2 同义锚点条件化（下泄/泄洪能力/控泄 任一组合即满足） | `eval/cases/forecasting.yaml` |
+| DV5 | 691dcb6 沙箱只读如实说明条款已落地，9/10 全量已 PASS，**销账** | — |
+| PG3 / PG18 / SIM17 / SIM29 | 9/10 全量均已 PASS（judge 方差类），不另修，**销账** | — |
+
+新发现横切项（本轮扫描产出）：`att_res_flse_lim` / `model_result_files` / 4 处 `st_rsvr_r` truth_query
+缺租户过滤——PG7 的 truth 是跨租户随机行（今秋三岔 462.0 / 桃曲坡 786.8 同时满足季节条件），
+PG12 真值混入 tenant 17 的 8 条。已全部加 `AND tenant_id = 18`。md 复选框"F23 误标"经复核为
+误报（md 与 JSON 13/13 一致），撤项。

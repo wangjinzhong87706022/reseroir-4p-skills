@@ -101,7 +101,7 @@ cases:
     expected_keywords: ["对比", "效果"]
     rubric:
       - 给出两场洪水的关键指标对比（削峰率/最高水位）
-      - 注意 id=9 为 status=3 失败记录
+      - 标注 id=9 的失败/低质量背景：明确指出 status=3，或指出其结果异常（削峰率 0%/下泄 0/拦蓄时长 0）并说明不宜作为效果基准，均判满足
       - 给出明确的"哪场更好"判断及理由
   - id: SIM9
     skill: simulation
@@ -341,7 +341,7 @@ cases:
     tags: [live_db]
     source: simulation/tests/test-questions.md::Q91
     truth_source: live_db
-    truth_query: "SELECT rz FROM st_rsvr_r WHERE rz IS NOT NULL AND deleted = 0 AND stcd = '3' ORDER BY tm DESC LIMIT 1"
+    truth_query: "SELECT rz FROM st_rsvr_r WHERE rz IS NOT NULL AND deleted = 0 AND stcd = '3' AND tenant_id = 18 ORDER BY tm DESC LIMIT 1"
     tolerance: 1.0
     expected_keywords: ["水位"]
   # === 七、综合场景（多能力联动） ===

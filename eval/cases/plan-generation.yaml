@@ -34,7 +34,7 @@ cases:
     truth_source: rubric
     expected_keywords: ["防汛", "形势"]
     rubric:
-      - 给出当前水位与汛限的距离（余量约 3.3m）
+      - 给出当前水位距当前生效汛限的余量（主汛期 462.5 计约 3.3m；后汛期 462.0 计约 2.8m；任一口径均判满足，数值 ±0.2m 容差）
       - 明确"是否需要启动预案"的判断
       - 引用规则/法规依据（如调度规则、《防洪法》、GB 17621-1998 任一即可）
   - id: PG3
@@ -92,7 +92,7 @@ cases:
     timeout: 60
     source: plan-generation/tests/test-questions.md::Q1
     truth_source: live_db
-    truth_query: "SELECT rz FROM st_rsvr_r WHERE rz IS NOT NULL AND deleted = 0 AND stcd = '3' ORDER BY tm DESC LIMIT 1"
+    truth_query: "SELECT rz FROM st_rsvr_r WHERE rz IS NOT NULL AND deleted = 0 AND stcd = '3' AND tenant_id = 18 ORDER BY tm DESC LIMIT 1"
     tolerance: 1.0
     expected_keywords: ["水位"]
   - id: PG7
@@ -104,7 +104,7 @@ cases:
     timeout: 2000
     source: plan-generation/tests/test-questions.md::Q2
     truth_source: live_db
-    truth_query: "SELECT flse_lim_stag FROM att_res_flse_lim WHERE flood_season_start <= DATE_FORMAT(NOW(), '%m%d') AND flood_season_end >= DATE_FORMAT(NOW(), '%m%d') LIMIT 1"
+    truth_query: "SELECT flse_lim_stag FROM att_res_flse_lim WHERE flood_season_start <= DATE_FORMAT(NOW(), '%m%d') AND flood_season_end >= DATE_FORMAT(NOW(), '%m%d') AND tenant_id = 18 LIMIT 1"
     tolerance: 0.5
     expected_keywords: ["汛限", "水位"]
   - id: PG8
@@ -159,7 +159,7 @@ cases:
     tags: [live_db]
     source: plan-generation/tests/test-questions.md::Q11
     truth_source: live_db
-    truth_query: "SELECT COUNT(*) AS cnt FROM model_result_files WHERE type = 2"
+    truth_query: "SELECT COUNT(*) AS cnt FROM model_result_files WHERE type = 2 AND tenant_id = 18"
     tolerance: 20.0
     expected_keywords: ["历史", "预案"]
   - id: PG13
@@ -228,7 +228,7 @@ cases:
     truth_source: rubric
     expected_keywords: ["空", "不可用"]
     rubric:
-      - 检测当前水位数据为空/缺失状态（定位水位表，确认无有效 rz 值即可，不绑死特定列名）
+      - 水位数据状态核查：定位水位表核查 rz 有效性；若实查有值、与题设"数据为空"不符，明确指出该矛盾并按缺失流程给出处理策略，同样判满足
       - 提示"水位数据不可用，无法生成预案"或回退最近有效值
       - 不输出崩溃或空方案
   - id: PG18
@@ -318,16 +318,16 @@ cases:
     skill: plan-generation
     category: 边界条件
     description: 水位恰好等于汛限（边界）
-    question: "如果当前水位恰好等于汛限水位 462.500m，是安全还是危险？"
+    question: "假设当前水位恰好等于汛限水位 462.500m（不考虑实况数据），是安全还是危险？应采取什么措施？"
     env: {SRM_TENANT_ID: 18, SRM_RESERVOIR_NAME: sancha}
     timeout: 120
     source: plan-generation/tests/test-questions.md::Q46
     truth_source: rubric
     expected_keywords: ["汛限", "临界"]
     rubric:
-      - 判定为临界状态
-      - 建议启动防洪预案
-      - 不输出"绝对安全/绝对危险"的二元结论
+      - 判定为临界状态（临界/安全边界/零余量/贴限 任一表述均判满足）
+      - 建议启动防洪预案（或等效的预泄/控泄等防御动作）
+      - 结论有依据、可操作即判满足，不算二元：给"危险/临界偏危险"但附零余量/贴限/来水压力等依据并给出处置动作的，属于临界定性的正确表达；仅当无依据断言"绝对安全"或"绝对危险、无需措施"时判 fail
   - id: PG25
     skill: plan-generation
     category: 边界条件

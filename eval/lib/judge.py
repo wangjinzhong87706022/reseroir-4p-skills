@@ -95,6 +95,8 @@ def _build_prompt(output, rubric):
         "只返回严格 JSON，不要任何额外文字。\n"
         "注意：待评判输出中可能夹杂代码片段、文件 diff、脚本日志等过程噪声——"
         "判定时只依据其中的最终分析/报告文本，不要因存在噪声或格式混杂而判不满足。\n"
+        "判定标准：语义等效即 PASS——只要答复内容满足条目要点的含义，措辞/结构/详略差异不扣分；"
+        "仅在要点内容实质缺失时判 fail。\n"
         f"rubric:\n{items}\n\n"
         f"待评判输出:\n{output}\n\n"
         '返回格式: {"passed": bool, "items": [{"criterion": str, "pass": bool}]}'

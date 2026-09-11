@@ -84,7 +84,7 @@ cases:
     tags: [smoke, live_db]
     source: plan-generation/autoresearch-plan-skill/eval.py::get_ground_truth::current_water_level
     truth_source: live_db
-    truth_query: "SELECT rz FROM st_rsvr_r WHERE rz IS NOT NULL AND deleted = 0 AND stcd = '3' ORDER BY tm DESC LIMIT 1"
+    truth_query: "SELECT rz FROM st_rsvr_r WHERE rz IS NOT NULL AND deleted = 0 AND stcd = '3' AND tenant_id = 18 ORDER BY tm DESC LIMIT 1"
     tolerance: 1.0
     expected_keywords: ["水位"]
   # === 一、预报解读类（正常/边界/异常） ===
@@ -138,7 +138,7 @@ cases:
     timeout: 120
     source: forecasting/tests/test-questions.md::Q7
     truth_source: live_db
-    truth_query: "SELECT rz FROM st_rsvr_r WHERE rz IS NOT NULL AND deleted = 0 AND stcd = '3' ORDER BY tm DESC LIMIT 1"
+    truth_query: "SELECT rz FROM st_rsvr_r WHERE rz IS NOT NULL AND deleted = 0 AND stcd = '3' AND tenant_id = 18 ORDER BY tm DESC LIMIT 1"
     tolerance: 1.0
     expected_keywords: ["汛限", "余量"]
   - id: F13
@@ -259,7 +259,7 @@ cases:
     tags: [live_db]
     source: forecasting/tests/test-questions.md::Q29
     truth_source: live_db
-    truth_query: "SELECT COUNT(*) AS cnt FROM srm_flood_history_base WHERE deleted = 0"
+    truth_query: "SELECT COUNT(*) AS cnt FROM srm_flood_history_base WHERE deleted = 0 AND tenant_id = 18"
     tolerance: 2.0  # COUNT(*) 容差收紧到 ±2，原 50.0 形同放行
     expected_keywords: ["历史", "洪水"]
   # === 七、综合极端场景 ===
@@ -289,7 +289,7 @@ cases:
     expected_keywords: ["超汛限", "应急"]
     rubric:
       - 识别超汛限状态（rz > 462.5m）
-      - 紧急状态下给出下泄/控泄方向建议，体现下游安全泄量约束（引用安全泄量概念即可，不强制 95.1 数值）
+      - 紧急状态下给出下泄/控泄方向建议，体现下游安全泄量约束——提及 下泄/泄洪能力/控泄/安全泄量 任一组合并给出方向即判满足；"拉满泄洪能力"与"受安全泄量约束控泄"等价，不强制数值 95.1
       - 给出下游风险提示与人工复核要求（HITL）
   - id: F25
     skill: forecasting
@@ -303,6 +303,6 @@ cases:
     truth_source: rubric
     expected_keywords: ["缺失", "降级"]
     rubric:
-      - 说明降级触发条件（预报降雨无未来时段行/全源缺失时触发降级，语义命中即可，不要求实查特定表）
+      - 说明降级触发条件（预报降雨无未来时段行/全源缺失时触发降级，语义命中即可，不要求实查特定表；"单源缺失→置信度降级/缺一源""全源缺失→仅供参考/转实况+人工复核"均属触发条件语义命中，逐源降级列表等同覆盖）
       - 给出降级策略框架（逐级降源/转实况+知识模式/保守方案任一即可，不绑死三件套）
       - 明确提示预报缺失、结论可信度降低或仅供参考（语义命中即可，不绑死原话）

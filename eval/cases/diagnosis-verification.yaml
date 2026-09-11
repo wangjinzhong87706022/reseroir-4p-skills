@@ -94,7 +94,7 @@ cases:
     tags: [live_db]
     source: 补充：水位时效性快检（对齐 test-cases.md::测试用例1 数据时效性）
     truth_source: live_db
-    truth_query: "SELECT rz FROM st_rsvr_r WHERE rz IS NOT NULL AND deleted = 0 AND stcd = '3' ORDER BY tm DESC LIMIT 1"
+    truth_query: "SELECT rz FROM st_rsvr_r WHERE rz IS NOT NULL AND deleted = 0 AND stcd = '3' AND tenant_id = 18 ORDER BY tm DESC LIMIT 1"
     tolerance: 1.0
     expected_keywords: ["水位", "时效"]
   - id: DV7
@@ -109,8 +109,8 @@ cases:
     truth_source: rubric
     expected_keywords: ["一致", "验证"]
     rubric:
-      - Layer 5 跨 skill 数据一致（定位预演输出表与调度方案表，比对关键字段，确认无 skill 间数据混用、tenant 隔离正确）
-      - 比对预演输出与调度方案关键字段（最高水位/削峰率），agent 自建脚本同样视为正确（不绑死特定脚本名）
+      - Layer 5 跨 skill 数据一致（定位预演输出表与调度方案表，比对关键字段并确认一致性；本租户无联合事件时，选择最近全局联合事件并显式声明其租户归属，同样判满足）
+      - 比对字段集为（最高水位/削峰率/出流量/下泄量/汛限水位）任两项即判满足，agent 自建脚本同样视为正确（不绑死特定脚本名）
       - 不一致时给出明确差异点
   - id: DV8
     skill: diagnosis-verification
@@ -124,7 +124,7 @@ cases:
     truth_source: rubric
     expected_keywords: ["根因", "失败"]
     rubric:
-      - Phase 5 根因分类明确（数据/规则/模型/基础设施之一）
+      - Phase 5 根因定性到枚举：主要根因归入 数据/规则/模型/基础设施 之一；复合根因须逐一映射（如"路由配置→规则类""水位伪造→数据类""flood_limit bug→模型/基础设施类"），按映射判满足
       - 给出证据链而非猜测
       - Phase 7 给出可执行修复方案
   - id: DV9

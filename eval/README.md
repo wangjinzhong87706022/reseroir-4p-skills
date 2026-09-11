@@ -82,6 +82,24 @@ python3 eval/run.py --llm ...
 **live_db 真值 SQL 的唯一可信来源**：`plan-generation/autoresearch-plan-skill/eval.py::get_ground_truth`
 （已验证：`st_rsvr_r.rz`、`att_res_flse_lim.flse_lim_stag`、`model_config`、`model_result_files`、
 `srm_flood_history_base`）。**不要**照抄 schema markdown 文档的列名（已证实不可靠）。
+
+**truth_query 租户纪律（2026-09-11 起）**：除基础设施全局表外，truth_query 必须带 `AND tenant_id = ?`
+（与题目 env 的 `SRM_TENANT_ID` 一致）。`att_res_flse_lim` / `model_result_files` / `srm_flood_history_base`
+等都是多租户表——无过滤的 `LIMIT 1` 会随机取到其他水库的行，无过滤的 `COUNT(*)` 会把其他租户
+数据算进真值。新增 live_db 题时自查一条：真值 SQL 在 tenant 20 下执行结果是否不同？
+
+## 超时（timeout）语义
+
+三层口径（`eval/run.py:112` 附近）：
+
+1. **默认**：用 yaml 单题 `timeout` 字段。
+2. **`--timeout-set N`**：`eff = max(yaml值, N)`——**只抬不压**。传了它，yaml 里 60/120/240 的
+   单题值全部被抬到 N 起（yaml 内单题 timeout 实际失效，只有原生长超时题如 DV2 的 2000 保留意义）。
+   全量跑统一用 `--timeout-set 2000`。
+3. **`--timeout-cap N`**：`eff = min(eff, N)` 封顶，与 `--timeout-set` 互斥（后者优先）。
+
+判 TIMEOUT 的题判 ERROR 不判 FAIL；单题超时历史值：DV8 ≈981s、DV2 ≈1500s，
+长题不要低于 2000s 跑。
 水位真值统一用：
 ```sql
 SELECT rz FROM st_rsvr_r WHERE rz IS NOT NULL AND deleted = 0 ORDER BY tm DESC LIMIT 1
