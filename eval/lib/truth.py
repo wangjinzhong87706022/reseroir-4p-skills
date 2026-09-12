@@ -25,14 +25,20 @@ def _connect(env):
 def make_db_query_fn(env):
     """返回 Callable[[sql:str], list[dict]]。env 仅用于将来按租户切库；当前读全局 SRM_DB_*。
 
-    连接生命周期 = 进程生命周期（runner 是短命 CLI，退出即释放，故不提供 close）。
-    若将来被长驻服务复用，须改为返回可关闭句柄或每次 connect（评审 P2 决策：暂不改造）。
+    连接策略（评审 P0#5, 2026-09-12）：每次查询从池 checkout → 读完 commit → 归还。
+    旧实现整跑持有同一连接且从不 commit——InnoDB REPEATABLE READ 下读视图冻结在
+    T0，长跑期间数据再生成（cron 每 50min roll）对真值查询不可见 → 漂移假 FAIL；
+    且单连接撞上 wait_timeout(8h) 直接断连无自愈。checkout/归还经池的 ping 自愈。
     """
-    conn = _connect(env)
-
     def _q(sql):
-        with conn.cursor() as cur:
-            cur.execute(sql)
-            return cur.fetchall()
+        conn = _connect(env)
+        try:
+            with conn.cursor() as cur:
+                cur.execute(sql)
+                rows = cur.fetchall()
+            conn.commit()   # 释放读视图+行锁，下一查询取新快照
+            return rows
+        finally:
+            conn.close()    # DBUtils 池连接的 close() = 归还而非断开
 
     return _q

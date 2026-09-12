@@ -117,21 +117,34 @@ SELECT rz FROM st_rsvr_r WHERE rz IS NOT NULL AND deleted = 0 ORDER BY tm DESC L
 
 异常题此前一直跑在"正常基线"上——`forecasting/data/scenarios/` 的 7 月场景 SQL 从未
 接入评测。`eval/data_prep.py` + `eval/data/scenarios.yaml` 把"场景→题目"接进 runner：
-每题 **transport 前 setup 注入、判分后 teardown 恢复**，动作全量写
-`<report_dir>/fixture_manifest.json`（含 pre-image），崩溃后可
-`python3 eval/data_prep.py --restore <manifest>` 回写。
+每题 **transport 前 setup 注入、判分后 teardown 恢复**（setup 与 transport 同在 try 内，
+finally 无条件 teardown），动作全量写 `<report_dir>/fixture_manifest-<时间戳>.json`
+（含 pre-image），崩溃后可 `python3 eval/data_prep.py --restore <manifest>` 回写
+（逐条上报回写命中数，未全命中以退出码 1 收场）。
 
-- handler 三种：`file`（场景 SQL，剥注释按分号拆语句、单连接保会话变量）、
+- handler 四种：`file`（场景 SQL，剥注释按分号拆语句、单连接保会话变量）、
   `insert_rows`（幂等 DELETE-before-INSERT）、`null_rz_latest` / `suppress`
   （软改基线，pre-image 记主键+列值按 id 回写）。
+- **suppress 必配 `scope_where`**（如 `tenant_id = 18`）：软删与回写的 UPDATE 都带它
+  限定边界——f_rnfl_h 复合主键 (ID,YMDH,UNITNAME,TYPE) 下裸 id 不唯一（租户 1 有
+  6946 行 ID=1），裸 UPDATE 跨租户误伤（2026-09-12 评审 P0）。回写按列值签名分组
+  批量执行并核对 matched/expected，差额行打 WARN。
+- pre-image 捕获按 id 游标分页（CHUNK=500）——`execute_query` 有 MAX_ROWS=1000
+  静默截断。
 - `exclusive: true` 的场景（改基线可见性）只在 ≤5 题的小批量生效（EXCLUSIVE_MAX_BATCH），
-  全量跑自动跳过——场景保真与大批次隔离二选一，当前选隔离。
+  全量跑自动跳过——被跳过的题进报告 meta `premise_skipped`（这些题跑在正常基线上）。
 - teardown 型：`restore`（按 pre-image 回写）/ `delete_first`（按 marker 删注入行）。
 - fixtures 状态写进每题结果 `verdict.fixtures`，报告可见"该题是否真的跑了场景"。
+- runner 启动时 `prep.validate()` 校验场景 cases 引用的题 id 存在（typo 静默失联防线）。
+- preflight 第 4 检查（[4/4] 场景残留）：MOCK-STALE / EVALFIX_ 注入行必须为零，
+  manifest 有 applied 未恢复条目给 WARN——上轮 teardown 未走完（崩溃信号）开跑前即拦。
 
 **写库纪律（踩过的坑）**：
-- `lib.db.execute_query` 不 commit（读导向），写入必须走 `data_prep._execute_write`
-  （显式提交），否则静默回滚——2026-09-12 实测 UPDATE 后 NULL 行数为 0。
+- `lib.db.execute_query` 不 commit（读导向），写入必须走 `lib.db_write.execute_write`
+  （data_prep 的 `_write` 统一委托它），否则静默回滚——2026-09-12 实测 UPDATE 后
+  NULL 行数为 0。truth.py 真值查询 2026-09-12 起改为每次查询池 checkout→commit→归还
+  （旧实现整跑持同一连接从不 commit，REPEATABLE READ 读视图冻结在 T0，cron 再生成
+  的数据对真值不可见 → 漂移假 FAIL，且单连接撞 wait_timeout 无自愈）。
 - SQL 文本含 `%`（如 `LIKE 'EVALFIX\_%'`、`DATE_FORMAT('%Y..')`）时，无参执行必须传
   `None` 不传 `()`，否则 pymysql 做 % 格式化直接炸。
 - 场景标记/主键要与在写方隔离：cron 的 `--forecast` 批用 `COMMENTS='MOCK'`、

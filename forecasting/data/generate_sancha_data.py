@@ -190,6 +190,11 @@ def roll_forward(stcd=RSVR_MASTER):
         print("[roll] 无任何断点,跳过续写(用 --clean + --days 初始重建)")
         return {"skipped": True, "reason": "no_breakpoint"}
     last_dt = last if isinstance(last, datetime) else datetime.strptime(str(last), "%Y-%m-%d %H:%M:%S")
+    if last_dt > NOW + timedelta(hours=1):
+        # 评审 P1(2026-09-12):未来时点断点不可信(外部注入/时钟漂移)——从"未来"续写
+        # 会把 NOW 之前的空档跳过,波形时序错乱。跳过并告警,人工核实后再处理。
+        print(f"[roll][WARN] 断点 {last} 在未来(>NOW+1h),跳过续写——疑似外部注入/时钟漂移,请人工核实")
+        return {"skipped": True, "reason": "future_breakpoint", "breakpoint": str(last)}
     gap_h = int((NOW - last_dt).total_seconds() // 3600)
     if gap_h <= 1:
         print(f"[roll] 数据已最新(断点 {last}, age={gap_h}h),跳过续写")

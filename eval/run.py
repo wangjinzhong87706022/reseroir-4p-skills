@@ -110,6 +110,8 @@ def main(argv=None, transport_fn=None, query_fn=None, llm_on=False, report_dir=N
 
     results = []
     prep = data_prep.Prep(out_dir)
+    prep.validate({c.id for c in cases})   # 对全量题集校验（对 selected 校验会在过滤跑时误报）
+    premise_skipped = set()   # 所有场景都被跳过的题（全量跑 exclusive 场景时如实进报告 meta）
     for i, c in enumerate(selected, 1):
         # 超时口径：--timeout-set 只抬不压 max(case 原值, set) > --timeout-cap 封顶 min() > case 原值
         # 2026-08-27 修正：旧实现直接覆盖，会把 SUP1 这类原生 1500s 的慢题压到 1000s → TIMEOUT 伪影
@@ -122,8 +124,12 @@ def main(argv=None, transport_fn=None, query_fn=None, llm_on=False, report_dir=N
         print(f"[{i}/{len(selected)}] {c.id} ({c.skill}/{c.category}) [timeout={eff_timeout}s]", flush=True)
         # 场景注入（eval/data/scenarios.yaml）：transport 前物化数据前提，判分后恢复。
         # 全量跑时 exclusive 场景自动跳过（data_prep.EXCLUSIVE_MAX_BATCH）。
-        fx = prep.setup(c, len(selected))
+        # setup 也在 try 内：注入中途崩溃时 finally 仍会 teardown 已 applied 的部分
+        # （teardown 对无场景题是无操作）；fx 为 None 时不写 detail.fixtures。
         try:
+            fx = prep.setup(c, len(selected))
+            if fx and all(e.get("status") == "skipped" for e in fx):
+                premise_skipped.add(c.id)
             t0 = time.time()
             # 2026-08-27：transport 偶发基础设施异常（如 "read operation timed out"）重试一次，
             # 避免单点网络/IO 抖动毁掉一道题（SUP2 实例）。TIMEOUT 不重试（重试只是双倍耗时）。
@@ -164,15 +170,17 @@ def main(argv=None, transport_fn=None, query_fn=None, llm_on=False, report_dir=N
                                                transcript=str(transcript_path.resolve())))
             print(f"   -> {status}", flush=True)
         finally:
-            if fx:
-                prep.teardown(c)
+            prep.teardown(c)   # 无条件调用（内部按 case 无场景时零操作），防 setup 崩溃漏恢复
         if i < len(selected):
             time.sleep(args.sleep)
 
     summary = report.summarize(results)
     # 运行元数据：judge_model 取环境（未设则 default）；keywords_mode 用 getattr 兜底（直接调 main 的旧测试未传旗标）
     summary["meta"] = {"judge_model": os.environ.get("EVAL_JUDGE_MODEL", "default"),
-                       "keywords_mode": getattr(args, "keywords_mode", "advisory")}
+                       "keywords_mode": getattr(args, "keywords_mode", "advisory"),
+                       # 评审#6：场景被跳过的题如实列出——这些题跑在正常基线上，判分口径未按场景收紧
+                       "premise_skipped": sorted(premise_skipped),
+                       "fixture_manifest": prep.manifest_path.name}
     ensure_dirs()
     ts = time.strftime("%Y%m%d-%H%M%S")
     report.write_json(results, summary, out_dir / f"eval-{ts}.json")

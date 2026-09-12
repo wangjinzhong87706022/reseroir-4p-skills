@@ -85,7 +85,7 @@ cases:
     source: plan-generation/autoresearch-plan-skill/eval.py::get_ground_truth::current_water_level
     truth_source: live_db
     truth_query: "SELECT rz FROM st_rsvr_r WHERE rz IS NOT NULL AND deleted = 0 AND stcd = '3' AND tenant_id = 18 ORDER BY tm DESC LIMIT 1"
-    truth_expectation: {min: 458.0, max: 463.0}  # 波形包络 [459.2,462.63];越界=数据再生成未过审
+    truth_expectation: {min: 458.0, max: 463.0}  # 波形包络 [459.10,462.73];越界=数据再生成未过审
     tolerance: 1.0
     expected_keywords: ["水位"]
   # === 一、预报解读类（正常/边界/异常） ===
@@ -140,7 +140,7 @@ cases:
     source: forecasting/tests/test-questions.md::Q7
     truth_source: live_db
     truth_query: "SELECT rz FROM st_rsvr_r WHERE rz IS NOT NULL AND deleted = 0 AND stcd = '3' AND tenant_id = 18 ORDER BY tm DESC LIMIT 1"
-    truth_expectation: {min: 458.0, max: 463.0}  # 波形包络 [459.2,462.63];越界=数据再生成未过审
+    truth_expectation: {min: 458.0, max: 463.0}  # 波形包络 [459.10,462.73];越界=数据再生成未过审
     tolerance: 1.0
     expected_keywords: ["汛限", "余量"]
   - id: F13
@@ -292,7 +292,7 @@ cases:
     expected_keywords: ["超汛限", "应急"]
     rubric:
       - 识别超汛限状态（rz > 462.5m）
-      - 紧急状态下给出下泄/控泄方向建议，体现下游安全泄量约束——提及 下泄/泄洪能力/控泄/安全泄量 任一组合并给出方向即判满足；"拉满泄洪能力"与"受安全泄量约束控泄"等价，不强制数值 95.1
+      - 紧急状态下给出下泄/控泄方向建议，体现下游安全泄量约束——提及 下泄/泄洪能力/控泄/安全泄量 任一组合并给出方向即判满足，不强制数值 95.1；但"拉满/全开泄洪能力"类表述仅在同时提及下游安全约束或风险（如下游安全泄量/防洪风险/下游承受能力）时才与"受安全泄量约束控泄"等价——无约束意识的"拉满"判不满足（2026-09-12 收紧，评审裁定：脱离下游约束的"拉满"在语义上恰与控泄相反）
       - 给出下游风险提示与人工复核要求（HITL）
   - id: F25
     skill: forecasting

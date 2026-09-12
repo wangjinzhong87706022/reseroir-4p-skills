@@ -16,9 +16,14 @@
      FAIL;带 truth_expectation 的题比对 value±tol / min / max 断言。堵死"前提腐烂
      静默进全量 → 跑 9 小时才发现 13 FAIL"(PG7 跨租户随机行/F22 计数泄漏均属此)。
      truth_query 无 tenant_id 字样的题给 WARN 不阻断。
+  4. 场景残留 (2026-09-12): MOCK-STALE / EVALFIX_ 注入行必须为零;report 目录下
+     manifest 有 applied 未恢复的 pre-image 条目给 WARN(--restore 提示)。
+     hermes ping 与 transport 同口径剥 "[exited with code N]" 尾巴;hermes 不存在
+     (FileNotFoundError)按门禁失败处理而非崩溃。
 
 用法: python3 eval/preflight.py   (退出码 0=通过, 2=不通过, 详情打到 stdout)
 """
+import json
 import os
 import subprocess
 import sys
@@ -69,7 +74,10 @@ def check_hermes():
         r = subprocess.run(
             ["hermes", "chat", "-q", "只回答一个字：通", "-Q"],
             capture_output=True, text=True, timeout=HERMES_PING_TIMEOUT_S, env=env)
-        answer = (r.stdout or "").strip()
+        # 与 transport 同口径剥掉 "[exited with code N]" 尾巴——评审 P1#2：
+        # 裸 stdout 校验会被尾部标记糊弄（rc=1 + 非空错误输出时误判 OK）
+        from eval.lib.transport import _strip_trailer
+        answer = _strip_trailer((r.stdout or "").strip())
         ok = r.returncode == 0 and len(answer) >= 1
         print(f"  [{'OK' if ok else 'FAIL'}] hermes ping: rc={r.returncode}, "
               f"answer={answer[:40]!r}")
@@ -79,6 +87,9 @@ def check_hermes():
     except subprocess.TimeoutExpired:
         print(f"  [FAIL] hermes ping 超时(>{HERMES_PING_TIMEOUT_S}s)")
         return [f"hermes ping 超时(>{HERMES_PING_TIMEOUT_S}s) — LLM 端点可能僵死"]
+    except FileNotFoundError:
+        print("  [FAIL] hermes 可执行文件不存在")
+        return ["hermes 命令不存在 — 运行环境未装/未配 PATH,评测必然全 ERROR"]
 
 
 def check_truth_premises():
@@ -120,17 +131,60 @@ def check_truth_premises():
     return failures
 
 
+def check_fixture_residue():
+    """评审 P1#4: 开跑前断言上一轮场景注入零残留——残留 mock 行会让"陈旧预报/单条红警"
+    类题的前提双倍失真(上轮残留+本轮注入),且说明上轮 teardown 未走完(崩溃信号)。"""
+    from db import execute_query_list
+    failures, warns = [], []
+    rows = execute_query_list(
+        "SELECT COUNT(*) AS n FROM f_rnfl_h WHERE COMMENTS = 'MOCK-STALE' AND deleted = 0")
+    n_stale = int(rows[0]["n"])
+    print(f"  [{'OK' if n_stale == 0 else 'FAIL'}] f_rnfl_h MOCK-STALE 残留: {n_stale} 行")
+    if n_stale:
+        failures.append(f"f_rnfl_h 有 {n_stale} 行 MOCK-STALE 残留 — 上轮 stale_forecast 场景未清,"
+                        "先 python3 eval/data_prep.py --restore <最新 fixture_manifest-*.json>")
+    rows = execute_query_list(
+        "SELECT COUNT(*) AS n FROM ew_info_message "
+        "WHERE ew_name LIKE %s AND deleted = 0", ("EVALFIX\\_%",))
+    n_evalfix = int(rows[0]["n"])
+    print(f"  [{'OK' if n_evalfix == 0 else 'FAIL'}] ew_info_message EVALFIX_ 残留: {n_evalfix} 行")
+    if n_evalfix:
+        failures.append(f"ew_info_message 有 {n_evalfix} 行 EVALFIX_ 残留 — 上轮 single_red_alarm 未清,"
+                        "DELETE WHERE ew_name LIKE 'EVALFIX\\_%' AND tenant_id = 18")
+    # 崩溃现场扫描: report 目录下 manifest 里有 applied 未 teardown 的 pre-image 条目
+    from paths import RESULTS_DIR
+    for mf in sorted(Path(RESULTS_DIR).glob("fixture_manifest*.json")):
+        try:
+            data = json.loads(mf.read_text(encoding="utf-8"))
+        except Exception:
+            continue
+        dangling = [e for e in data.get("entries", [])
+                    if e.get("status") == "applied" and not e.get("teardown")
+                    and e.get("pre_image") is not None]
+        if dangling:
+            warns.append(f"{Path(mf).name} 有 {len(dangling)} 条 applied 未恢复的 pre-image 条目"
+                         f"(崩溃现场?) — 用 --restore 回写")
+    for w in warns:
+        print(f"  [WARN] {w}")
+    return failures
+
+
 def main():
     print(f"[preflight] {datetime.now().isoformat(timespec='seconds')}")
-    print("[1/3] 数据陈旧度:")
+    print("[1/4] 数据陈旧度:")
     failures = check_staleness()
-    print("[2/3] hermes ping:")
+    print("[2/4] hermes ping:")
     failures += check_hermes()
-    print("[3/3] 真值前提 (v2):")
+    print("[3/4] 真值前提 (v2):")
     try:
         failures += check_truth_premises()
     except Exception as e:
         failures.append(f"真值前提检查自身异常: {e}")
+    print("[4/4] 场景残留:")
+    try:
+        failures += check_fixture_residue()
+    except Exception as e:
+        failures.append(f"场景残留检查自身异常: {e}")
     if failures:
         print("\n[preflight] ❌ 门禁未通过:")
         for f in failures:

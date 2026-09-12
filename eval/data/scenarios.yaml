@@ -24,7 +24,8 @@ fixtures:
   single_red_alarm:
     handler: insert_rows
     table: ew_info_message
-    marker_where: "ew_name LIKE 'EVALFIX\\_%'"
+    # marker 带 tenant_id（写库纪律 rule 3）；% 执行时 args=None 不触发格式化
+    marker_where: "ew_name LIKE 'EVALFIX\\_%' AND tenant_id = 18"
     rows:
       - ew_name: EVALFIX_水位超汛限
         ew_type: '10'
@@ -52,6 +53,9 @@ fixtures:
     handler: suppress
     table: f_rnfl_h
     capture_where: "tenant_id = 18 AND deleted = 0"
+    # scope_where 必配（评审 P0#1）：f_rnfl_h 复合主键下裸 id 不唯一（租户 1 有
+    # 6946 行 ID=1、租户 20 有 168 行），软删/回写的 UPDATE 必须限定租户边界
+    scope_where: "tenant_id = 18"
     exclusive: true
     teardown: restore
     cases: [F5, F10]
@@ -61,7 +65,7 @@ fixtures:
     exclusive: true
     teardown: delete_first
     table: f_rnfl_h
-    marker_where: "COMMENTS = 'MOCK-STALE'"
+    marker_where: "COMMENTS = 'MOCK-STALE' AND tenant_id = 18"
     cases: [F5, F10]
 
   # 未接线：F25（预报完全缺失降级）题面是假设式"当…时应该如何处理"，且

@@ -290,7 +290,12 @@ def main():
             print("[roll] 无断点,初始生成最近 48h")
             start = NOW - timedelta(hours=47)
         elif gap is not None and gap <= 0:
-            print(f"[roll] 数据已最新({max_tm}),无需续写")
+            if NOW + timedelta(hours=1) < max_tm:
+                # 评审 P1(2026-09-12):断点在未来=外部注入/时钟漂移,会一直"已最新"到
+                # 墙钟追上——不续写(安全),但必须告警,否则数据冻结无人察觉。
+                print(f"[roll][WARN] 断点 {max_tm} 在未来(>NOW+1h),跳过续写——疑似外部注入/时钟漂移,请人工核实")
+            else:
+                print(f"[roll] 数据已最新({max_tm}),无需续写")
             return
         else:
             start = max_tm + timedelta(hours=1)

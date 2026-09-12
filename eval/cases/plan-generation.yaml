@@ -93,7 +93,7 @@ cases:
     source: plan-generation/tests/test-questions.md::Q1
     truth_source: live_db
     truth_query: "SELECT rz FROM st_rsvr_r WHERE rz IS NOT NULL AND deleted = 0 AND stcd = '3' AND tenant_id = 18 ORDER BY tm DESC LIMIT 1"
-    truth_expectation: {min: 458.0, max: 463.0}  # 波形包络 [459.2,462.63];越界=数据再生成未过审
+    truth_expectation: {min: 458.0, max: 463.0}  # 波形包络 [459.10,462.73];越界=数据再生成未过审
     tolerance: 1.0
     expected_keywords: ["水位"]
   - id: PG7
