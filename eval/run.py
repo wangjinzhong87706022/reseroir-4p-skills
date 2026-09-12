@@ -24,6 +24,7 @@ if _LIB not in sys.path:
 from paths import get_skill_dir, RESULTS_DIR, ensure_dirs  # noqa: E402  (项目 lib/paths.py)
 from eval.lib.schema import load_all  # noqa: E402
 from eval.lib import judge, transport, truth, report  # noqa: E402
+from eval import data_prep  # noqa: E402  (场景注入层，见 eval/data/scenarios.yaml)
 
 
 def parse_args(argv):
@@ -108,6 +109,7 @@ def main(argv=None, transport_fn=None, query_fn=None, llm_on=False, report_dir=N
     transcripts_dir = out_dir / "transcripts"
 
     results = []
+    prep = data_prep.Prep(out_dir)
     for i, c in enumerate(selected, 1):
         # 超时口径：--timeout-set 只抬不压 max(case 原值, set) > --timeout-cap 封顶 min() > case 原值
         # 2026-08-27 修正：旧实现直接覆盖，会把 SUP1 这类原生 1500s 的慢题压到 1000s → TIMEOUT 伪影
@@ -118,43 +120,52 @@ def main(argv=None, transport_fn=None, query_fn=None, llm_on=False, report_dir=N
         else:
             eff_timeout = c.timeout
         print(f"[{i}/{len(selected)}] {c.id} ({c.skill}/{c.category}) [timeout={eff_timeout}s]", flush=True)
-        t0 = time.time()
-        # 2026-08-27：transport 偶发基础设施异常（如 "read operation timed out"）重试一次，
-        # 避免单点网络/IO 抖动毁掉一道题（SUP2 实例）。TIMEOUT 不重试（重试只是双倍耗时）。
-        r, exc = None, None
-        for attempt in (1, 2):
-            try:
-                r = transport_fn(c.question, c.skill, c.env, eff_timeout, skill_dir=str(get_skill_dir(c.skill)))
-                break
-            except Exception as e:
-                exc = e
-                if attempt == 1:
-                    print(f"   .. transport 异常（{e}），重试 1 次", flush=True)
-                    time.sleep(3)
-        if r is not None:
-            elapsed = time.time() - t0
-            if r.get("timed_out"):
-                v = {"verdict": "TIMEOUT", "detail": {"reason": f"超时 {eff_timeout}s"}}
-            elif not (r.get("answer") or "").strip():
-                # 未超时但无最终回复 = infra 故障（hermes 崩溃/空 stdout），判 ERROR 防假 FAIL
-                v = {"verdict": "ERROR", "detail": {"reason": "transport 未超时但返回空输出"}}
+        # 场景注入（eval/data/scenarios.yaml）：transport 前物化数据前提，判分后恢复。
+        # 全量跑时 exclusive 场景自动跳过（data_prep.EXCLUSIVE_MAX_BATCH）。
+        fx = prep.setup(c, len(selected))
+        try:
+            t0 = time.time()
+            # 2026-08-27：transport 偶发基础设施异常（如 "read operation timed out"）重试一次，
+            # 避免单点网络/IO 抖动毁掉一道题（SUP2 实例）。TIMEOUT 不重试（重试只是双倍耗时）。
+            r, exc = None, None
+            for attempt in (1, 2):
+                try:
+                    r = transport_fn(c.question, c.skill, c.env, eff_timeout, skill_dir=str(get_skill_dir(c.skill)))
+                    break
+                except Exception as e:
+                    exc = e
+                    if attempt == 1:
+                        print(f"   .. transport 异常（{e}），重试 1 次", flush=True)
+                        time.sleep(3)
+            if r is not None:
+                elapsed = time.time() - t0
+                if r.get("timed_out"):
+                    v = {"verdict": "TIMEOUT", "detail": {"reason": f"超时 {eff_timeout}s"}}
+                elif not (r.get("answer") or "").strip():
+                    # 未超时但无最终回复 = infra 故障（hermes 崩溃/空 stdout），判 ERROR 防假 FAIL
+                    v = {"verdict": "ERROR", "detail": {"reason": "transport 未超时但返回空输出"}}
+                else:
+                    v = _dispatch(c, r["answer"], query_fn, llm_on, args.keywords_mode)
+                out_preview = r.get("answer", "")
+                transcript_path = transcripts_dir / f"{c.id}.txt"
+                meta = (f"[answer_extracted={r.get('answer_extracted')}] "
+                        f"[answer_chars={len(r.get('answer') or '')}]\n")
+                report.write_transcript(transcript_path, meta + r.get("output", ""), r.get("stderr", ""))
             else:
-                v = _dispatch(c, r["answer"], query_fn, llm_on, args.keywords_mode)
-            out_preview = r.get("answer", "")
-            transcript_path = transcripts_dir / f"{c.id}.txt"
-            meta = (f"[answer_extracted={r.get('answer_extracted')}] "
-                    f"[answer_chars={len(r.get('answer') or '')}]\n")
-            report.write_transcript(transcript_path, meta + r.get("output", ""), r.get("stderr", ""))
-        else:
-            elapsed = time.time() - t0
-            v = {"verdict": "ERROR", "detail": {"reason": f"用例异常(重试后仍失败): {exc}"}}
-            out_preview = ""
-            transcript_path = transcripts_dir / f"{c.id}.txt"
-            report.write_transcript(transcript_path, "", f"runner exception: {exc}")
-        status = {"PASS": "PASS", "FAIL": "FAIL", "ERROR": "ERROR", "TIMEOUT": "TIMEOUT"}.get(v["verdict"], "ERROR")
-        results.append(report.build_result(c, status, elapsed, out_preview, v["detail"],
-                                           transcript=str(transcript_path.resolve())))
-        print(f"   -> {status}", flush=True)
+                elapsed = time.time() - t0
+                v = {"verdict": "ERROR", "detail": {"reason": f"用例异常(重试后仍失败): {exc}"}}
+                out_preview = ""
+                transcript_path = transcripts_dir / f"{c.id}.txt"
+                report.write_transcript(transcript_path, "", f"runner exception: {exc}")
+            status = {"PASS": "PASS", "FAIL": "FAIL", "ERROR": "ERROR", "TIMEOUT": "TIMEOUT"}.get(v["verdict"], "ERROR")
+            if fx:
+                v.setdefault("detail", {})["fixtures"] = fx
+            results.append(report.build_result(c, status, elapsed, out_preview, v["detail"],
+                                               transcript=str(transcript_path.resolve())))
+            print(f"   -> {status}", flush=True)
+        finally:
+            if fx:
+                prep.teardown(c)
         if i < len(selected):
             time.sleep(args.sleep)
 

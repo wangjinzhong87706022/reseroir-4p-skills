@@ -113,6 +113,36 @@ SELECT rz FROM st_rsvr_r WHERE rz IS NOT NULL AND deleted = 0 ORDER BY tm DESC L
 - `eval/lib/transport.py` — hermes 子进程 + env 注入 + 超时（case env 覆盖 ambient）
 - `eval/run.py` — CLI 发现/过滤/分发/报告，单题异常转 ERROR 不中断整跑
 
+## 场景注入（data_prep，2026-09-12 起）
+
+异常题此前一直跑在"正常基线"上——`forecasting/data/scenarios/` 的 7 月场景 SQL 从未
+接入评测。`eval/data_prep.py` + `eval/data/scenarios.yaml` 把"场景→题目"接进 runner：
+每题 **transport 前 setup 注入、判分后 teardown 恢复**，动作全量写
+`<report_dir>/fixture_manifest.json`（含 pre-image），崩溃后可
+`python3 eval/data_prep.py --restore <manifest>` 回写。
+
+- handler 三种：`file`（场景 SQL，剥注释按分号拆语句、单连接保会话变量）、
+  `insert_rows`（幂等 DELETE-before-INSERT）、`null_rz_latest` / `suppress`
+  （软改基线，pre-image 记主键+列值按 id 回写）。
+- `exclusive: true` 的场景（改基线可见性）只在 ≤5 题的小批量生效（EXCLUSIVE_MAX_BATCH），
+  全量跑自动跳过——场景保真与大批次隔离二选一，当前选隔离。
+- teardown 型：`restore`（按 pre-image 回写）/ `delete_first`（按 marker 删注入行）。
+- fixtures 状态写进每题结果 `verdict.fixtures`，报告可见"该题是否真的跑了场景"。
+
+**写库纪律（踩过的坑）**：
+- `lib.db.execute_query` 不 commit（读导向），写入必须走 `data_prep._execute_write`
+  （显式提交），否则静默回滚——2026-09-12 实测 UPDATE 后 NULL 行数为 0。
+- SQL 文本含 `%`（如 `LIKE 'EVALFIX\_%'`、`DATE_FORMAT('%Y..')`）时，无参执行必须传
+  `None` 不传 `()`，否则 pymysql 做 % 格式化直接炸。
+- 场景标记/主键要与在写方隔离：cron 的 `--forecast` 批用 `COMMENTS='MOCK'`、
+  f_rnfl_h 复合主键 (ID,YMDH,UNITNAME,TYPE) 且软删不释放 PK——所以 stale_forecast
+  场景用 `COMMENTS='MOCK-STALE'` + `ID=20001`，与存量（1/2/10001-10047）无交集。
+- `ew_info_message.creator` 是 INT 列不是字符串。
+- 已接线场景：null_water_level→PG17、single_red_alarm→EW32、stale_forecast 对→F5/F10
+  （F25 题面是假设式，前提不匹配，不注入）。其余场景 SQL（drought/extreme_storm/
+  over_flood_limit/source_disagreement/null_actual）按需在 scenarios.yaml 登记。
+
+
 ## 守卫测试
 
 `tests/test_eval_cases.py` 校验：所有用例加载且 id 唯一；每 skill 用例数在 band 内

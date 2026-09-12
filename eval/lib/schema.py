@@ -23,8 +23,10 @@ class EvalCase:
     expected_range: Optional[dict] = None
     forbidden: list = field(default_factory=list)
     truth_query: Optional[str] = None
+    truth_expectation: Optional[dict] = None
     tolerance: float = 0.0
     rubric: list = field(default_factory=list)
+    fixtures: list = field(default_factory=list)
 
 
 def _coerce_str_list(lst):
@@ -45,6 +47,12 @@ def validate(case: EvalCase) -> None:
         raise ValueError(f"{case.id}: live_db 题需 truth_query")
     if case.truth_source == "rubric" and not case.rubric:
         raise ValueError(f"{case.id}: rubric 题需 rubric")
+    if case.truth_expectation is not None:
+        if case.truth_source != "live_db":
+            raise ValueError(f"{case.id}: truth_expectation 仅 live_db 题可用")
+        bad = set(case.truth_expectation) - {"value", "tol", "min", "max"}
+        if bad or not case.truth_expectation:
+            raise ValueError(f"{case.id}: truth_expectation 键非法 {bad or '为空'}（允许 value/tol/min/max）")
 
 
 def _case_from_dict(d: dict, file_forbidden: list) -> EvalCase:
@@ -57,7 +65,9 @@ def _case_from_dict(d: dict, file_forbidden: list) -> EvalCase:
         expected_range=d.get("expected_range"),
         forbidden=_coerce_str_list(d.get("forbidden")) + _coerce_str_list(file_forbidden),
         truth_query=d.get("truth_query"), tolerance=float(d.get("tolerance", 0.0)),
+        truth_expectation=d.get("truth_expectation"),
         rubric=list(d.get("rubric") or []),
+        fixtures=_coerce_str_list(d.get("fixtures")),
     )
     validate(case)
     return case

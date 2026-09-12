@@ -207,6 +207,20 @@ Step 5  C2 data_prep + 2 个新场景 SQL → 异常题抽样（F10/PG17/EW32）
 Step 6  全量重跑 → 目标 ≥96%（128/133），零 TIMEOUT；新非 PASS 全部进 ledger 归因
 ```
 
+**执行进度（2026-09-12 更新）**：
+- Step 4 ✅ preflight v2 三检查（陈旧度/hermes ping/真值前提断言）落地，破坏性测试
+  exit 2 验证通过；9 道 live_db 题配 truth_expectation。
+- Step 5 ✅ data_prep.py + scenarios.yaml + run.py 接线落地。实际接入 3 个场景
+  （null_water_level→PG17、single_red_alarm→EW32、stale_forecast 对→F5/F10；F25 题面
+  假设式不注入），未新写场景 SQL——存量 7 月 SQL 修复后直接复用（stale_forecast.sql
+  修了 tenant_id 1→18、标记撞车 'MOCK'→'MOCK-STALE'、ID 1→20001 三个潜伏 bug）。
+  验收：handler 级三场景全 PASS + 真跑 4 题（PG17/EW32/F5/F10）4/4 PASS，
+  转写证实 agent 看到场景数据（F10 答出"8 小时"陈旧），teardown 后 DB 零残留
+  （output/2026-09-11/step5-acceptance/）。
+- Step 6 ⏸ **用户裁定暂缓**（2026-09-12："不要进行整体评测集的评测任务"）。
+  全量重跑的前置条件（13/13 单题翻正 + preflight v2 + 场景层）均已就绪，
+  待用户放行即可执行 `--timeout-set 2000 --llm --mode report` 全量。
+
 **守则（数据再生的三条铁律）**：
 1. **先改 rubric/断言，再动数据**——9/2 的教训：数据重建重置了所有 live 真值，rubric 没跟上就是一轮假回归。
 2. **每次再生成都必须过 preflight v2 + live_db 抽样**，才允许全量。

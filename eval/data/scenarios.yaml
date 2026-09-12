@@ -1,0 +1,70 @@
+# 评测场景 → 题目映射（data_prep.py 消费）
+# ============================================================================
+# 设计要点（2026-09-11）：
+# - exclusive: true  = 改基线可见性的场景，仅小批量（≤5 题）生效；全量跑自动跳过，
+#   避免污染大批次（崩溃残留风险由 manifest + preflight v2 兜底）。
+# - teardown: restore = 按 manifest pre-image 回写；delete_first = 按 marker 删除注入行。
+# - stale_forecast 必须与 hide_fresh_forecast 成对使用：cron 每 50min 刷新租户 18 的
+#   新鲜预报批（2026-09-11 实测 MAX(FYMDH)=当天 19:00），只注入陈旧 mock 行会被
+#   新鲜批次盖过，场景形同虚设。
+# - 每题 setup 在 transport 前、teardown 在判分后，题间串行无交叉。
+fixtures:
+  # PG17「当前水位数据为空」：主站最新 6 行 rz 置 NULL，判分后按 id 回写
+  null_water_level:
+    handler: null_rz_latest
+    stcd: '3'
+    tenant_id: 18
+    rows: 6
+    exclusive: true
+    teardown: restore
+    cases: [PG17]
+
+  # EW32「只有一条红色告警」：注入一条受控红色未确认告警（EVALFIX_ 前缀标记），
+  # 判分后删除；非 exclusive（只增行不改基线，题间串行不会污染他题）
+  single_red_alarm:
+    handler: insert_rows
+    table: ew_info_message
+    marker_where: "ew_name LIKE 'EVALFIX\\_%'"
+    rows:
+      - ew_name: EVALFIX_水位超汛限
+        ew_type: '10'
+        st_code: '3'
+        eq_code: '3-WL-01'
+        content: 水库水位 462.8m 超过汛限水位 462.5m
+        level_r: '1'
+        gather_time: NOW
+        type: '0'
+        create_time: NOW
+        deleted: 0
+        tenant_id: 18
+        message_confirm: 0
+    teardown: delete_first
+    cases: [EW32]
+
+  # F5/F10「陈旧预报」：先软删租户 18 全部预报行（含 cron 批，可回写），再执行
+  # stale_forecast.sql 注入 FYMDH=NOW-8h 的 MOCK-STALE 批；agent 视角只剩 24 行陈旧批。
+  # 判分后删 MOCK-STALE 行 + 回写全部原行。
+  # 标记必须是 MOCK-STALE 而非 MOCK：cron 的 --forecast 批次本身写 COMMENTS='MOCK'
+  # （generate_sancha_data.py:146），按 MOCK 清场会误删在用预报批（2026-09-11 实测撞车）。
+  # 已知残余风险：cron 每 50min 写一批，若恰落在 setup→teardown 窗口内，agent 会同时
+  # 看到新鲜批（概率≈6%），该题可能失真——小批量场景跑可接受，全量跑本就 exclusive 跳过。
+  hide_fresh_forecast:
+    handler: suppress
+    table: f_rnfl_h
+    capture_where: "tenant_id = 18 AND deleted = 0"
+    exclusive: true
+    teardown: restore
+    cases: [F5, F10]
+  stale_forecast:
+    handler: file
+    file: forecasting/data/scenarios/stale_forecast.sql
+    exclusive: true
+    teardown: delete_first
+    table: f_rnfl_h
+    marker_where: "COMMENTS = 'MOCK-STALE'"
+    cases: [F5, F10]
+
+  # 未接线：F25（预报完全缺失降级）题面是假设式"当…时应该如何处理"，且
+  # stale_forecast 的 YMDH 覆盖未来时段（不缺失），前提不匹配，不注入。
+  # 可选后续：forecasting/data/scenarios/ 下另有 drought/extreme_storm/over_flood_limit/
+  # source_disagreement/null_actual 六套场景 SQL，按需在此登记。

@@ -329,6 +329,7 @@ cases:
     # 2026-08-27 修正：问"有几场有完整预演结果"，旧 SQL 数的是 base 全部洪水（语义错位），且漏 tenant 过滤。
     # 有预演结果 = result 表存在 type=7 统计摘要；tenant 过滤走 base 表（result 表无 tenant 列）。
     truth_query: "SELECT COUNT(*) AS cnt FROM srm_flood_history_base b WHERE b.deleted = 0 AND b.tenant_id = 18 AND EXISTS (SELECT 1 FROM srm_flood_history_result r WHERE r.flood_id = b.id AND r.deleted = 0 AND r.type = 7)"
+    truth_expectation: {min: 1, max: 50}  # 下限防空表,上限防 result 数据面漂移
     tolerance: 50.0
     expected_keywords: ["历史", "洪水"]
   - id: SIM27
@@ -342,6 +343,7 @@ cases:
     source: simulation/tests/test-questions.md::Q91
     truth_source: live_db
     truth_query: "SELECT rz FROM st_rsvr_r WHERE rz IS NOT NULL AND deleted = 0 AND stcd = '3' AND tenant_id = 18 ORDER BY tm DESC LIMIT 1"
+    truth_expectation: {min: 458.0, max: 463.0}  # 波形包络 [459.2,462.63];越界=数据再生成未过审
     tolerance: 1.0
     expected_keywords: ["水位"]
   # === 七、综合场景（多能力联动） ===
