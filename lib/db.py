@@ -91,7 +91,10 @@ def _get_pool():
             from dbutils.pooled_db import PooledDB
             _pool = PooledDB(
                 creator=pymysql,
-                maxconnections=10,  # 2026-08-25: 5→10，修复高并发连接耗尽问题
+                maxconnections=15,  # 2026-09-08: 10→15，修复高并发连接耗尽问题
+                blocking=True,      # 2026-09-08: 池满时等待而非报错，避免瞬时并发导致异常
+                mincached=2,        # 2026-09-08: 预创建 2 个空闲连接，避免冷启动延迟
+                maxcached=5,        # 2026-09-08: 缓存 5 个空闲连接，复用 TCP 连接
                 **config,
                 cursorclass=pymysql.cursors.DictCursor,
             )
