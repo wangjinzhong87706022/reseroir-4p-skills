@@ -57,3 +57,6 @@ early-warning/rain_water_data.json
 early-warning/rain_water_analysis.png
 .env
 output/
+
+# 运行时状态（supervisor 会话状态库）
+state/supervisor_state.db

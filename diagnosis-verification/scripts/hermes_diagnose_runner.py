@@ -145,16 +145,20 @@ def check_database(scenario):
     else:
         return None
 
-    # 执行查询
+    # 执行查询。close 必须在 finally：池 blocking=True 下异常路径漏 close = 连接
+    # 不归还，泄漏 15 次池满后后续调用全部静默挂死（2026-09-12 评审）。
+    conn = None
     try:
         conn = get_connection()
         with conn.cursor() as cursor:
             cursor.execute(sql, params)
             result = cursor.fetchone()
-        conn.close()
         return result
     except Exception as e:
         return {'error': str(e)}
+    finally:
+        if conn is not None:
+            conn.close()
 
 
 def check_scenario_condition(scenario, db_result):
