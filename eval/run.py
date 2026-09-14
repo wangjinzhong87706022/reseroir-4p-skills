@@ -128,7 +128,9 @@ def main(argv=None, transport_fn=None, query_fn=None, llm_on=False, report_dir=N
         # （teardown 对无场景题是无操作）；fx 为 None 时不写 detail.fixtures。
         try:
             fx = prep.setup(c, len(selected))
-            if fx and all(e.get("status") == "skipped" for e in fx):
+            # 评审二#7：error 状态的 fixture 同样意味着前提未物化——只认 skipped 会把
+            # "注入失败但题目照跑"伪装成正常基线。任一 applied 即不算（基线已被改动）。
+            if fx and all(e.get("status") in ("skipped", "error") for e in fx):
                 premise_skipped.add(c.id)
             t0 = time.time()
             # 2026-08-27：transport 偶发基础设施异常（如 "read operation timed out"）重试一次，

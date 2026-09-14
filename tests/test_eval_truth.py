@@ -26,6 +26,8 @@ class TestTruth(unittest.TestCase):
                 def __exit__(self, *a): pass
             class Conn:
                 def cursor(self): return Cur()
+                def commit(self): called["committed"] = True   # 真值快照解冻（评审 P0）：每查询必 commit
+                def close(self): called["closed"] = True       # 池连接 close=归还，异常路径也不可漏
             return Conn()
         orig = truth._connect
         truth._connect = fake_connect

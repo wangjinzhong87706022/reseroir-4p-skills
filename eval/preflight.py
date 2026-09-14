@@ -16,10 +16,11 @@
      FAIL;带 truth_expectation 的题比对 value±tol / min / max 断言。堵死"前提腐烂
      静默进全量 → 跑 9 小时才发现 13 FAIL"(PG7 跨租户随机行/F22 计数泄漏均属此)。
      truth_query 无 tenant_id 字样的题给 WARN 不阻断。
-  4. 场景残留 (2026-09-12): MOCK-STALE / EVALFIX_ 注入行必须为零;report 目录下
-     manifest 有 applied 未恢复的 pre-image 条目给 WARN(--restore 提示)。
-     hermes ping 与 transport 同口径剥 "[exited with code N]" 尾巴;hermes 不存在
-     (FileNotFoundError)按门禁失败处理而非崩溃。
+  4. 场景残留 (2026-09-12): MOCK-STALE / EVALFIX_ 注入行必须为零;suppress/null_rz
+     半途崩溃的库内悬置态(f_rnfl_h tenant18 deleted=1 / 三岔 rz NULL)必须为零;
+     output/ 与 results/ 下的 manifest 有 applied 未恢复的 pre-image 条目给
+     WARN(--restore 提示)。hermes ping 与 transport 同口径剥 "[exited with code N]"
+     尾巴;hermes 不存在(FileNotFoundError)按门禁失败处理而非崩溃。
 
 用法: python3 eval/preflight.py   (退出码 0=通过, 2=不通过, 详情打到 stdout)
 """
@@ -57,14 +58,26 @@ def check_staleness():
         last = max_tm if isinstance(max_tm, datetime) else datetime.strptime(
             str(max_tm), "%Y-%m-%d %H:%M:%S")
         age_h = (now - last).total_seconds() / 3600
-        # cron 每 50min roll 一次,断点年龄 [0,1h) 属正常 freshly-rolled
-        status = "OK" if age_h <= STALE_MAX_H else "FAIL"
+        # cron 每 50min roll 一次,断点年龄 [0,1h) 属正常 freshly-rolled;
+        # 负年龄(断点在未来)=外部注入/时钟漂移,与陈旧一样毁前提——同样 FAIL(二评 P1#3,
+        # 旧实现 `age_h <= STALE_MAX_H` 对负数恒真,未来断点静默放行)
+        if age_h < -1:   # 容忍 ±1h 的 DB↔主机时钟偏差
+            status = "FAIL"
+        elif age_h <= STALE_MAX_H:
+            status = "OK"
+        else:
+            status = "FAIL"
         print(f"  [{status}] {name}(tenant {tenant}): 断点 {max_tm}, 陈旧 {age_h:.1f}h "
               f"(上限 {STALE_MAX_H}h)")
         if status == "FAIL":
-            failures.append(
-                f"{name}(tenant {tenant}) 数据陈旧 {age_h:.1f}h 超出上限 {STALE_MAX_H}h"
-                f" — 先跑 forecasting/data/{fix_script} --roll (无效则 --clean 重建)")
+            if age_h < -1:
+                failures.append(
+                    f"{name}(tenant {tenant}) 断点在未来({age_h:.1f}h) — 时钟漂移或外部注入"
+                    f"残留,先核查 forecasting/data/{fix_script} 产物时间戳")
+            else:
+                failures.append(
+                    f"{name}(tenant {tenant}) 数据陈旧 {age_h:.1f}h 超出上限 {STALE_MAX_H}h"
+                    f" — 先跑 forecasting/data/{fix_script} --roll (无效则 --clean 重建)")
     return failures
 
 
@@ -136,13 +149,21 @@ def check_fixture_residue():
     类题的前提双倍失真(上轮残留+本轮注入),且说明上轮 teardown 未走完(崩溃信号)。"""
     from db import execute_query_list
     failures, warns = [], []
+    # 通用 marker 残留探针：LIKE 'MOCK-_%' 命中全部场景专属标记（MOCK-STALE/OVL/
+    # STORM/NULLACT/DISAGR…），cron 在用预报批的裸 'MOCK'（无连字符后缀）不匹配。
     rows = execute_query_list(
-        "SELECT COUNT(*) AS n FROM f_rnfl_h WHERE COMMENTS = 'MOCK-STALE' AND deleted = 0")
+        "SELECT COUNT(*) AS n FROM f_rnfl_h WHERE COMMENTS LIKE %s AND deleted = 0",
+        ("MOCK-\\_%",))
     n_stale = int(rows[0]["n"])
-    print(f"  [{'OK' if n_stale == 0 else 'FAIL'}] f_rnfl_h MOCK-STALE 残留: {n_stale} 行")
+    print(f"  [{'OK' if n_stale == 0 else 'FAIL'}] f_rnfl_h MOCK-* 场景残留: {n_stale} 行")
     if n_stale:
-        failures.append(f"f_rnfl_h 有 {n_stale} 行 MOCK-STALE 残留 — 上轮 stale_forecast 场景未清,"
+        failures.append(f"f_rnfl_h 有 {n_stale} 行 MOCK-* 场景残留 — 上轮场景未清,"
                         "先 python3 eval/data_prep.py --restore <最新 fixture_manifest-*.json>")
+    rows = execute_query_list(
+        "SELECT COMMENTS, COUNT(*) AS n FROM f_rnfl_h "
+        "WHERE COMMENTS LIKE %s AND deleted = 0 GROUP BY COMMENTS", ("MOCK-\\_%",))
+    for r in rows:   # 细分标记照实列出，便于定位是哪个场景没清干净
+        print(f"    · {r['COMMENTS']}: {r['n']} 行")
     rows = execute_query_list(
         "SELECT COUNT(*) AS n FROM ew_info_message "
         "WHERE ew_name LIKE %s AND deleted = 0", ("EVALFIX\\_%",))
@@ -151,9 +172,28 @@ def check_fixture_residue():
     if n_evalfix:
         failures.append(f"ew_info_message 有 {n_evalfix} 行 EVALFIX_ 残留 — 上轮 single_red_alarm 未清,"
                         "DELETE WHERE ew_name LIKE 'EVALFIX\\_%' AND tenant_id = 18")
-    # 崩溃现场扫描: report 目录下 manifest 里有 applied 未 teardown 的 pre-image 条目
+    # 注入半途崩溃的两类库内悬置态(基线均为 0,>0 即上轮 teardown 未走完):
+    # suppress 半途 → f_rnfl_h 租户 18 出现 deleted=1 行(正常基线 910 行全 deleted=0);
+    # null_rz 半途 → st_rsvr_r 三岔主站出现 rz IS NULL 行。
+    probes = [
+        ("f_rnfl_h tenant18 软删悬置(suppress 半途)",
+         "SELECT COUNT(*) AS n FROM f_rnfl_h WHERE tenant_id = 18 AND deleted = 1"),
+        ("st_rsvr_r 三岔 rz NULL 悬置(null_rz 半途)",
+         "SELECT COUNT(*) AS n FROM st_rsvr_r WHERE tenant_id = 18 AND stcd = '3' "
+         "AND deleted = 0 AND rz IS NULL"),
+    ]
+    for label, sql in probes:
+        n = int(execute_query_list(sql)[0]["n"])
+        print(f"  [{'OK' if n == 0 else 'FAIL'}] {label}: {n} 行")
+        if n:
+            failures.append(f"{label} {n} 行 — 场景注入半途崩溃,先 python3 eval/data_prep.py "
+                            "--restore <最新 fixture_manifest-*.json>(无效再手补)")
+    # 崩溃现场扫描: manifest 落在 --report-dir(惯例 output/<dir>/,默认 results/)——
+    # 二评 P1#4:旧实现只扫 results/ 顶层,漏掉 output/ 子树里的真实现场
     from paths import RESULTS_DIR
-    for mf in sorted(Path(RESULTS_DIR).glob("fixture_manifest*.json")):
+    manifests = set(Path(_REPO / "output").glob("**/fixture_manifest*.json")) \
+        | set(Path(RESULTS_DIR).glob("**/fixture_manifest*.json"))
+    for mf in sorted(manifests):
         try:
             data = json.loads(mf.read_text(encoding="utf-8"))
         except Exception:

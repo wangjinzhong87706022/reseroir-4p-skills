@@ -6,7 +6,11 @@
 --       但 st_pptn_r 在同 tm 完全无记录（实测缺失），或雨量站故障。
 -- 关键: 仅注入 f_rnfl_h 的过去时段行，故意不注入 st_pptn_r 的对应行，
 --       形成"预报有/实测空"的不对称，供 skill 判断为"实测缺失"而非"预报失败"。
--- 幂等: DELETE-before-INSERT 按 COMMENTS='MOCK'。
+-- 幂等: DELETE-before-INSERT 按 COMMENTS='MOCK-NULLACT'。
+-- 2026-09-14: 对齐 stale_forecast 三修——标记 'MOCK'→场景专属（cron 在用预报批同
+-- 标记，裸 'MOCK' 清场会误删在用批）、tenant_id 1→18（原写租户 1，评测租户查不到）、
+-- ID 1→场景专属段（复合主键软删不释放槽位，ID=1 必撞 Duplicate entry）。各场景
+-- marker/ID 段互斥，防相互清场。
 -- 目标库: LOCAL 127.0.0.1 powerelf_srm_yml。
 -- ============================================================================
 
@@ -15,7 +19,7 @@ SET @now0 := DATE_FORMAT(NOW(), '%Y-%m-%d %H:00:00');
 -- ---------------------------------------------------------------------------
 -- 1. 清旧 mock（同时清 f_rnfl_h；st_pptn_r 本场景故意不留同 tm 行）
 -- ---------------------------------------------------------------------------
-DELETE FROM f_rnfl_h WHERE COMMENTS = 'MOCK';
+DELETE FROM f_rnfl_h WHERE COMMENTS = 'MOCK-NULLACT' AND tenant_id = 18;
 -- 清掉 extreme_storm 可能留下的过去 6h 重叠实测，确保本场景"实测空"
 DELETE FROM st_pptn_r WHERE creator = 'MOCK' AND tenant_id = 18
   AND tm >= DATE_SUB(@now0, INTERVAL 6 HOUR) AND tm < @now0;
@@ -24,12 +28,12 @@ DELETE FROM st_pptn_r WHERE creator = 'MOCK' AND tenant_id = 18
 -- 2. f_rnfl_h: 过去 6h 预报显示明显降雨（但实测空）
 -- ---------------------------------------------------------------------------
 INSERT INTO f_rnfl_h (ID, YMDH, FYMDH, RN, UNITNAME, TYPE, COMMENTS, deleted, tenant_id) VALUES
-(1, DATE_SUB(@now0, INTERVAL 6 HOUR), DATE_SUB(@now0, INTERVAL 8 HOUR),  5.0, '1', '1', 'MOCK', 0, 1),
-(1, DATE_SUB(@now0, INTERVAL 5 HOUR), DATE_SUB(@now0, INTERVAL 8 HOUR),  7.5, '1', '1', 'MOCK', 0, 1),
-(1, DATE_SUB(@now0, INTERVAL 4 HOUR), DATE_SUB(@now0, INTERVAL 8 HOUR), 10.0, '1', '1', 'MOCK', 0, 1),
-(1, DATE_SUB(@now0, INTERVAL 3 HOUR), DATE_SUB(@now0, INTERVAL 8 HOUR), 13.5, '1', '1', 'MOCK', 0, 1),
-(1, DATE_SUB(@now0, INTERVAL 2 HOUR), DATE_SUB(@now0, INTERVAL 8 HOUR), 15.0, '1', '1', 'MOCK', 0, 1),
-(1, DATE_SUB(@now0, INTERVAL 1 HOUR), DATE_SUB(@now0, INTERVAL 8 HOUR), 11.0, '1', '1', 'MOCK', 0, 1);
+(20301, DATE_SUB(@now0, INTERVAL 6 HOUR), DATE_SUB(@now0, INTERVAL 8 HOUR),  5.0, '1', '1', 'MOCK-NULLACT', 0, 18),
+(20301, DATE_SUB(@now0, INTERVAL 5 HOUR), DATE_SUB(@now0, INTERVAL 8 HOUR),  7.5, '1', '1', 'MOCK-NULLACT', 0, 18),
+(20301, DATE_SUB(@now0, INTERVAL 4 HOUR), DATE_SUB(@now0, INTERVAL 8 HOUR), 10.0, '1', '1', 'MOCK-NULLACT', 0, 18),
+(20301, DATE_SUB(@now0, INTERVAL 3 HOUR), DATE_SUB(@now0, INTERVAL 8 HOUR), 13.5, '1', '1', 'MOCK-NULLACT', 0, 18),
+(20301, DATE_SUB(@now0, INTERVAL 2 HOUR), DATE_SUB(@now0, INTERVAL 8 HOUR), 15.0, '1', '1', 'MOCK-NULLACT', 0, 18),
+(20301, DATE_SUB(@now0, INTERVAL 1 HOUR), DATE_SUB(@now0, INTERVAL 8 HOUR), 11.0, '1', '1', 'MOCK-NULLACT', 0, 18);
 
 -- ---------------------------------------------------------------------------
 -- 3. 故意不插入 st_pptn_r 的同 tm 行 —— 这就是"实测空"
@@ -37,6 +41,6 @@ INSERT INTO f_rnfl_h (ID, YMDH, FYMDH, RN, UNITNAME, TYPE, COMMENTS, deleted, te
 -- ---------------------------------------------------------------------------
 
 -- 验证：
--- SELECT COUNT(*) AS forecast_past_6h FROM f_rnfl_h WHERE COMMENTS='MOCK' AND YMDH < NOW();
+-- SELECT COUNT(*) AS forecast_past_6h FROM f_rnfl_h WHERE COMMENTS='MOCK-NULLACT' AND YMDH < NOW();
 -- SELECT COUNT(*) AS observed_past_6h  FROM st_pptn_r WHERE creator='MOCK' AND tm < NOW() AND tm >= NOW()-INTERVAL 6 HOUR;
 -- 预期: forecast_past_6h=6, observed_past_6h=0 → 不对称。

@@ -6,7 +6,11 @@
 --       st_pptn_re_forecast 仅 ~60mm（偏保守），分歧 >60mm，远超 20mm 阈值。
 -- 关键: 仅注入 f_rnfl_h 与 st_pptn_re_forecast 两源，使其在 NOW+1~24h 每小时
 --       的累计差 >20mm，触发 multi_source_overview 的"分歧"标注。
--- 幂等: DELETE-before-INSERT 按 Task 2 marker（COMMENTS='MOCK' / re_id>=9000）。
+-- 幂等: DELETE-before-INSERT 按 Task 2 marker（COMMENTS='MOCK-DISAGR' / re_id>=9000）。
+-- 2026-09-14: 对齐 stale_forecast 三修——标记 'MOCK'→场景专属（cron 在用预报批同
+-- 标记，裸 'MOCK' 清场会误删在用批）、tenant_id 1→18（原写租户 1，评测租户查不到）、
+-- ID 1→场景专属段（复合主键软删不释放槽位，ID=1 必撞 Duplicate entry）。各场景
+-- marker/ID 段互斥，防相互清场。
 -- 目标库: LOCAL 127.0.0.1 powerelf_srm_yml。
 -- ============================================================================
 
@@ -15,39 +19,39 @@ SET @now0 := DATE_FORMAT(NOW(), '%Y-%m-%d %H:00:00');
 -- ---------------------------------------------------------------------------
 -- 1. f_rnfl_h: 和风激进预报（未来 24h 累计 ~120mm，峰值 18mm/h @ NOW+12h）
 -- ---------------------------------------------------------------------------
-DELETE FROM f_rnfl_h WHERE COMMENTS = 'MOCK';
+DELETE FROM f_rnfl_h WHERE COMMENTS = 'MOCK-DISAGR' AND tenant_id = 18;
 
 INSERT INTO f_rnfl_h (ID, YMDH, FYMDH, RN, UNITNAME, TYPE, COMMENTS, deleted, tenant_id) VALUES
-(1, DATE_ADD(@now0, INTERVAL  1 HOUR), @now0,  2.0, '1', '1', 'MOCK', 0, 1),
-(1, DATE_ADD(@now0, INTERVAL  2 HOUR), @now0,  3.5, '1', '1', 'MOCK', 0, 1),
-(1, DATE_ADD(@now0, INTERVAL  3 HOUR), @now0,  5.0, '1', '1', 'MOCK', 0, 1),
-(1, DATE_ADD(@now0, INTERVAL  4 HOUR), @now0,  7.0, '1', '1', 'MOCK', 0, 1),
-(1, DATE_ADD(@now0, INTERVAL  5 HOUR), @now0,  9.5, '1', '1', 'MOCK', 0, 1),
-(1, DATE_ADD(@now0, INTERVAL  6 HOUR), @now0, 12.0, '1', '1', 'MOCK', 0, 1),
-(1, DATE_ADD(@now0, INTERVAL  7 HOUR), @now0, 14.0, '1', '1', 'MOCK', 0, 1),
-(1, DATE_ADD(@now0, INTERVAL  8 HOUR), @now0, 16.0, '1', '1', 'MOCK', 0, 1),
-(1, DATE_ADD(@now0, INTERVAL  9 HOUR), @now0, 17.5, '1', '1', 'MOCK', 0, 1),
-(1, DATE_ADD(@now0, INTERVAL 10 HOUR), @now0, 18.0, '1', '1', 'MOCK', 0, 1),
-(1, DATE_ADD(@now0, INTERVAL 11 HOUR), @now0, 17.0, '1', '1', 'MOCK', 0, 1),
-(1, DATE_ADD(@now0, INTERVAL 12 HOUR), @now0, 15.0, '1', '1', 'MOCK', 0, 1),
-(1, DATE_ADD(@now0, INTERVAL 13 HOUR), @now0, 12.0, '1', '1', 'MOCK', 0, 1),
-(1, DATE_ADD(@now0, INTERVAL 14 HOUR), @now0,  9.0, '1', '1', 'MOCK', 0, 1),
-(1, DATE_ADD(@now0, INTERVAL 15 HOUR), @now0,  6.5, '1', '1', 'MOCK', 0, 1),
-(1, DATE_ADD(@now0, INTERVAL 16 HOUR), @now0,  4.5, '1', '1', 'MOCK', 0, 1),
-(1, DATE_ADD(@now0, INTERVAL 17 HOUR), @now0,  3.0, '1', '1', 'MOCK', 0, 1),
-(1, DATE_ADD(@now0, INTERVAL 18 HOUR), @now0,  2.0, '1', '1', 'MOCK', 0, 1),
-(1, DATE_ADD(@now0, INTERVAL 19 HOUR), @now0,  1.5, '1', '1', 'MOCK', 0, 1),
-(1, DATE_ADD(@now0, INTERVAL 20 HOUR), @now0,  1.0, '1', '1', 'MOCK', 0, 1),
-(1, DATE_ADD(@now0, INTERVAL 21 HOUR), @now0,  1.0, '1', '1', 'MOCK', 0, 1),
-(1, DATE_ADD(@now0, INTERVAL 22 HOUR), @now0,  0.5, '1', '1', 'MOCK', 0, 1),
-(1, DATE_ADD(@now0, INTERVAL 23 HOUR), @now0,  0.5, '1', '1', 'MOCK', 0, 1),
-(1, DATE_ADD(@now0, INTERVAL 24 HOUR), @now0,  0.5, '1', '1', 'MOCK', 0, 1);
+(20401, DATE_ADD(@now0, INTERVAL  1 HOUR), @now0,  2.0, '1', '1', 'MOCK-DISAGR', 0, 18),
+(20401, DATE_ADD(@now0, INTERVAL  2 HOUR), @now0,  3.5, '1', '1', 'MOCK-DISAGR', 0, 18),
+(20401, DATE_ADD(@now0, INTERVAL  3 HOUR), @now0,  5.0, '1', '1', 'MOCK-DISAGR', 0, 18),
+(20401, DATE_ADD(@now0, INTERVAL  4 HOUR), @now0,  7.0, '1', '1', 'MOCK-DISAGR', 0, 18),
+(20401, DATE_ADD(@now0, INTERVAL  5 HOUR), @now0,  9.5, '1', '1', 'MOCK-DISAGR', 0, 18),
+(20401, DATE_ADD(@now0, INTERVAL  6 HOUR), @now0, 12.0, '1', '1', 'MOCK-DISAGR', 0, 18),
+(20401, DATE_ADD(@now0, INTERVAL  7 HOUR), @now0, 14.0, '1', '1', 'MOCK-DISAGR', 0, 18),
+(20401, DATE_ADD(@now0, INTERVAL  8 HOUR), @now0, 16.0, '1', '1', 'MOCK-DISAGR', 0, 18),
+(20401, DATE_ADD(@now0, INTERVAL  9 HOUR), @now0, 17.5, '1', '1', 'MOCK-DISAGR', 0, 18),
+(20401, DATE_ADD(@now0, INTERVAL 10 HOUR), @now0, 18.0, '1', '1', 'MOCK-DISAGR', 0, 18),
+(20401, DATE_ADD(@now0, INTERVAL 11 HOUR), @now0, 17.0, '1', '1', 'MOCK-DISAGR', 0, 18),
+(20401, DATE_ADD(@now0, INTERVAL 12 HOUR), @now0, 15.0, '1', '1', 'MOCK-DISAGR', 0, 18),
+(20401, DATE_ADD(@now0, INTERVAL 13 HOUR), @now0, 12.0, '1', '1', 'MOCK-DISAGR', 0, 18),
+(20401, DATE_ADD(@now0, INTERVAL 14 HOUR), @now0,  9.0, '1', '1', 'MOCK-DISAGR', 0, 18),
+(20401, DATE_ADD(@now0, INTERVAL 15 HOUR), @now0,  6.5, '1', '1', 'MOCK-DISAGR', 0, 18),
+(20401, DATE_ADD(@now0, INTERVAL 16 HOUR), @now0,  4.5, '1', '1', 'MOCK-DISAGR', 0, 18),
+(20401, DATE_ADD(@now0, INTERVAL 17 HOUR), @now0,  3.0, '1', '1', 'MOCK-DISAGR', 0, 18),
+(20401, DATE_ADD(@now0, INTERVAL 18 HOUR), @now0,  2.0, '1', '1', 'MOCK-DISAGR', 0, 18),
+(20401, DATE_ADD(@now0, INTERVAL 19 HOUR), @now0,  1.5, '1', '1', 'MOCK-DISAGR', 0, 18),
+(20401, DATE_ADD(@now0, INTERVAL 20 HOUR), @now0,  1.0, '1', '1', 'MOCK-DISAGR', 0, 18),
+(20401, DATE_ADD(@now0, INTERVAL 21 HOUR), @now0,  1.0, '1', '1', 'MOCK-DISAGR', 0, 18),
+(20401, DATE_ADD(@now0, INTERVAL 22 HOUR), @now0,  0.5, '1', '1', 'MOCK-DISAGR', 0, 18),
+(20401, DATE_ADD(@now0, INTERVAL 23 HOUR), @now0,  0.5, '1', '1', 'MOCK-DISAGR', 0, 18),
+(20401, DATE_ADD(@now0, INTERVAL 24 HOUR), @now0,  0.5, '1', '1', 'MOCK-DISAGR', 0, 18);
 
 -- ---------------------------------------------------------------------------
 -- 2. st_pptn_re_forecast: 分区保守预报（未来 24h 累计 ~60mm，约为和风一半）
 --    re_id 9300（mock 区段）确保与和风每小时差 >2mm，累计差 >60mm。
 -- ---------------------------------------------------------------------------
-DELETE FROM st_pptn_re_forecast WHERE re_id >= 9000 AND tm > @now0;
+DELETE FROM st_pptn_re_forecast WHERE re_id >= 9000 AND tm > @now0 AND tenant_id = 18;
 
 INSERT INTO st_pptn_re_forecast (re_id, tm, drp, intv, dyp, tenant_id, deleted) VALUES
 (9300, DATE_ADD(@now0, INTERVAL  1 HOUR),  1.0, 1.00,  1.0, 18, 0),
@@ -76,6 +80,6 @@ INSERT INTO st_pptn_re_forecast (re_id, tm, drp, intv, dyp, tenant_id, deleted) 
 (9300, DATE_ADD(@now0, INTERVAL 24 HOUR),  0.2, 1.00, 89.6, 18, 0);
 
 -- 验证：
--- SELECT 'hefeng_24h', SUM(RN) FROM f_rnfl_h WHERE COMMENTS='MOCK' AND YMDH > NOW();
+-- SELECT 'hefeng_24h', SUM(RN) FROM f_rnfl_h WHERE COMMENTS='MOCK-DISAGR' AND YMDH > NOW();
 -- SELECT 'zonal_24h', SUM(drp) FROM st_pptn_re_forecast WHERE re_id>=9000 AND tm > NOW();
 -- 预期: hefeng ~188mm(window) vs zonal ~89mm，分歧 >90mm。

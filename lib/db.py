@@ -16,11 +16,17 @@ SmartTwinRes Skills 统一数据库连接库
 import os
 import sys
 import threading
+import time
 from datetime import date, datetime, timedelta
 from decimal import Decimal
 
 import pymysql
 import pymysql.cursors
+
+try:
+    from dbutils.exc import TooManyConnectionsError
+except ImportError:   # dbutils 缺失时走 'single' 模式，该异常类型不会触达
+    TooManyConnectionsError = ()
 
 __all__ = [
     'DB_CONFIG', 'get_connection', 'execute_query', 'execute_query_list',
@@ -92,7 +98,9 @@ def _get_pool():
             _pool = PooledDB(
                 creator=pymysql,
                 maxconnections=15,  # 2026-09-08: 10→15，修复高并发连接耗尽问题
-                blocking=True,      # 2026-09-08: 池满时等待而非报错，避免瞬时并发导致异常
+                blocking=False,     # 2026-09-14: 池满等待改为 get_connection 内有界重试——
+                                    # DBUtils 3.x blocking=True 的 wait() 无超时，泄漏 15 次
+                                    # = 整个评测/服务静默无限挂死（二评 P2#10）
                 mincached=2,        # 2026-09-08: 预创建 2 个空闲连接，避免冷启动延迟
                 maxcached=5,        # 2026-09-08: 缓存 5 个空闲连接，复用 TCP 连接
                 **config,
@@ -113,7 +121,11 @@ def _get_pool():
 
 
 def get_connection():
-    """Get a database connection (from pool or freshly created)."""
+    """Get a database connection (from pool or freshly created).
+
+    池满时在 POOL_WAIT_TIMEOUT_S（SRM_DB_POOL_WAIT_S，默认 30s）内有界重试，
+    超时即抛 RuntimeError——把"泄漏 15 次后整进程静默挂死"变成"30s 后大声失败
+    并指向泄漏排查方向"（二评 P2#10；治本是 finally 漏 close 的调用方修复）。"""
     pool = _get_pool()
     config = _ensure_db_config()
     if pool == 'single':
@@ -121,7 +133,18 @@ def get_connection():
             **config,
             cursorclass=pymysql.cursors.DictCursor,
         )
-    return pool.connection()
+    timeout_s = float(os.getenv("SRM_DB_POOL_WAIT_S", "30"))
+    deadline = time.monotonic() + timeout_s
+    while True:
+        try:
+            return pool.connection()
+        except TooManyConnectionsError:
+            if time.monotonic() >= deadline:
+                raise RuntimeError(
+                    f"连接池耗尽(15 连接)且等待超时 {timeout_s:g}s——疑似连接泄漏:"
+                    "排查 get_connection 后异常路径漏 close() 的调用方（必须 try/finally 归还）"
+                ) from None
+            time.sleep(0.1)
 
 
 # ---------------------------------------------------------------------------

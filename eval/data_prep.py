@@ -21,7 +21,8 @@
   - suppress/restore 的 UPDATE 必须带 scope_where（如 tenant_id = 18）。f_rnfl_h
     复合主键 (ID,YMDH,UNITNAME,TYPE) 下裸 id 不唯一——租户 1 有 6946 行 ID=1、
     租户 20 有 168 行，裸 UPDATE 会跨租户误伤/复活。
-  - pre-image 捕获按 id 游标分页（execute_query 有 MAX_ROWS=1000 静默截断）。
+  - pre-image 捕获直连池 fetchall（execute_query 有 MAX_ROWS=1000 静默截断），
+    CAPTURE_MAX 撞线即拒绝；需截头（如最新 N 行）必须在 SQL 层 ORDER BY。
   - manifest 文件名带时间戳（fixture_manifest-<ts>.json）——固定名会被下一次
     运行覆盖，毁掉崩溃现场唯一的恢复依据。
   - 写入统一走 lib.db_write.execute_write（显式 commit+rollback 的唯一审计写通道；
@@ -48,6 +49,7 @@ for p in (str(_REPO / "lib"), str(_REPO)):
 SCENARIOS_YAML = Path(__file__).parent / "data" / "scenarios.yaml"
 EXCLUSIVE_MAX_BATCH = 5   # exclusive 场景仅在 ≤5 题的小批量生效
 CHUNK = 500               # 回写分块
+KEY_CHUNK = 100           # 复合主键元组 IN 分块（元组占位符多，批更小）
 CAPTURE_MAX = 20000       # pre-image 单次捕获上限，撞线即拒绝（防截断静默进 manifest）
 TEARDOWN_NONE = "none"
 
@@ -65,17 +67,20 @@ def _write(sql, params=None):
     return execute_write(sql, params)
 
 
-def _capture_all(table, select_cols, where, cap=CAPTURE_MAX):
+def _capture_all(table, select_cols, where, cap=CAPTURE_MAX, order_by=None):
     """捕获 pre-image 行。绕开 execute_query 的 MAX_ROWS=1000 静默截断（评审 P0#4）：
     其 max_rows 参数被 min(max_rows, MAX_ROWS) 封死，抬不上去，故直连池连接 fetchall。
     撞 cap 即报错拒绝——截断的 pre-image 意味着 --restore 无法完整回写。
     注意不用 id 游标分页：f_rnfl_h 等复合主键表 id 不唯一（ID=1 有 695 行），
-    `id > last` 会整页跳过同 id 余行（2026-09-12 实测 910 行只捕到 715）。"""
+    `id > last` 会整页跳过同 id 余行（2026-09-12 实测 910 行只捕到 715）。
+    order_by：调用方要在 SQL 层排序/截头时必传——无 ORDER BY 的行序不保证
+    （InnoDB 按索引/页序返回），Python 侧 [:n] 截头会拿错行（2026-09-12 二评 P0#1）。"""
     from lib.db import get_connection, _serialize_row
     conn = get_connection()
     try:
         with conn.cursor() as cur:
-            cur.execute(f"SELECT {select_cols} FROM {table} WHERE {where}")  # args=None → 不做 % 格式化
+            tail = f" ORDER BY {order_by}" if order_by else ""
+            cur.execute(f"SELECT {select_cols} FROM {table} WHERE {where}{tail}")  # args=None → 不做 % 格式化
             rows = cur.fetchall()
     finally:
         conn.close()   # 只读查询无需 commit；池连接 close=归还
@@ -96,12 +101,30 @@ class Prep:
 
     # ---- 接线校验 --------------------------------------------------------
     def validate(self, known_case_ids):
-        """场景 cases 引用了不存在的题 id = typo 静默失联（场景永远不触发），启动时告警。"""
+        """启动期接线校验：cases 引用不存在的题 id（typo 静默失联）告警；
+        requires 依赖（如 stale_forecast requires hide_fresh_forecast）违反即拒绝——
+        二评 P2#8：成对/顺序约束此前只活在注释里，dict 顺序一改就静默失效。"""
+        names = list(self.scenarios)
         for name, spec in self.scenarios.items():
             for cid in spec.get("cases") or []:
                 if cid not in known_case_ids:
                     print(f"[data_prep][WARN] 场景 {name} 引用了不存在的题 id: {cid}（typo?）",
                           flush=True)
+            req = spec.get("requires")
+            if not req:
+                continue
+            if req not in names:
+                raise ValueError(
+                    f"场景 {name} requires 未声明的场景 {req}（typo?）")
+            if names.index(req) > names.index(name):
+                raise ValueError(
+                    f"场景 {name} requires {req}，但后者声明在后——setup 按 dict 顺序执行，"
+                    f"被依赖场景必须声明在前面（先压制基线再注入前提）")
+            my_cases, req_cases = set(spec.get("cases") or []), set(self.scenarios[req].get("cases") or [])
+            if my_cases and req_cases and not my_cases <= req_cases:
+                raise ValueError(
+                    f"场景 {name} 的 cases {sorted(my_cases - req_cases)} 未被其依赖 {req} 覆盖"
+                    f"——这些题只拿到注入前提、没拿到被压制基线，场景失真")
 
     # ---- manifest 持久化 ---------------------------------------------------
     def _flush(self):
@@ -212,7 +235,8 @@ class Prep:
         stcd, tenant, n = spec["stcd"], spec["tenant_id"], int(spec["rows"])
         rows = _capture_all(
             "st_rsvr_r", "id, rz",
-            f"stcd='{stcd}' AND tenant_id={tenant} AND deleted=0 AND rz IS NOT NULL")[:n]
+            f"stcd='{stcd}' AND tenant_id={tenant} AND deleted=0 AND rz IS NOT NULL",
+            order_by="tm DESC")[:n]   # 最新 N 行；无 ORDER BY 会截到最旧行（二评 P0#1）
         scope = f"stcd='{stcd}' AND tenant_id={tenant}"
         pre_image = {"table": "st_rsvr_r", "scope_where": scope,
                      "rows": [{"id": r["id"], "rz": float(r["rz"])} for r in rows]}
@@ -228,27 +252,46 @@ class Prep:
         f_rnfl_h 下裸 id 不唯一（租户 1 有 6946 行 ID=1），裸 UPDATE 跨租户误伤。
         没有本 handler，陈旧场景会被 cron 每 50min 刷新的新鲜批次盖过
         （MAX(FYMDH) 仍新鲜），场景形同虚设。
+        key_cols（可选）：复合主键表必配（如 f_rnfl_h 的 [ID, YMDH, UNITNAME, TYPE]）。
+        裸 id 捕获在复合主键表会把同 id 多行折叠成一组——回写按 id 命中多行、
+        计数核验虚高（二评 P2#9）；带 key_cols 时按完整主键逐行捕获/回写/核验。
         """
         if "scope_where" not in spec:
             raise ValueError("suppress 场景必配 scope_where（防跨租户误伤，评审 P0#1）")
         table = spec["table"]
-        rows = _capture_all(table, "id, deleted", spec["capture_where"])
+        key_cols = spec.get("key_cols")
+        select_cols = (", ".join(key_cols) + ", deleted") if key_cols else "id, deleted"
+        rows = _capture_all(table, select_cols, spec["capture_where"])
         scope = spec["scope_where"]
         pre_image = {"table": table, "scope_where": scope,
-                     "rows": [{"id": r["id"], "deleted": r["deleted"]} for r in rows]}
-        for i in range(0, len(rows), CHUNK):
-            ids = [r["id"] for r in rows[i:i + CHUNK]]
-            _write(f"UPDATE {table} SET deleted=1 WHERE id IN ({', '.join(['%s'] * len(ids))}) AND {scope}",
-                   ids)
+                     **({"key_cols": list(key_cols)} if key_cols else {}),
+                     "rows": [dict(r) for r in rows]}
+        if key_cols:
+            # 按完整主键压制：元组 IN 批量 UPDATE（100 元组/批），scope 双保险
+            for i in range(0, len(rows), KEY_CHUNK):
+                chunk = rows[i:i + KEY_CHUNK]
+                flat = [r[k] for r in chunk for k in key_cols]
+                _write(f"UPDATE {table} SET deleted=1 WHERE ({', '.join(key_cols)}) IN "
+                       f"({', '.join(['(' + ', '.join(['%s'] * len(key_cols)) + ')'] * len(chunk))})"
+                       f" AND {scope}", flat)
+        else:
+            for i in range(0, len(rows), CHUNK):
+                ids = [r["id"] for r in rows[i:i + CHUNK]]
+                _write(f"UPDATE {table} SET deleted=1 WHERE id IN ({', '.join(['%s'] * len(ids))}) AND {scope}",
+                       ids)
         return {"pre_image": pre_image, "suppressed": len(rows)}
 
 
 def _restore_rows(pre):
-    """按主键 id 批量回写 pre-image 列，附 scope_where 限定（评审 P0#1）。
+    """按主键批量回写 pre-image 列，附 scope_where 限定（评审 P0#1）。
 
-    返回 (matched, expected)：matched 按 pre-image 值回查计数（f_rnfl_h 复合主键下
-    id 不唯一，UPDATE rowcount 会重复/漏计——2026-09-12 实测 IN(1×500) 命中 695 行），
+    返回 (matched, expected)：matched 按 pre-image 值回查计数（UPDATE rowcount 在
+    id 重复表会重复/漏计——2026-09-12 实测 IN(1×500) 命中 695 行），
     matched != expected = 差额行被硬删/外部改动，调用方告警。
+    两条路径：
+    - key_cols（复合主键，二评 P2#9）：按完整主键元组 IN 回写/核验——裸 id 会把
+      同 id 多行折叠成一组，命中多行、核验虚高；
+    - 裸 id（st_rsvr_r 等单列主键，或旧格式 manifest）：按 id 分组回写（原路径）。
     兼容旧格式（无 scope_where）：按 id 裸回写并打 WARN。
     """
     from lib.db import execute_query
@@ -261,6 +304,35 @@ def _restore_rows(pre):
         return 0, 0
     if not scope:
         print(f"[data_prep][WARN] {table} pre-image 无 scope_where（旧格式）——按 id 裸回写，有跨租户风险", flush=True)
+    where_scope = f" AND {scope}" if scope else ""
+    key_cols = pre.get("key_cols")
+    if key_cols:
+        # 复合主键路径：行值签名分组 → 元组 IN 批量回写 → 按主键+pre-image 值计数核验
+        value_cols = [k for k in rows[0] if k not in key_cols]
+        groups = defaultdict(list)
+        for r in rows:
+            groups[tuple((k, r[k]) for k in value_cols)].append(r)
+        matched = 0
+        for sig, grp in groups.items():
+            sets = ", ".join(f"{k}=%s" for k, _ in sig)
+            base_vals = [v for _, v in sig]
+            for i in range(0, len(grp), KEY_CHUNK):
+                chunk = grp[i:i + KEY_CHUNK]
+                tuple_ph = ", ".join(
+                    "(" + ", ".join(["%s"] * len(key_cols)) + ")" for _ in chunk)
+                flat = [r[k] for r in chunk for k in key_cols]
+                execute_write(
+                    f"UPDATE {table} SET {sets} WHERE ({', '.join(key_cols)}) IN ({tuple_ph}){where_scope}",
+                    base_vals + flat)
+                # 核验即"终态等于 pre-image"：主键命中且列值全符的行数（已修复/被外部
+                # 改成同值的行都算命中——语义上终态正确即可）。参数序=占位符文本序：
+                # 元组 IN 在前(flat)，值匹配在后(base_vals)
+                cnt = execute_query(
+                    f"SELECT COUNT(*) AS n FROM {table} WHERE ({', '.join(key_cols)}) "
+                    f"IN ({tuple_ph}) AND {sets}{where_scope}",
+                    flat + base_vals)["data"][0]["n"]
+                matched += int(cnt)
+        return matched, expected
     # 按列值签名分组：同签名合并成一条 UPDATE（SET k=%s ... WHERE id IN (...)）
     groups = defaultdict(list)
     for r in rows:

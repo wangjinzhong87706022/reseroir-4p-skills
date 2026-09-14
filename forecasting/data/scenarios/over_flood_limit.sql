@@ -5,10 +5,14 @@
 -- 场景: 近 12 小时水位快速上涨至 462.8m，超汛限 462.5m 且逼近校核 462.88m。
 -- 关键设计（满足 Task 4 forecast_timeline 非空需求）:
 --   包含 NOW-6h~NOW-1h 共 6 小时 forecast-observed 重叠段：
---     - f_rnfl_h（COMMENTS='MOCK'）预报未来 + 过去 6h
+--     - f_rnfl_h（COMMENTS='MOCK-OVL'）预报未来 + 过去 6h
 --     - st_pptn_r（creator='MOCK'）实测同 tm，略高于预报（模拟预报偏小）
 --   使 forecast_timeline bias 非空。
--- 幂等: DELETE-before-INSERT 按 creator='MOCK' / COMMENTS='MOCK'。
+-- 幂等: DELETE-before-INSERT 按 creator='MOCK' / COMMENTS='MOCK-OVL'。
+-- 2026-09-14: 对齐 stale_forecast 三修——标记 'MOCK'→场景专属（cron 在用预报批同
+-- 标记，裸 'MOCK' 清场会误删在用批）、tenant_id 1→18（原写租户 1，评测租户查不到）、
+-- ID 1→场景专属段（复合主键软删不释放槽位，ID=1 必撞 Duplicate entry）。各场景
+-- marker/ID 段互斥，防相互清场。
 -- 目标库: LOCAL 127.0.0.1 powerelf_srm_yml。
 -- ============================================================================
 
@@ -48,33 +52,33 @@ INSERT INTO st_pptn_r (tm, p, dr, dyp, stcd, tenant_id, deleted, creator, eq_cod
 -- ---------------------------------------------------------------------------
 -- 3. f_rnfl_h: 过去 6h 预报（偏小，与实测对照）+ 未来 12h 预报（持续降雨）
 -- ---------------------------------------------------------------------------
-DELETE FROM f_rnfl_h WHERE COMMENTS = 'MOCK';
+DELETE FROM f_rnfl_h WHERE COMMENTS = 'MOCK-OVL' AND tenant_id = 18;
 
 -- (a) 过去 6h 预报（偏小，模拟预报低估）
 INSERT INTO f_rnfl_h (ID, YMDH, FYMDH, RN, UNITNAME, TYPE, COMMENTS, deleted, tenant_id) VALUES
-(1, DATE_SUB(@now0, INTERVAL 6 HOUR), DATE_SUB(@now0, INTERVAL 8 HOUR),  8.0, '1', '1', 'MOCK', 0, 1),
-(1, DATE_SUB(@now0, INTERVAL 5 HOUR), DATE_SUB(@now0, INTERVAL 8 HOUR), 11.0, '1', '1', 'MOCK', 0, 1),
-(1, DATE_SUB(@now0, INTERVAL 4 HOUR), DATE_SUB(@now0, INTERVAL 8 HOUR), 15.0, '1', '1', 'MOCK', 0, 1),
-(1, DATE_SUB(@now0, INTERVAL 3 HOUR), DATE_SUB(@now0, INTERVAL 8 HOUR), 18.0, '1', '1', 'MOCK', 0, 1),
-(1, DATE_SUB(@now0, INTERVAL 2 HOUR), DATE_SUB(@now0, INTERVAL 8 HOUR), 21.0, '1', '1', 'MOCK', 0, 1),
-(1, DATE_SUB(@now0, INTERVAL 1 HOUR), DATE_SUB(@now0, INTERVAL 8 HOUR), 16.5, '1', '1', 'MOCK', 0, 1);
+(20101, DATE_SUB(@now0, INTERVAL 6 HOUR), DATE_SUB(@now0, INTERVAL 8 HOUR),  8.0, '1', '1', 'MOCK-OVL', 0, 18),
+(20101, DATE_SUB(@now0, INTERVAL 5 HOUR), DATE_SUB(@now0, INTERVAL 8 HOUR), 11.0, '1', '1', 'MOCK-OVL', 0, 18),
+(20101, DATE_SUB(@now0, INTERVAL 4 HOUR), DATE_SUB(@now0, INTERVAL 8 HOUR), 15.0, '1', '1', 'MOCK-OVL', 0, 18),
+(20101, DATE_SUB(@now0, INTERVAL 3 HOUR), DATE_SUB(@now0, INTERVAL 8 HOUR), 18.0, '1', '1', 'MOCK-OVL', 0, 18),
+(20101, DATE_SUB(@now0, INTERVAL 2 HOUR), DATE_SUB(@now0, INTERVAL 8 HOUR), 21.0, '1', '1', 'MOCK-OVL', 0, 18),
+(20101, DATE_SUB(@now0, INTERVAL 1 HOUR), DATE_SUB(@now0, INTERVAL 8 HOUR), 16.5, '1', '1', 'MOCK-OVL', 0, 18);
 
 -- (b) 未来 12h 预报（退水但仍中雨，可能继续推高水位）
 INSERT INTO f_rnfl_h (ID, YMDH, FYMDH, RN, UNITNAME, TYPE, COMMENTS, deleted, tenant_id) VALUES
-(1, DATE_ADD(@now0, INTERVAL  1 HOUR), @now0, 14.0, '1', '1', 'MOCK', 0, 1),
-(1, DATE_ADD(@now0, INTERVAL  2 HOUR), @now0, 11.0, '1', '1', 'MOCK', 0, 1),
-(1, DATE_ADD(@now0, INTERVAL  3 HOUR), @now0,  8.5, '1', '1', 'MOCK', 0, 1),
-(1, DATE_ADD(@now0, INTERVAL  4 HOUR), @now0,  6.0, '1', '1', 'MOCK', 0, 1),
-(1, DATE_ADD(@now0, INTERVAL  5 HOUR), @now0,  4.0, '1', '1', 'MOCK', 0, 1),
-(1, DATE_ADD(@now0, INTERVAL  6 HOUR), @now0,  2.5, '1', '1', 'MOCK', 0, 1),
-(1, DATE_ADD(@now0, INTERVAL  7 HOUR), @now0,  1.5, '1', '1', 'MOCK', 0, 1),
-(1, DATE_ADD(@now0, INTERVAL  8 HOUR), @now0,  1.0, '1', '1', 'MOCK', 0, 1),
-(1, DATE_ADD(@now0, INTERVAL  9 HOUR), @now0,  0.5, '1', '1', 'MOCK', 0, 1),
-(1, DATE_ADD(@now0, INTERVAL 10 HOUR), @now0,  0.5, '1', '1', 'MOCK', 0, 1),
-(1, DATE_ADD(@now0, INTERVAL 11 HOUR), @now0,  0.5, '1', '1', 'MOCK', 0, 1),
-(1, DATE_ADD(@now0, INTERVAL 12 HOUR), @now0,  0.5, '1', '1', 'MOCK', 0, 1);
+(20101, DATE_ADD(@now0, INTERVAL  1 HOUR), @now0, 14.0, '1', '1', 'MOCK-OVL', 0, 18),
+(20101, DATE_ADD(@now0, INTERVAL  2 HOUR), @now0, 11.0, '1', '1', 'MOCK-OVL', 0, 18),
+(20101, DATE_ADD(@now0, INTERVAL  3 HOUR), @now0,  8.5, '1', '1', 'MOCK-OVL', 0, 18),
+(20101, DATE_ADD(@now0, INTERVAL  4 HOUR), @now0,  6.0, '1', '1', 'MOCK-OVL', 0, 18),
+(20101, DATE_ADD(@now0, INTERVAL  5 HOUR), @now0,  4.0, '1', '1', 'MOCK-OVL', 0, 18),
+(20101, DATE_ADD(@now0, INTERVAL  6 HOUR), @now0,  2.5, '1', '1', 'MOCK-OVL', 0, 18),
+(20101, DATE_ADD(@now0, INTERVAL  7 HOUR), @now0,  1.5, '1', '1', 'MOCK-OVL', 0, 18),
+(20101, DATE_ADD(@now0, INTERVAL  8 HOUR), @now0,  1.0, '1', '1', 'MOCK-OVL', 0, 18),
+(20101, DATE_ADD(@now0, INTERVAL  9 HOUR), @now0,  0.5, '1', '1', 'MOCK-OVL', 0, 18),
+(20101, DATE_ADD(@now0, INTERVAL 10 HOUR), @now0,  0.5, '1', '1', 'MOCK-OVL', 0, 18),
+(20101, DATE_ADD(@now0, INTERVAL 11 HOUR), @now0,  0.5, '1', '1', 'MOCK-OVL', 0, 18),
+(20101, DATE_ADD(@now0, INTERVAL 12 HOUR), @now0,  0.5, '1', '1', 'MOCK-OVL', 0, 18);
 
 -- 验证：
 -- SELECT MAX(rz) FROM st_rsvr_r WHERE creator='MOCK';  -- 预期 462.800（超汛限）
 -- SELECT COUNT(*) FROM st_pptn_r WHERE creator='MOCK' AND tm < NOW();  -- 重叠实测 6 行
--- SELECT COUNT(*) FROM f_rnfl_h WHERE COMMENTS='MOCK' AND YMDH < NOW();  -- 重叠预报 6 行
+-- SELECT COUNT(*) FROM f_rnfl_h WHERE COMMENTS='MOCK-OVL' AND YMDH < NOW();  -- 重叠预报 6 行

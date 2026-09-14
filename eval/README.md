@@ -102,7 +102,7 @@ python3 eval/run.py --llm ...
 长题不要低于 2000s 跑。
 水位真值统一用：
 ```sql
-SELECT rz FROM st_rsvr_r WHERE rz IS NOT NULL AND deleted = 0 ORDER BY tm DESC LIMIT 1
+SELECT rz FROM st_rsvr_r WHERE rz IS NOT NULL AND deleted = 0 AND tenant_id = 18 ORDER BY tm DESC LIMIT 1
 ```
 
 ## 判分实现
@@ -124,20 +124,30 @@ finally 无条件 teardown），动作全量写 `<report_dir>/fixture_manifest-<
 
 - handler 四种：`file`（场景 SQL，剥注释按分号拆语句、单连接保会话变量）、
   `insert_rows`（幂等 DELETE-before-INSERT）、`null_rz_latest` / `suppress`
-  （软改基线，pre-image 记主键+列值按 id 回写）。
+  （软改基线，pre-image 记主键+列值回写；复合主键表配 `key_cols`——如 f_rnfl_h
+  的 [ID,YMDH,UNITNAME,TYPE]——按完整主键逐行捕获/回写/核验，裸 id 会把同 id
+  多行折叠成一组导致核验虚高）。
 - **suppress 必配 `scope_where`**（如 `tenant_id = 18`）：软删与回写的 UPDATE 都带它
   限定边界——f_rnfl_h 复合主键 (ID,YMDH,UNITNAME,TYPE) 下裸 id 不唯一（租户 1 有
   6946 行 ID=1），裸 UPDATE 跨租户误伤（2026-09-12 评审 P0）。回写按列值签名分组
   批量执行并核对 matched/expected，差额行打 WARN。
-- pre-image 捕获按 id 游标分页（CHUNK=500）——`execute_query` 有 MAX_ROWS=1000
-  静默截断。
+- pre-image 捕获直连池 `fetchall`（CAPTURE_MAX=20000 撞线即拒绝）——`execute_query`
+  有 MAX_ROWS=1000 静默截断且 max_rows 抬不上去；**不用 id 游标分页**：复合主键表
+  （f_rnfl_h）id 不唯一，`id > last` 整页跳过同 id 余行（2026-09-12 实测 910 行只捕到
+  715）。需要截头（如 null_rz 取最新 N 行）必须在 SQL 层 `ORDER BY tm DESC`——无
+  ORDER BY 的行序不保证，Python 侧 `[:n]` 会截到最旧行。
 - `exclusive: true` 的场景（改基线可见性）只在 ≤5 题的小批量生效（EXCLUSIVE_MAX_BATCH），
-  全量跑自动跳过——被跳过的题进报告 meta `premise_skipped`（这些题跑在正常基线上）。
+  全量跑自动跳过——被跳过的题进报告 meta `premise_skipped`（这些题跑在正常基线上；
+  注入失败 status=error 的题同样计入——只认 skipped 会把"注入失败照跑"伪装成正常基线）。
 - teardown 型：`restore`（按 pre-image 回写）/ `delete_first`（按 marker 删注入行）。
 - fixtures 状态写进每题结果 `verdict.fixtures`，报告可见"该题是否真的跑了场景"。
-- runner 启动时 `prep.validate()` 校验场景 cases 引用的题 id 存在（typo 静默失联防线）。
-- preflight 第 4 检查（[4/4] 场景残留）：MOCK-STALE / EVALFIX_ 注入行必须为零，
-  manifest 有 applied 未恢复条目给 WARN——上轮 teardown 未走完（崩溃信号）开跑前即拦。
+- runner 启动时 `prep.validate()` 校验场景 cases 引用的题 id 存在（typo 静默失联防线），
+  并校验 `requires` 依赖（被依赖场景必须声明在前、cases 须是其子集，违反即拒绝——
+  成对约束机器可查，不再只靠注释自觉）。
+- preflight 第 4 检查（[4/4] 场景残留）：`COMMENTS LIKE 'MOCK-_%'` 全场景标记 +
+  EVALFIX_ 注入行 + suppress/null_rz 半途崩溃的两类库内悬置态（f_rnfl_h tenant18
+  deleted=1、三岔 rz NULL）必须为零；output/ 与 results/ 下 manifest 有 applied
+  未恢复条目给 WARN——上轮 teardown 未走完（崩溃信号）开跑前即拦。
 
 **写库纪律（踩过的坑）**：
 - `lib.db.execute_query` 不 commit（读导向），写入必须走 `lib.db_write.execute_write`
