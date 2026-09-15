@@ -55,11 +55,14 @@ from tenant import current_tenant_id
 
 ## 四、连接池
 
-`lib/db.py` 自动尝试 `dbutils.pooled_db.PooledDB`（maxconnections=10）；若 `dbutils` 未安装，回退到单连接模式。skill 脚本无需关心。
+`lib/db.py` 自动尝试 `dbutils.pooled_db.PooledDB`（maxconnections=15, mincached=2, maxcached=5）；若 `dbutils` 未安装，回退到单连接模式。skill 脚本无需关心。
 
-> **注意**：DBUtils 缺失时系统仍可运行，但并发查询性能将受限（maxconnections=10 配置不生效）。
+> **注意**：DBUtils 缺失时系统仍可运行，但并发查询性能将受限（maxconnections=15 配置不生效）。
 > 生产环境建议始终安装：`pip install DBUtils`
 > 回退时 `srm.db` logger 会输出 WARNING，运维可据此定位。
+
+**池满行为**：`blocking=False` + `get_connection()` 内有界重试（`SRM_DB_POOL_WAIT_S`，默认 30s）。
+超时即抛 `RuntimeError` 并指向连接泄漏排查方向（`try/finally` 必须 `close()`）。
 
 ## 依赖清单
 
