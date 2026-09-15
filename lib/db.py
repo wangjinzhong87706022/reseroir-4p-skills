@@ -24,7 +24,9 @@ import pymysql
 import pymysql.cursors
 
 try:
-    from dbutils.exc import TooManyConnectionsError
+    # DBUtils 3.x: TooManyConnectionsError 定义在 dbutils.pooled_db（无 dbutils.exc 模块）
+    # DBUtils 1.x/2.x 兼容：旧版亦在 dbutils.pooled_db 中定义
+    from dbutils.pooled_db import TooManyConnectionsError
 except ImportError:   # dbutils 缺失时走 'single' 模式，该异常类型不会触达
     TooManyConnectionsError = ()
 
