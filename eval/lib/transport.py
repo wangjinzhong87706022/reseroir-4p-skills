@@ -6,6 +6,12 @@ import subprocess
 
 def run_hermes(question, skill_id, env, timeout, skill_dir=None, _runner=subprocess.run):
     cmd = ["hermes", "chat", "-q", question, "--skills", skill_id, "-Q"]
+    # 对比验证接线（2026-09-15）：EVAL_HERMES_PROVIDER / EVAL_HERMES_MODEL 可选覆盖被测
+    # agent 模型，判官仍走 EVAL_JUDGE_MODEL，控制变量。缺省不追加参数=原基线行为。
+    if os.environ.get("EVAL_HERMES_PROVIDER"):
+        cmd += ["--provider", os.environ["EVAL_HERMES_PROVIDER"]]
+    if os.environ.get("EVAL_HERMES_MODEL"):
+        cmd += ["-m", os.environ["EVAL_HERMES_MODEL"]]
     full_env = {**os.environ, **{str(k): str(v) for k, v in (env or {}).items()}}
     try:
         r = _runner(cmd, capture_output=True, text=True, timeout=timeout,
