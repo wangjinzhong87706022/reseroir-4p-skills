@@ -143,4 +143,22 @@ Qwen 按题给数字完整提炼。**解**：条款 N2 + PG 契约"口径存疑�
 ## 6. 关联债务
 
 - PG23 口径疑点 = unrun22-F1（泄量三值打架）又一独立实证，建议 F1 优先级维持最高；
-- transport.py 接线（EVAL_HERMES_PROVIDER/MODEL）仍未提交，P1/P2 依赖它，需先行入库。
+- transport.py 接线（EVAL_HERMES_PROVIDER/MODEL）已提交推送（a2288b7）。
+
+## 7. P1 验证结果（2026-09-16 午间，门禁通过）
+
+- 运行：output/2026-09-16/p1-step37-a10-104348（step A 类 10 题）+
+  p1-qwen-sentinel10-104348（Qwen 哨兵 10 题）+ p1-verify-f24dv3-120358 等单题验证。
+- **门禁双条件达成**：step A 类恢复 **8/10**（DV7/EW10/EW16/EW24/PG16/SIM18/SIM22/F24）≥7 ✅；
+  Qwen 哨兵 **10/10** ≥9 ✅ 零回归。
+- 冒烟期条款迭代两处：EW N3 补"查无后必须输出降级结论"（EW30 即翻 3/3）；
+  forecasting 补"题设优先/先答后问"（F24 假 FAIL 坐实翻 3/3——原挂因是拿实况 461.1m
+  反推题设 462.8m"未超限"，非 HITL 缺失）。
+- DV3 裁定落地：rubric Layer 1 补动作制半句（与 Layer 4 对称）；Qwen 首次 PASS 5/5；
+  step 行为面达标（单轮全 5 判据 true），成绩被判官侧抖动污染（一次顶层 passed 与 items
+  矛盾、一次空响应→ERROR），P2 以全量重跑为准。
+- DV SKILL Layer 5 补"题面自带比对值必须实际比对"后，step DV3 五判据全过。
+- 未恢复：DV1/DV5（R3 多步流程跟随，模型能力边界，P2 后标注为不可修复项）。
+- 已知判官侧债务（P2 后处理）：judge.py:127 信任顶层 passed 字段，items 与顶层矛盾时
+  无告警；建议 P2 后加一致性校验（矛盾→ERROR）。
+
