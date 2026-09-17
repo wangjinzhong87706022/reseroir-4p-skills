@@ -135,10 +135,18 @@ def main(argv=None, transport_fn=None, query_fn=None, llm_on=False, report_dir=N
             t0 = time.time()
             # 2026-08-27：transport 偶发基础设施异常（如 "read operation timed out"）重试一次，
             # 避免单点网络/IO 抖动毁掉一道题（SUP2 实例）。TIMEOUT 不重试（重试只是双倍耗时）。
+            # 2026-09-17：空答案（hermes 空响应哨兵 "(empty)" / 空 stdout）同样视同 infra 故障
+            # 重试一次——EW26 实测非空哨兵会绕过下面的 ERROR 防线被误判 FAIL（PG9 反而假 PASS）。
             r, exc = None, None
             for attempt in (1, 2):
                 try:
                     r = transport_fn(c.question, c.skill, c.env, eff_timeout, skill_dir=str(get_skill_dir(c.skill)))
+                    if (attempt == 1 and not r.get("timed_out")
+                            and not (r.get("answer") or "").strip()):
+                        print("   .. 空响应（无终答/hermes 哨兵），重试 1 次", flush=True)
+                        r = None
+                        time.sleep(3)
+                        continue
                     break
                 except Exception as e:
                     exc = e
@@ -150,8 +158,12 @@ def main(argv=None, transport_fn=None, query_fn=None, llm_on=False, report_dir=N
                 if r.get("timed_out"):
                     v = {"verdict": "TIMEOUT", "detail": {"reason": f"超时 {eff_timeout}s"}}
                 elif not (r.get("answer") or "").strip():
-                    # 未超时但无最终回复 = infra 故障（hermes 崩溃/空 stdout），判 ERROR 防假 FAIL
-                    v = {"verdict": "ERROR", "detail": {"reason": "transport 未超时但返回空输出"}}
+                    # 未超时但无最终回复 = infra 故障（hermes 崩溃/空 stdout/空响应哨兵），
+                    # 判 ERROR 防假 FAIL/假 PASS；重试已在上方做过一次
+                    reason = ("hermes 空响应哨兵（重试后仍空），判 ERROR"
+                              if r.get("empty_sentinel")
+                              else "transport 未超时但返回空输出")
+                    v = {"verdict": "ERROR", "detail": {"reason": reason}}
                 else:
                     v = _dispatch(c, r["answer"], query_fn, llm_on, args.keywords_mode)
                 out_preview = r.get("answer", "")

@@ -81,6 +81,52 @@ class TestRunner(unittest.TestCase):
             # 即便有用例异常，报告文件照常写出
             self.assertTrue(any(p.suffix == ".json" for p in pathlib.Path(d).glob("eval-*.json")))
 
+    def test_empty_answer_retried_then_error(self):
+        """EW26 复盘（2026-09-17）：hermes "(empty)" 哨兵是非空字符串，绕过
+        "空输出判 ERROR" 防线被误判 FAIL（PG9 甚至假 PASS）。runner 须视同 infra
+        故障重试一次，重试后仍空则判 ERROR 而非 FAIL。"""
+        import json
+        import tempfile
+        from unittest import mock
+        with tempfile.TemporaryDirectory() as d:
+            self._cases_yaml(d)
+            calls = {"n": 0}
+            def flaky(question, skill_id, env, timeout, skill_dir=None, _runner=None):
+                calls["n"] += 1
+                if calls["n"] == 1:   # 第一次：空响应哨兵（模拟 EW26）
+                    return {"output": "(empty)", "answer": "", "answer_extracted": False,
+                            "empty_sentinel": True, "stderr": "", "exit_code": 0,
+                            "timed_out": False}
+                return {"output": "水位 462 m", "answer": "水位 462 m",
+                        "answer_extracted": False, "empty_sentinel": False,
+                        "stderr": "", "exit_code": 0, "timed_out": False}
+            with mock.patch.object(runmod.time, "sleep"):
+                rc = _quiet_main(["--cases-dir", d, "--report-dir", d],
+                                 transport_fn=flaky)
+            self.assertEqual(rc, 0)       # 重试拿到真答案 → F1/F2 按 advisory 判分正常
+            self.assertEqual(calls["n"], 3)  # F1：空→重试 2 次 + F2：1 次 = 共 3 次调用
+
+    def test_empty_answer_after_retry_is_error_not_fail(self):
+        import json
+        import tempfile
+        from unittest import mock
+        with tempfile.TemporaryDirectory() as d:
+            self._cases_yaml(d)
+            def always_empty(question, skill_id, env, timeout, skill_dir=None, _runner=None):
+                return {"output": "(empty)", "answer": "", "answer_extracted": False,
+                        "empty_sentinel": True, "stderr": "", "exit_code": 0,
+                        "timed_out": False}
+            with mock.patch.object(runmod.time, "sleep"):
+                rc = _quiet_main(["--cases-dir", d, "--report-dir", d],
+                                 transport_fn=always_empty)
+            self.assertEqual(rc, 1)   # ERROR → 非 all-PASS
+            jp = sorted(pathlib.Path(d).glob("eval-*.json"))[-1]
+            data = json.loads(jp.read_text())
+            rs = data["results"] if isinstance(data, dict) and "results" in data else data
+            for r in rs:
+                self.assertEqual(r["status"], "ERROR")   # 关键断言：不是 FAIL
+                self.assertIn("空响应", r["verdict"]["reason"])   # verdict 字段即 detail 字典
+
     def test_db_connect_failure_does_not_crash(self):
         import tempfile
         from eval.lib import truth

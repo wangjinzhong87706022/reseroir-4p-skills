@@ -4,6 +4,21 @@ import re
 import subprocess
 
 
+# hermes agent/turn_empty_response.py 在模型空响应重试+fallback 耗尽后交付的哨兵终答。
+# EW26 实测（2026-09-16 p2 run）：哨兵是非空字符串，会绕过 runner 的"空输出判 ERROR"
+# 防线被误判 FAIL（PG9 同哨兵反而假 PASS）。transport 层归一化为空答案，全文轨迹保留证据。
+_EMPTY_SENTINELS = (
+    "(empty)",
+    "⚠️ The model produced only internal reasoning and no final answer",
+)
+
+
+def _is_empty_sentinel(answer: str) -> bool:
+    """整条交付即哨兵才算；正文引用到 "(empty)" 字样的正常答案不受影响。"""
+    a = (answer or "").strip()
+    return any(a == s or a.startswith(s) for s in _EMPTY_SENTINELS)
+
+
 def run_hermes(question, skill_id, env, timeout, skill_dir=None, _runner=subprocess.run):
     cmd = ["hermes", "chat", "-q", question, "--skills", skill_id, "-Q"]
     # 对比验证接线（2026-09-15）：EVAL_HERMES_PROVIDER / EVAL_HERMES_MODEL 可选覆盖被测
@@ -18,7 +33,11 @@ def run_hermes(question, skill_id, env, timeout, skill_dir=None, _runner=subproc
                     cwd=str(skill_dir) if skill_dir else None, env=full_env)
         output = (r.stdout or "").strip()
         answer, extracted = extract_final_answer(output)
+        sentinel = _is_empty_sentinel(answer)
+        if sentinel:
+            answer, extracted = "", False
         return {"output": output, "answer": answer, "answer_extracted": extracted,
+                "empty_sentinel": sentinel,
                 "stderr": (r.stderr or "").strip(),
                 "exit_code": r.returncode, "timed_out": False}
     except subprocess.TimeoutExpired as e:
@@ -26,6 +45,7 @@ def run_hermes(question, skill_id, env, timeout, skill_dir=None, _runner=subproc
         if isinstance(partial, bytes):
             partial = partial.decode("utf-8", "replace")
         return {"output": partial.strip(), "answer": "", "answer_extracted": False,
+                "empty_sentinel": False,
                 "stderr": "", "exit_code": None, "timed_out": True}
 
 

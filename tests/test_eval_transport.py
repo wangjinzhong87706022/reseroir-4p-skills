@@ -144,6 +144,7 @@ class TestRunHermesAnswer(unittest.TestCase):
         r = run_hermes("q", "s", {}, 60, _runner=self._fake_runner("当前水位 462.5 m，运行正常无告警。" * 2))
         self.assertEqual(r["answer"], r["output"])
         self.assertFalse(r["answer_extracted"])
+        self.assertFalse(r["empty_sentinel"])
 
     def test_answer_key_present_when_noisy(self):
         noisy = ("┊ review diff\na/x.py → b/x.py\n@@ -1 +1 @@\n+print(1)\n\n"
@@ -168,6 +169,32 @@ class TestRunHermesAnswer(unittest.TestCase):
         self.assertTrue(r["timed_out"])
         self.assertEqual(r["answer"], "")
         self.assertIn("部分输出", r["output"])
+
+    def test_empty_sentinel_becomes_empty_answer(self):
+        # EW26 实测（2026-09-16 p2 run）：step-3.7-flash 空响应重试耗尽后，hermes
+        # turn_empty_response.py 交付 "(empty)" 哨兵——非空字符串会绕过 runner 的
+        # "空输出判 ERROR" 防线被误判 FAIL。transport 层须归一化为空答案。
+        r = run_hermes("q", "s", {}, 60, _runner=self._fake_runner("(empty)"))
+        self.assertTrue(r["empty_sentinel"])
+        self.assertEqual(r["answer"], "")
+        self.assertFalse(r["answer_extracted"])
+        self.assertEqual(r["output"], "(empty)")   # 全文轨迹保留哨兵证据
+
+    def test_reasoning_only_delivery_becomes_empty_answer(self):
+        # 同类哨兵：reasoning-only 交付（turn_empty_response.py 第二分支），非真答案
+        r = run_hermes("q", "s", {}, 60, _runner=self._fake_runner(
+            "⚠️ The model produced only internal reasoning and no final answer, despite "
+            "retries. Its last reasoning, which may contain the answer:\n\n blah"))
+        self.assertTrue(r["empty_sentinel"])
+        self.assertEqual(r["answer"], "")
+
+    def test_sentinel_inside_longer_output_not_blanket_matched(self):
+        # 哨兵判定只作用于"整条交付即哨兵"；正文引用到 "(empty)" 字样的正常答案不受影响
+        out = ("分析完成：st_rsvr_r 中不存在 content 为 (empty) 的行，"
+               "水位 462.5 m 正常更新，无告警。")
+        r = run_hermes("q", "s", {}, 60, _runner=self._fake_runner(out))
+        self.assertFalse(r["empty_sentinel"])
+        self.assertEqual(r["answer"], out)
 
 
 if __name__ == "__main__":
