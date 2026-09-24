@@ -1,0 +1,47 @@
+-- =============================================================================
+-- unique_tm_proposal.sql -- (tenant_id, stcd, tm) 唯一约束提案(未执行,待 DBA review)
+--
+-- 背景:2026-09-24 审计(audit_mock_data.py 第 2 节)发现 st_rsvr_r / st_pptn_r
+-- 都没有 (tenant_id, stcd, tm) 唯一约束,于是 mock feeder 的断点逻辑一旦误判
+-- "无断点",就会反复重灌,同一小时堆多行(桃曲坡 8/13-8/25 断供即此路径:
+-- 165 行被软删 → 断点查不到 → 重灌 12 天 → 堆成重复行)。
+--
+-- 口径说明(为什么必须分开统计):
+--   MySQL 唯一索引把 NULL 视为互不相同,所以 stcd IS NULL 的行**不受**该约束
+--   管辖。审计因此拆成两项:A) stcd 非空(约束真正会拦住的人群);
+--   B) stcd 为 NULL(约束管不到,只能靠 marker 清理)。
+--
+-- 结论(2026-09-24 实测):
+--   st_rsvr_r  A) stcd 非空重复 = 0 组 / 多出 0 行  → **可以直接加**
+--              B) stcd 为 NULL 堆叠 = 多出 122,140 行左右(tenant 1 污染,
+--                 见 cleanup_tenant_pollution.py T1)——约束管不到,不受影响
+--   st_pptn_r  A) stcd 非空重复 = 14,790 组 / 多出 15,408 行,且载荷**不相同**
+--              (dr 有两种取值)→ **现在不能加**,须先与 DBA + 采集方定去重口径
+--
+-- 执行前必读:
+--   1. 本文件是提案,不随任何脚本自动执行。ALTER 前请自行在从库/低峰验证;
+--   2. 加约束前先跑一次审计确认 A 项仍为 0:
+--        python3 forecasting/data/audit_mock_data.py
+--   3. 若 ALTER 报 Duplicate entry,说明期间又产生了重复,先定位再重来,
+--      **不要**加 IGNORE——那会静默丢行,把数据事故变成不可见的丢数;
+--   4. 索引名沿用现有风格(suoyin1 之类的拼音名),这里用语义名便于后人识别。
+-- =============================================================================
+
+-- 1) st_rsvr_r:实测已具备条件(2026-09-24 审计 A 项为 0)
+--    预估影响:20 万行表加索引,低峰期约数秒;在线 DDL(pt-osc/gh-ost)与否由 DBA 定。
+-- ALTER TABLE st_rsvr_r
+--     ADD UNIQUE KEY uk_rsvr_tenant_stcd_tm (tenant_id, stcd, tm);
+
+-- 2) st_pptn_r:**暂缓**。15,408 行真实降雨重复,载荷不一致(dr 有两种),
+--    去重是数据口径决策(留哪一行),不是机械操作。须 DBA + 采集方拍板后:
+--      a. 确认重复窗口 2026-02-09 22:00 → 2026-05-29 17:00 是历史事故;
+--      b. 与采集方确认 dr 两种取值的成因,决定保留规则;
+--      c. 按规则去重并留档,再执行下面的 ALTER。
+-- ALTER TABLE st_pptn_r
+--     ADD UNIQUE KEY uk_pptn_tenant_stcd_tm (tenant_id, stcd, tm);
+
+-- 3) 验证(加完后跑,应全部为空集):
+-- SELECT tenant_id, stcd, tm, COUNT(*) c FROM st_rsvr_r
+--   WHERE stcd IS NOT NULL GROUP BY tenant_id, stcd, tm HAVING c > 1;
+-- SELECT tenant_id, stcd, tm, COUNT(*) c FROM st_pptn_r
+--   WHERE stcd IS NOT NULL GROUP BY tenant_id, stcd, tm HAVING c > 1;

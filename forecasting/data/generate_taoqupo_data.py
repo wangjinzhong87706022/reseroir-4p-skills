@@ -287,6 +287,20 @@ def main():
                       f"AND deleted=0 AND creator='MOCK'",
         )
         if max_tm is None:
+            # 2026-09-24:mock 行被软删除(deleted=1)时,上面的断点查询(要求
+            # deleted=0)查不到 → 静默回退"初始生成 48h" → 本库 st_rsvr_r 无
+            # (tenant_id,stcd,tm) 唯一约束,同窗口重灌即堆重复行。
+            # 这正是桃曲坡 8/13-8/25 断供 12 天的根因:先被软删,再反复重灌。
+            # 有软删痕迹时不再猜,直接退出让人工处理;确无任何 mock 行才初始生成。
+            soft = unpack(execute_query(
+                f"SELECT COUNT(*) AS n FROM st_rsvr_r WHERE tenant_id={TENANT} "
+                f"AND stcd='{RSVR_MASTER}' AND deleted=1 AND creator='MOCK'"))
+            soft_n = int(soft[0]["n"]) if soft and soft[0].get("n") is not None else 0
+            if soft_n:
+                print(f"[roll][ERROR] 发现 {soft_n} 行 MOCK 数据被软删除(deleted=1),"
+                      f"断点不可信——拒绝静默重灌(会堆重复行)。"
+                      f"请人工核实后运行 --clean 重建,或恢复这些行。")
+                sys.exit(2)
             print("[roll] 无断点,初始生成最近 48h")
             start = NOW - timedelta(hours=47)
         elif gap is not None and gap <= 0:
